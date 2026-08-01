@@ -1064,14 +1064,6 @@ function AddSitterPanel({
             required
           />
 
-          <div style={styles.verificationNote}>
-            <Mail size={16} />
-            <span>
-              Supabase will send a confirmation link to this address. The
-              sitter cannot sign in until the email is confirmed.
-            </span>
-          </div>
-
           <label style={styles.createField}>
             <span style={styles.createFieldLabel}>Default Password</span>
 
@@ -2236,21 +2228,6 @@ const styles = {
   createFieldNote: {
     color: BRAND.muted,
     fontSize: 11,
-    lineHeight: 1.45,
-  },
-
-  verificationNote: {
-    marginTop: -5,
-    padding: "10px 12px",
-    borderRadius: 9,
-    border: "1px solid #F1CBD5",
-    background: "#FFF5F7",
-    color: BRAND.brown,
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 9,
-    fontSize: 12,
-    fontWeight: 700,
     lineHeight: 1.45,
   },
 
