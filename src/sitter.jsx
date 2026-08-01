@@ -1003,7 +1003,7 @@ function AddSitterPanel({
               Add Pet Sitter
             </h2>
             <p style={styles.createPanelSubtitle}>
-              Create an Auth account and send email verification to an approved sitter.
+              Create a verified account for an approved pet sitter and send an email confirmation link.
             </p>
           </div>
 
@@ -1081,8 +1081,7 @@ function AddSitterPanel({
             </div>
 
             <span style={styles.createFieldNote}>
-              The sitter will use this temporary password after confirming the
-              verification email. They should change it after the first login.
+              This temporary password will be used after email verification. The pet sitter must change it upon first login.
             </span>
           </label>
 
