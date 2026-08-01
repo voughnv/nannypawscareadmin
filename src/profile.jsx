@@ -1,0 +1,549 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  User,
+  Save,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { supabase } from "./lib/supabase";
+
+const BRAND = {
+  brown: "#3A1E14",
+  pink: "#D94368",
+  softPink: "#FDEBED",
+  border: "#EEE2E0",
+  text: "#2E1B16",
+  muted: "#6F625F",
+};
+
+export default function ProfilePage() {
+  const navigate = useNavigate();
+
+  const storedAdmin = JSON.parse(localStorage.getItem("admin")) || null;
+
+
+  const [username, setUsername] = useState(
+    storedAdmin?.admin_username || "Administrator"
+  );
+  const [email] = useState(storedAdmin?.admin_email || "admin@nannypaws.com");
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState("");
+
+  useEffect(() => {
+    if (!storedAdmin?.admin_id && !storedAdmin?.admin_email) {
+      navigate("/login");
+    }
+  }, [navigate]);
+
+  function showMessage(text, type = "success") {
+    setMessage(text);
+    setMessageType(type);
+
+    setTimeout(() => {
+      setMessage("");
+      setMessageType("");
+    }, 3500);
+  }
+
+  function validatePassword(password) {
+    if (!password.trim()) return "New password is required.";
+    if (/\s/.test(password)) return "Password must not contain spaces.";
+    if (password.length < 8) return "Password must be at least 8 characters.";
+    if (!/[A-Z]/.test(password)) return "Password must include at least one uppercase letter.";
+    if (!/[a-z]/.test(password)) return "Password must include at least one lowercase letter.";
+    if (!/[0-9]/.test(password)) return "Password must include at least one number.";
+    if (!/[^A-Za-z0-9]/.test(password)) return "Password must include at least one special character.";
+    return "";
+  }
+
+  async function getFreshAdmin() {
+    const { data, error } = await supabase
+      .from("ADMIN")
+      .select("*")
+      .eq("admin_email", email)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data;
+  }
+
+  async function handleSave() {
+    const cleanUsername = username.trim();
+
+    if (!cleanUsername) {
+      showMessage("Username is required.", "error");
+      return;
+    }
+
+    const wantsPasswordChange =
+      currentPassword.trim() || newPassword.trim() || confirmPassword.trim();
+
+    if (wantsPasswordChange) {
+      if (!currentPassword.trim()) {
+        showMessage("Current password is required.", "error");
+        return;
+      }
+
+      const passwordError = validatePassword(newPassword);
+      if (passwordError) {
+        showMessage(passwordError, "error");
+        return;
+      }
+
+      if (!confirmPassword.trim()) {
+        showMessage("Confirm password is required.", "error");
+        return;
+      }
+
+      if (newPassword !== confirmPassword) {
+        showMessage("New password and confirm password do not match.", "error");
+        return;
+      }
+
+      if (currentPassword === newPassword) {
+        showMessage("New password must be different from the current password.", "error");
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+
+      const freshAdmin = await getFreshAdmin();
+
+      if (!freshAdmin) {
+        showMessage("Admin account was not found in the ADMIN table.", "error");
+        return;
+      }
+
+      if (wantsPasswordChange && currentPassword !== freshAdmin.admin_password) {
+        showMessage("Current password is incorrect.", "error");
+        return;
+      }
+
+      const updateData = {
+        admin_username: cleanUsername,
+      };
+
+      if (wantsPasswordChange) {
+        updateData.admin_password = newPassword;
+      }
+
+      const { error: updateError } = await supabase
+        .from("ADMIN")
+        .update(updateData)
+        .eq("admin_email", email);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      const data = await getFreshAdmin();
+
+      localStorage.setItem("admin", JSON.stringify(data));
+      window.dispatchEvent(new Event("admin-profile-updated"));
+      setUsername(data.admin_username || cleanUsername);
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      showMessage("Profile updated successfully.", "success");
+    } catch (error) {
+      console.error("Profile update error:", error);
+      showMessage(error.message || "Failed to update profile.", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.title}>Profile</h1>
+            <p style={styles.subtitle}>Manage administrator login credentials.</p>
+          </div>
+
+          <div style={styles.breadcrumb}>
+            <span>Dashboard</span>
+            <span style={styles.chevron}>›</span>
+            <span>Profile</span>
+          </div>
+        </header>
+
+        {message && (
+          <div
+            style={
+              messageType === "error"
+                ? { ...styles.alert, ...styles.alertError }
+                : { ...styles.alert, ...styles.alertSuccess }
+            }
+          >
+            {message}
+          </div>
+        )}
+
+        <div style={styles.grid}>
+          <section style={styles.card}>
+            <SectionTitle
+              icon={<User size={22} />}
+              title="Administrator Profile"
+              desc="Only the username and password can be changed."
+            />
+
+            <div style={styles.formGrid}>
+              <Input
+                label="Username"
+                icon={<User size={18} />}
+                value={username}
+                setValue={setUsername}
+              />
+
+              <Input
+                label="Email Address"
+                icon={<Mail size={18} />}
+                value={email}
+                disabled
+                note="Email address cannot be changed."
+              />
+            </div>
+
+            <div style={styles.divider} />
+
+            <SectionTitle
+              icon={<Lock size={22} />}
+              title="Security"
+              desc="Leave password fields empty if you only want to update username."
+            />
+
+            <div style={styles.formGrid}>
+              <PasswordInput
+                label="Current Password"
+                value={currentPassword}
+                setValue={setCurrentPassword}
+                show={showCurrentPassword}
+                setShow={setShowCurrentPassword}
+              />
+
+              <div>
+                <PasswordInput
+                  label="New Password"
+                  value={newPassword}
+                  setValue={setNewPassword}
+                  show={showNewPassword}
+                  setShow={setShowNewPassword}
+                />
+                <p style={styles.fieldNote}>
+                  Must include 8 characters, uppercase, lowercase, number, and special character.
+                </p>
+              </div>
+
+              <PasswordInput
+                label="Confirm Password"
+                value={confirmPassword}
+                setValue={setConfirmPassword}
+                show={showConfirmPassword}
+                setShow={setShowConfirmPassword}
+              />
+            </div>
+
+            <button
+              onClick={handleSave}
+              style={{
+                ...styles.saveBtn,
+                opacity: loading ? 0.7 : 1,
+                cursor: loading ? "not-allowed" : "pointer",
+              }}
+              disabled={loading}
+            >
+              <Save size={18} />
+              {loading ? "Saving..." : "Save Changes"}
+            </button>
+          </section>
+
+
+        </div>
+    </>
+  );
+}
+
+function SectionTitle({ icon, title, desc }) {
+  return (
+    <div style={styles.sectionTitle}>
+      <div style={styles.sectionIcon}>{icon}</div>
+      <div>
+        <h3 style={styles.sectionHeading}>{title}</h3>
+        <p style={styles.sectionDesc}>{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function Input({ label, value, setValue, icon, disabled, type = "text", note }) {
+  return (
+    <div style={styles.inputGroup}>
+      <label style={styles.label}>{label}</label>
+
+      <div
+        style={
+          disabled
+            ? { ...styles.inputWrapper, ...styles.disabledWrapper }
+            : styles.inputWrapper
+        }
+      >
+        {icon}
+        <input
+          disabled={disabled}
+          type={type}
+          value={value}
+          onChange={(e) => setValue && setValue(e.target.value)}
+          style={styles.input}
+        />
+      </div>
+
+      {note && <p style={styles.fieldNote}>{note}</p>}
+    </div>
+  );
+}
+
+function PasswordInput({ label, value, setValue, show, setShow }) {
+  return (
+    <div style={styles.inputGroup}>
+      <label style={styles.label}>{label}</label>
+
+      <div style={styles.inputWrapper}>
+        <Lock size={18} />
+        <input
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          style={styles.input}
+        />
+        <button
+          type="button"
+          onClick={() => setShow(!show)}
+          style={styles.eyeBtn}
+        >
+          {show ? <EyeOff size={18} /> : <Eye size={18} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 24,
+  },
+
+  title: {
+    margin: 0,
+    color: BRAND.brown,
+    fontSize: 34,
+    fontWeight: 900,
+    letterSpacing: "-1px",
+  },
+
+  subtitle: {
+    margin: "8px 0 0",
+    color: "#5D5351",
+    fontSize: 15,
+  },
+
+  breadcrumb: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    color: BRAND.brown,
+    fontSize: 14,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  },
+
+  chevron: {
+    color: "#9A8C89",
+    fontSize: 22,
+  },
+
+  alert: {
+    marginBottom: 18,
+    borderRadius: 12,
+    padding: "14px 16px",
+    fontSize: 14,
+    fontWeight: 800,
+  },
+
+  alertSuccess: {
+    background: "#DDF4E7",
+    color: "#0B8F45",
+    border: "1px solid #B9E8CE",
+  },
+
+  alertError: {
+    background: "#FFE5E5",
+    color: "#C53030",
+    border: "1px solid #FFC7C7",
+  },
+
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gap: 24,
+    alignItems: "start",
+  },
+
+  card: {
+    background: "#fff",
+    border: `1px solid ${BRAND.border}`,
+    borderRadius: 16,
+    boxShadow: "0 8px 18px rgba(51,26,18,0.07)",
+    padding: 24,
+  },
+
+  sectionTitle: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 22,
+  },
+
+  sectionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    background: "#F9DCE5",
+    color: BRAND.pink,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+
+  sectionHeading: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 900,
+    color: BRAND.brown,
+  },
+
+  sectionDesc: {
+    margin: "4px 0 0",
+    fontSize: 13,
+    color: BRAND.muted,
+    lineHeight: 1.4,
+  },
+
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 18,
+  },
+
+  inputGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    marginBottom: 14,
+  },
+
+  label: {
+    fontSize: 13,
+    fontWeight: 800,
+    color: BRAND.brown,
+  },
+
+  inputWrapper: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    padding: "0 14px",
+    height: 46,
+    background: "#fff",
+    color: "#6C5B56",
+  },
+
+  disabledWrapper: {
+    background: "#F8F3F2",
+    color: "#A99B98",
+  },
+
+  input: {
+    border: "none",
+    outline: "none",
+    flex: 1,
+    fontSize: 14,
+    color: BRAND.text,
+    background: "transparent",
+    minWidth: 0,
+  },
+
+  fieldNote: {
+    margin: 0,
+    fontSize: 12,
+    color: BRAND.muted,
+  },
+
+  eyeBtn: {
+    border: "none",
+    background: "transparent",
+    color: BRAND.muted,
+    cursor: "pointer",
+    padding: 0,
+    display: "flex",
+    alignItems: "center",
+  },
+
+  divider: {
+    height: 1,
+    background: BRAND.border,
+    margin: "14px 0 24px",
+  },
+
+  saveBtn: {
+    marginTop: 10,
+    height: 46,
+    border: "none",
+    background: BRAND.pink,
+    color: "#fff",
+    padding: "0 22px",
+    borderRadius: 7,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 15,
+    fontWeight: 800,
+  },
+
+  noteBox: {
+    background: "#FFFCFB",
+    border: `1px solid ${BRAND.border}`,
+    borderRadius: 12,
+    padding: 16,
+  },
+
+  noteText: {
+    margin: "0 0 10px",
+    fontSize: 13,
+    color: BRAND.muted,
+    lineHeight: 1.5,
+  },
+};

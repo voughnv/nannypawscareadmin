@@ -1,0 +1,1134 @@
+import { useEffect, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  Clock3,
+  CheckCircle2,
+  ClipboardCheck,
+  Search,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  RefreshCw,
+  AlertCircle,
+  XCircle,
+} from "lucide-react";
+import { supabase } from "../lib/supabase";
+import BookingDetailsModal from "./BookingDetailsModal";
+import { useConfirmation } from "../context/ConfirmationProvider";
+
+const BRAND = {
+  brown: "#3A1E14",
+  pink: "#D94368",
+  text: "#2E1B16",
+  muted: "#6F625F",
+};
+
+const ROWS_PER_PAGE = 6;
+
+const ALLOWED_STATUS_TRANSITIONS = {
+  Pending: ["Confirmed", "Rejected"],
+  Confirmed: ["Completed"],
+  Completed: [],
+  Rejected: [],
+  "Not Set": ["Pending"],
+};
+
+const BOOKING_FIELDS =
+  "booking_id, booking_date, booking_time, service_type, start_date, end_date, booking_status";
+
+export default function BookingsPage() {
+  const requestConfirmation = useConfirmation();
+
+  const [bookings, setBookings] = useState([]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("All Status");
+  const [showDateFilter, setShowDateFilter] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+
+  const [loading, setLoading] = useState(true);
+  const [updatingId, setUpdatingId] = useState(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetchBookings();
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, status, dateFrom, dateTo]);
+
+  async function fetchBookings() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const { data, error: fetchError } = await supabase
+        .from("BOOKING")
+        .select(BOOKING_FIELDS)
+        .order("booking_id", { ascending: false });
+
+      if (fetchError) throw fetchError;
+
+      setBookings(data || []);
+    } catch (fetchError) {
+      console.error("Unable to load bookings:", fetchError);
+      setError(
+        fetchError?.message ||
+          "Unable to load bookings. Please check your Supabase connection and table policies."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateBookingStatus(booking, newStatus) {
+    const currentStatus = normalizeStatus(booking.booking_status);
+    const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[currentStatus] || [
+      "Pending",
+    ];
+
+    if (!allowedStatuses.includes(newStatus)) {
+      setError(
+        `A ${currentStatus.toLowerCase()} booking cannot be changed to ${newStatus.toLowerCase()}.`
+      );
+      return;
+    }
+
+    setUpdatingId(booking.booking_id);
+    setError("");
+
+    try {
+      const { data, error: updateError } = await supabase
+        .from("BOOKING")
+        .update({ booking_status: newStatus })
+        .eq("booking_id", booking.booking_id)
+        .select(BOOKING_FIELDS)
+        .single();
+
+      if (updateError) throw updateError;
+
+      setBookings((previous) =>
+        previous.map((item) =>
+          item.booking_id === booking.booking_id ? data : item
+        )
+      );
+
+      setSelectedBooking((previous) =>
+        previous?.booking_id === booking.booking_id ? data : previous
+      );
+
+    } catch (updateError) {
+      console.error("Unable to update booking:", updateError);
+      setError(
+        updateError?.message ||
+          "Unable to update the booking status. Please try again."
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  async function approveBooking(booking) {
+    await updateBookingStatus(booking, "Confirmed");
+  }
+
+  async function rejectBooking(booking) {
+    const confirmed = await requestConfirmation({
+      title: "Reject booking?",
+      message: `Are you sure you want to reject booking ${formatBookingId(
+        booking.booking_id
+      )}? This status cannot be changed afterward.`,
+      confirmText: "Reject Booking",
+      variant: "danger",
+    });
+
+    if (!confirmed) return;
+    await updateBookingStatus(booking, "Rejected");
+  }
+
+  async function completeBooking(booking) {
+    const confirmed = await requestConfirmation({
+      title: "Complete booking?",
+      message: `Mark booking ${formatBookingId(
+        booking.booking_id
+      )} as completed? This status cannot be changed afterward.`,
+      confirmText: "Mark as Completed",
+      variant: "info",
+    });
+
+    if (!confirmed) return;
+    await updateBookingStatus(booking, "Completed");
+  }
+
+  async function setPendingBooking(booking) {
+    await updateBookingStatus(booking, "Pending");
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setStatus("All Status");
+    setDateFrom("");
+    setDateTo("");
+    setCurrentPage(1);
+  }
+
+  const normalizedBookings = useMemo(() => {
+    return bookings.map((booking) => ({
+      ...booking,
+      normalizedStatus: normalizeStatus(booking.booking_status),
+    }));
+  }, [bookings]);
+
+  const filteredBookings = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+
+    return normalizedBookings.filter((booking) => {
+      const searchableValues = [
+        booking.booking_id,
+        formatBookingId(booking.booking_id),
+        booking.service_type,
+        booking.booking_status,
+        booking.booking_date,
+        booking.booking_time,
+        booking.start_date,
+        booking.end_date,
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase());
+
+      const matchesSearch =
+        keyword.length === 0 ||
+        searchableValues.some((value) => value.includes(keyword));
+
+      const matchesStatus =
+        status === "All Status" || booking.normalizedStatus === status;
+
+      const filterDate =
+        booking.booking_date || booking.start_date || "";
+
+      const matchesDateFrom = !dateFrom || (filterDate && filterDate >= dateFrom);
+      const matchesDateTo = !dateTo || (filterDate && filterDate <= dateTo);
+
+      return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
+    });
+  }, [normalizedBookings, search, status, dateFrom, dateTo]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredBookings.length / ROWS_PER_PAGE)
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
+
+  const paginatedBookings = useMemo(() => {
+    const start = (currentPage - 1) * ROWS_PER_PAGE;
+    return filteredBookings.slice(start, start + ROWS_PER_PAGE);
+  }, [filteredBookings, currentPage]);
+
+  const stats = useMemo(() => {
+    return {
+      total: bookings.length,
+      pending: normalizedBookings.filter(
+        (booking) => booking.normalizedStatus === "Pending"
+      ).length,
+      confirmed: normalizedBookings.filter(
+        (booking) => booking.normalizedStatus === "Confirmed"
+      ).length,
+      completed: normalizedBookings.filter(
+        (booking) => booking.normalizedStatus === "Completed"
+      ).length,
+      rejected: normalizedBookings.filter(
+        (booking) => booking.normalizedStatus === "Rejected"
+      ).length,
+    };
+  }, [bookings, normalizedBookings]);
+
+  const firstVisible =
+    filteredBookings.length === 0
+      ? 0
+      : (currentPage - 1) * ROWS_PER_PAGE + 1;
+
+  const lastVisible = Math.min(
+    currentPage * ROWS_PER_PAGE,
+    filteredBookings.length
+  );
+
+  return (
+    <>
+        <header style={styles.header}>
+          <div>
+            <h1 style={styles.title}>Bookings</h1>
+            <p style={styles.subtitle}>
+              Manage and monitor all pet sitting bookings.
+            </p>
+          </div>
+
+          <div style={styles.breadcrumb}>
+            <span>Dashboard</span>
+            <span style={styles.chevron}>›</span>
+            <span>Bookings</span>
+          </div>
+        </header>
+
+        <section style={styles.statsGrid}>
+          <StatCard
+            icon={<CalendarDays size={30} />}
+            iconStyle={styles.statPink}
+            title="Total Bookings"
+            value={stats.total}
+            desc="All booking records"
+          />
+          <StatCard
+            icon={<Clock3 size={30} />}
+            iconStyle={styles.statOrange}
+            title="Pending"
+            value={stats.pending}
+            desc="Awaiting confirmation"
+          />
+          <StatCard
+            icon={<CheckCircle2 size={32} />}
+            iconStyle={styles.statGreen}
+            title="Confirmed"
+            value={stats.confirmed}
+            desc="Confirmed bookings"
+          />
+          <StatCard
+            icon={<ClipboardCheck size={30} />}
+            iconStyle={styles.statBlue}
+            title="Completed"
+            value={stats.completed}
+            desc="Completed bookings"
+          />
+          <StatCard
+            icon={<XCircle size={30} />}
+            iconStyle={styles.statRed}
+            title="Rejected"
+            value={stats.rejected}
+            desc="Rejected bookings"
+          />
+        </section>
+
+        {error && (
+          <div style={styles.errorBox}>
+            <AlertCircle size={20} />
+            <span style={styles.errorText}>{error}</span>
+            <button style={styles.errorClose} onClick={() => setError("")}>
+              <X size={18} />
+            </button>
+          </div>
+        )}
+
+        <section style={styles.tableCard}>
+          <div style={styles.filters}>
+            <div style={styles.leftFilters}>
+              <div style={styles.searchBox}>
+                <Search size={22} color="#5E4B45" />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search booking ID or service"
+                  style={styles.searchInput}
+                />
+              </div>
+
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                style={styles.select}
+              >
+                <option>All Status</option>
+                <option>Pending</option>
+                <option>Confirmed</option>
+                <option>Completed</option>
+                <option>Rejected</option>
+              </select>
+            </div>
+
+            <div style={styles.filterActions}>
+              <button
+                style={styles.refreshBtn}
+                onClick={fetchBookings}
+                disabled={loading}
+                title="Refresh bookings"
+              >
+                <RefreshCw size={19} />
+                <span>{loading ? "Loading..." : "Refresh"}</span>
+              </button>
+
+              <button
+                style={styles.dateBtn}
+                onClick={() => setShowDateFilter((previous) => !previous)}
+              >
+                <Calendar size={20} />
+                <span>
+                  {showDateFilter ? "Hide date range" : "Select date range"}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {showDateFilter && (
+            <div style={styles.datePanel}>
+              <label style={styles.dateLabel}>
+                From
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(event) => setDateFrom(event.target.value)}
+                  style={styles.dateInput}
+                />
+              </label>
+
+              <label style={styles.dateLabel}>
+                To
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || undefined}
+                  onChange={(event) => setDateTo(event.target.value)}
+                  style={styles.dateInput}
+                />
+              </label>
+
+              <button style={styles.clearBtn} onClick={clearFilters}>
+                Clear filters
+              </button>
+            </div>
+          )}
+
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr style={styles.tableHeadRow}>
+                  <Th>No.</Th>
+                  <Th>Booking Date</Th>
+                  <Th>Booking Time</Th>
+                  <Th>Service Type</Th>
+                  <Th>Start Date</Th>
+                  <Th>End Date</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="7" style={styles.emptyCell}>
+                      <div style={styles.loadingContent}>
+                        <RefreshCw size={22} />
+                        <span>Loading booking records...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : paginatedBookings.length > 0 ? (
+                  paginatedBookings.map((booking, index) => (
+                    <tr
+                      key={booking.booking_id}
+                      style={{ ...styles.tableRow, cursor: "pointer" }}
+                      onClick={() => setSelectedBooking(booking)}
+                    >
+                      <td style={styles.numberCell}>
+                        {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatDate(booking.booking_date)}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatTime(booking.booking_time)}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        <strong style={styles.primaryText}>
+                          {booking.service_type || "Not specified"}
+                        </strong>
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatDate(booking.start_date)}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatDate(booking.end_date)}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        <StatusBadge status={booking.booking_status} />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="7" style={styles.emptyCell}>
+                      No bookings found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div style={styles.pagination}>
+            <p style={styles.pageText}>
+              Showing {firstVisible} to {lastVisible} of{" "}
+              {filteredBookings.length} bookings
+            </p>
+
+            <div style={styles.pages}>
+              <button
+                style={{
+                  ...styles.pageBtn,
+                  ...(currentPage === 1 ? styles.disabledBtn : {}),
+                }}
+                onClick={() =>
+                  setCurrentPage((page) => Math.max(page - 1, 1))
+                }
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              {getVisiblePages(currentPage, totalPages).map((page) =>
+                page === "ellipsis-left" || page === "ellipsis-right" ? (
+                  <span key={page} style={styles.ellipsis}>
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    style={
+                      currentPage === page
+                        ? { ...styles.pageBtn, ...styles.activePage }
+                        : styles.pageBtn
+                    }
+                  >
+                    {page}
+                  </button>
+                )
+              )}
+
+              <button
+                style={{
+                  ...styles.pageBtn,
+                  ...(currentPage === totalPages ? styles.disabledBtn : {}),
+                }}
+                onClick={() =>
+                  setCurrentPage((page) => Math.min(page + 1, totalPages))
+                }
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        </section>
+
+      {selectedBooking && (
+        <BookingDetailsModal
+          booking={selectedBooking}
+          updating={updatingId === selectedBooking.booking_id}
+          onClose={() => setSelectedBooking(null)}
+          onPending={setPendingBooking}
+          onApprove={approveBooking}
+          onReject={rejectBooking}
+          onComplete={completeBooking}
+        />
+      )}
+    </>
+  );
+}
+
+function StatCard({ icon, iconStyle, title, value, desc }) {
+  return (
+    <div style={styles.statCard}>
+      <div style={{ ...styles.statIcon, ...iconStyle }}>{icon}</div>
+      <div>
+        <p style={styles.statTitle}>{title}</p>
+        <h2 style={styles.statValue}>{value}</h2>
+        <p style={styles.statDesc}>{desc}</p>
+      </div>
+    </div>
+  );
+}
+
+function Th({ children }) {
+  return <th style={styles.th}>{children}</th>;
+}
+
+function StatusBadge({ status }) {
+  const normalizedStatus = normalizeStatus(status);
+
+  const badgeStyle =
+    normalizedStatus === "Pending"
+      ? styles.statusPending
+      : normalizedStatus === "Confirmed"
+      ? styles.statusConfirmed
+      : normalizedStatus === "Completed"
+      ? styles.statusCompleted
+      : normalizedStatus === "Rejected"
+      ? styles.statusRejected
+      : styles.statusDefault;
+
+  return (
+    <span style={{ ...styles.badge, ...badgeStyle }}>
+      {normalizedStatus || "Not set"}
+    </span>
+  );
+}
+
+function normalizeStatus(status) {
+  if (!status) return "Not Set";
+
+  const cleaned = String(status).trim().toLowerCase();
+
+  if (cleaned === "pending") return "Pending";
+  if (cleaned === "confirmed" || cleaned === "approved") return "Confirmed";
+  if (cleaned === "completed" || cleaned === "complete") return "Completed";
+  if (cleaned === "rejected" || cleaned === "cancelled" || cleaned === "canceled")
+    return "Rejected";
+
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function formatBookingId(id) {
+  if (id === null || id === undefined || id === "") return "N/A";
+  return `BK-${String(id).padStart(4, "0")}`;
+}
+
+function formatDate(dateValue) {
+  if (!dateValue) return "Not set";
+
+  const date = new Date(`${dateValue}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return String(dateValue);
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatTime(timeValue) {
+  if (!timeValue) return "Not set";
+
+  const parts = String(timeValue).split(":");
+  const hours = Number(parts[0]);
+  const minutes = Number(parts[1] || 0);
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return String(timeValue);
+
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+
+  return new Intl.DateTimeFormat("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+function formatDateTime(dateTimeValue) {
+  if (!dateTimeValue) return "Not set";
+
+  const date = new Date(dateTimeValue);
+
+  if (Number.isNaN(date.getTime())) return String(dateTimeValue);
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+function getVisiblePages(currentPage, totalPages) {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  if (currentPage <= 4) {
+    return [1, 2, 3, 4, 5, "ellipsis-right", totalPages];
+  }
+
+  if (currentPage >= totalPages - 3) {
+    return [
+      1,
+      "ellipsis-left",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+
+  return [
+    1,
+    "ellipsis-left",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "ellipsis-right",
+    totalPages,
+  ];
+}
+
+const styles = {
+  header: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 24,
+  },
+
+  title: {
+    margin: 0,
+    color: BRAND.brown,
+    fontSize: 34,
+    fontWeight: 900,
+    letterSpacing: "-1px",
+  },
+
+  subtitle: {
+    margin: "8px 0 0",
+    color: "#5D5351",
+    fontSize: 15,
+  },
+
+  breadcrumb: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    color: BRAND.brown,
+    fontSize: 14,
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  },
+
+  chevron: {
+    color: "#9A8C89",
+    fontSize: 22,
+  },
+
+  statsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: 18,
+    marginBottom: 24,
+  },
+
+  statCard: {
+    height: 118,
+    background: "#fff",
+    borderRadius: 16,
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 8px 16px rgba(51,26,18,0.07)",
+    padding: 18,
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    minWidth: 0,
+    boxSizing: "border-box",
+  },
+
+  statIcon: {
+    width: 64,
+    height: 64,
+    minWidth: 64,
+    borderRadius: 13,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  statPink: {
+    background: "#F9DCE5",
+    color: "#D94D72",
+  },
+
+  statOrange: {
+    background: "#FCEBDD",
+    color: "#F16C08",
+  },
+
+  statGreen: {
+    background: "#DDF3E7",
+    color: "#0D9B4A",
+  },
+
+  statBlue: {
+    background: "#E4ECFF",
+    color: "#4D80DC",
+  },
+
+  statRed: {
+    background: "#F8D8DB",
+    color: "#DF101D",
+  },
+
+  statTitle: {
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 800,
+    color: "#1F1714",
+  },
+
+  statValue: {
+    margin: "4px 0 2px",
+    fontSize: 28,
+    fontWeight: 900,
+    color: BRAND.brown,
+  },
+
+  statDesc: {
+    margin: 0,
+    fontSize: 12,
+    color: "#6D5F5B",
+  },
+
+  errorBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 14px",
+    marginBottom: 18,
+    borderRadius: 10,
+    border: "1px solid #F1BFC5",
+    background: "#FFF0F2",
+    color: "#B42335",
+  },
+
+  errorText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: 700,
+  },
+
+  errorClose: {
+    border: "none",
+    background: "transparent",
+    color: "#B42335",
+    cursor: "pointer",
+    display: "flex",
+    padding: 0,
+  },
+
+  tableCard: {
+    width: "100%",
+    background: "#fff",
+    borderRadius: 16,
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 8px 18px rgba(51,26,18,0.07)",
+    padding: "22px 14px 16px",
+    boxSizing: "border-box",
+  },
+
+  filters: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0 12px 22px",
+    gap: 16,
+    flexWrap: "wrap",
+  },
+
+  leftFilters: {
+    display: "flex",
+    alignItems: "center",
+    gap: 16,
+    flex: 1,
+    minWidth: 430,
+  },
+
+  searchBox: {
+    flex: 1,
+    maxWidth: 460,
+    minWidth: 260,
+    height: 48,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    display: "flex",
+    alignItems: "center",
+    padding: "0 14px",
+    background: "#fff",
+    boxSizing: "border-box",
+  },
+
+  searchInput: {
+    flex: 1,
+    border: "none",
+    outline: "none",
+    marginLeft: 12,
+    fontSize: 14,
+    color: BRAND.text,
+    background: "transparent",
+    minWidth: 0,
+  },
+
+  select: {
+    width: 180,
+    height: 48,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    background: "#fff",
+    padding: "0 14px",
+    fontSize: 14,
+    fontWeight: 700,
+    color: BRAND.text,
+    outline: "none",
+  },
+
+  filterActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  refreshBtn: {
+    height: 48,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    background: "#fff",
+    color: BRAND.brown,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 9,
+    padding: "0 14px",
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+
+  dateBtn: {
+    width: 210,
+    height: 48,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    background: "#fff",
+    color: "#6C5B56",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    padding: "0 16px",
+    fontSize: 14,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+
+  datePanel: {
+    margin: "0 12px 18px",
+    padding: 14,
+    border: "1px solid #EEE2DF",
+    borderRadius: 10,
+    background: "#FFFBFA",
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+
+  dateLabel: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    fontWeight: 800,
+    color: BRAND.brown,
+  },
+
+  dateInput: {
+    height: 38,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    padding: "0 10px",
+    color: BRAND.text,
+    outline: "none",
+  },
+
+  clearBtn: {
+    height: 38,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    background: "#fff",
+    color: BRAND.brown,
+    padding: "0 14px",
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  tableWrapper: {
+    width: "100%",
+    overflowX: "auto",
+  },
+
+  table: {
+    width: "100%",
+    minWidth: 980,
+    borderCollapse: "collapse",
+  },
+
+  tableHeadRow: {
+    background: "#FFFBFA",
+    borderTop: "1px solid #EEE2DF",
+    borderBottom: "1px solid #E7DAD7",
+  },
+
+  th: {
+    textAlign: "left",
+    padding: "14px",
+    color: "#16100E",
+    fontSize: 13,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+
+  tableRow: {
+    borderBottom: "1px solid #E7DAD7",
+  },
+
+  numberCell: {
+    padding: 14,
+    color: BRAND.muted,
+    fontSize: 13,
+    fontWeight: 800,
+    whiteSpace: "nowrap",
+    textAlign: "center",
+  },
+
+  normalCell: {
+    padding: 14,
+    fontSize: 13,
+    color: "#1F1714",
+    whiteSpace: "nowrap",
+  },
+
+  primaryText: {
+    display: "block",
+    fontSize: 13,
+    color: "#1B1412",
+    fontWeight: 800,
+  },
+
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 78,
+    height: 26,
+    padding: "0 9px",
+    borderRadius: 7,
+    fontSize: 12,
+    fontWeight: 800,
+    boxSizing: "border-box",
+  },
+
+  statusPending: {
+    background: "#FDEADB",
+    color: "#F2650C",
+  },
+
+  statusConfirmed: {
+    background: "#DDF4E7",
+    color: "#0B8F45",
+  },
+
+  statusCompleted: {
+    background: "#E6EDFF",
+    color: "#0C4BB3",
+  },
+
+  statusRejected: {
+    background: "#F8D8DB",
+    color: "#DF101D",
+  },
+
+  statusDefault: {
+    background: "#EEE9E7",
+    color: "#645854",
+  },
+
+  emptyCell: {
+    padding: 32,
+    textAlign: "center",
+    color: BRAND.muted,
+    fontSize: 14,
+    fontWeight: 700,
+  },
+
+  loadingContent: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  pagination: {
+    padding: "14px 12px 0",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 16,
+  },
+
+  pageText: {
+    margin: 0,
+    fontSize: 13,
+    color: "#1F1714",
+  },
+
+  pages: {
+    display: "flex",
+    gap: 6,
+    alignItems: "center",
+  },
+
+  pageBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 7,
+    border: "1px solid #E6D9D7",
+    background: "#fff",
+    color: "#1F1714",
+    fontSize: 13,
+    fontWeight: 700,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  activePage: {
+    background: BRAND.pink,
+    color: "#fff",
+    borderColor: BRAND.pink,
+  },
+
+  disabledBtn: {
+    opacity: 0.45,
+    cursor: "not-allowed",
+  },
+
+  ellipsis: {
+    width: 24,
+    textAlign: "center",
+    color: BRAND.muted,
+    fontWeight: 800,
+  },
+
+};
