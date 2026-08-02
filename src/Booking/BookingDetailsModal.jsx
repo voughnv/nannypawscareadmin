@@ -79,11 +79,6 @@ export default function BookingDetailsModal({
           />
 
           <DetailItem
-            label="Start Date"
-            value={formatDate(booking.start_date)}
-          />
-
-          <DetailItem
             label="End Date"
             value={formatDate(booking.end_date)}
           />
@@ -385,8 +380,8 @@ function getOwnerName(booking) {
   }`.trim();
 
   return (
-    booking.ownerName ||
     fullName ||
+    booking.ownerName ||
     owner.po_username ||
     owner.username ||
     (booking.po_id
@@ -429,14 +424,24 @@ function formatBookingId(id) {
 function formatDate(dateValue) {
   if (!dateValue) return "Not set";
 
-  const text = String(dateValue);
-  const date = text.includes("T")
-    ? new Date(text)
-    : new Date(`${text}T00:00:00`);
+  const text = String(dateValue).trim();
 
-  if (Number.isNaN(date.getTime())) return text;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    const date = new Date(`${text}T00:00:00`);
+
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+    }).format(date);
+  }
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) return text.slice(0, 10);
 
   return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
     month: "short",
     day: "2-digit",
     year: "numeric",

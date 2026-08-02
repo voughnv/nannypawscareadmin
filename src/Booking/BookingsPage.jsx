@@ -89,7 +89,7 @@ export default function BookingsPage() {
         ownerIds.length > 0
           ? supabase
               .from("PET_OWNER")
-              .select("po_id, po_fname, po_lname, po_username, po_email")
+              .select("po_id, po_fname, po_lname")
               .in("po_id", ownerIds)
           : Promise.resolve({ data: [], error: null }),
 
@@ -264,7 +264,6 @@ export default function BookingsPage() {
         booking.booking_time,
         booking.start_time,
         booking.end_time,
-        booking.start_date,
         booking.end_date,
         booking.petName,
         booking.ownerName,
@@ -281,8 +280,7 @@ export default function BookingsPage() {
       const matchesStatus =
         status === "All Status" || booking.normalizedStatus === status;
 
-      const filterDate =
-        booking.booking_date || booking.start_date || "";
+      const filterDate = getDateOnlyValue(booking.booking_date);
 
       const matchesDateFrom = !dateFrom || (filterDate && filterDate >= dateFrom);
       const matchesDateTo = !dateTo || (filterDate && filterDate <= dateTo);
@@ -484,7 +482,6 @@ export default function BookingsPage() {
                 <tr style={styles.tableHeadRow}>
                   <Th>No.</Th>
                   <Th>Booking Date</Th>
-                  <Th>Start Date</Th>
                   <Th>End Date</Th>
                   <Th>Start Time</Th>
                   <Th>End Time</Th>
@@ -496,7 +493,7 @@ export default function BookingsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
+                    <td colSpan="7" style={styles.emptyCell}>
                       <div style={styles.loadingContent}>
                         <RefreshCw size={22} />
                         <span>Loading booking records...</span>
@@ -516,10 +513,6 @@ export default function BookingsPage() {
 
                       <td style={styles.normalCell}>
                         {formatDate(booking.booking_date)}
-                      </td>
-
-                      <td style={styles.normalCell}>
-                        {formatDate(booking.start_date)}
                       </td>
 
                       <td style={styles.normalCell}>
@@ -549,7 +542,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
+                    <td colSpan="7" style={styles.emptyCell}>
                       No bookings found.
                     </td>
                   </tr>
@@ -810,12 +803,35 @@ function formatBookingId(id) {
   return `BK-${String(id).padStart(4, "0")}`;
 }
 
+function getDateOnlyValue(dateValue) {
+  if (!dateValue) return "";
+
+  const text = String(dateValue).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) return text.slice(0, 10);
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
 function formatDate(dateValue) {
-  if (!dateValue) return "Not set";
+  const dateOnly = getDateOnlyValue(dateValue);
 
-  const date = new Date(`${dateValue}T00:00:00`);
+  if (!dateOnly) return "Not set";
 
-  if (Number.isNaN(date.getTime())) return String(dateValue);
+  const date = new Date(`${dateOnly}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return dateOnly;
 
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
@@ -1185,7 +1201,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1160,
+    minWidth: 1020,
     borderCollapse: "collapse",
   },
 
