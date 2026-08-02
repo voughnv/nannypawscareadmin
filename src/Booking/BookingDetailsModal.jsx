@@ -312,9 +312,12 @@ function StatusBadge({ status }) {
       ? styles.statusRejected
       : styles.statusDefault;
 
+  const displayStatus =
+    normalizedStatus === "Confirmed" ? "Approved" : normalizedStatus;
+
   return (
     <span style={{ ...styles.badge, ...badgeStyle }}>
-      {normalizedStatus || "Not set"}
+      {displayStatus || "Not set"}
     </span>
   );
 }

@@ -368,9 +368,9 @@ export default function BookingsPage() {
           <StatCard
             icon={<CheckCircle2 size={32} />}
             iconStyle={styles.statGreen}
-            title="Confirmed"
+            title="Approved"
             value={stats.confirmed}
-            desc="Confirmed bookings"
+            desc="Approved bookings"
           />
           <StatCard
             icon={<ClipboardCheck size={30} />}
@@ -418,7 +418,7 @@ export default function BookingsPage() {
               >
                 <option>All Status</option>
                 <option>Pending</option>
-                <option>Confirmed</option>
+                <option value="Confirmed">Approved</option>
                 <option>Completed</option>
                 <option>Rejected</option>
               </select>
@@ -653,9 +653,12 @@ function StatusBadge({ status }) {
       ? styles.statusRejected
       : styles.statusDefault;
 
+  const displayStatus =
+    normalizedStatus === "Confirmed" ? "Approved" : normalizedStatus;
+
   return (
     <span style={{ ...styles.badge, ...badgeStyle }}>
-      {normalizedStatus || "Not set"}
+      {displayStatus || "Not set"}
     </span>
   );
 }
