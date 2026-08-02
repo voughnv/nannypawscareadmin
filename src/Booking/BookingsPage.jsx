@@ -65,33 +65,54 @@ export default function BookingsPage() {
     setError("");
 
     try {
-      const [
-        bookingResult,
-        petResult,
-        ownerResult,
-        sitterResult,
-      ] = await Promise.all([
-        supabase
-          .from("BOOKING")
-          .select(BOOKING_FIELDS)
-          .order("booking_id", { ascending: false }),
-        supabase.from("PET").select("*"),
-        supabase.from("PET_OWNER").select("*"),
-        supabase.from("PET SITTER").select("*"),
+      const { data: bookingData, error: bookingError } = await supabase
+        .from("BOOKING")
+        .select(BOOKING_FIELDS)
+        .order("booking_id", { ascending: false });
+
+      if (bookingError) throw bookingError;
+
+      const bookingRows = bookingData || [];
+
+      const petIds = getUniqueIds(bookingRows, "pet_id");
+      const ownerIds = getUniqueIds(bookingRows, "po_id");
+      const sitterIds = getUniqueIds(bookingRows, "ps_id");
+
+      const [petResult, ownerResult, sitterResult] = await Promise.all([
+        petIds.length > 0
+          ? supabase
+              .from("PET")
+              .select("pet_id, pet_name, pet_breed, pet_dob, pet_notes")
+              .in("pet_id", petIds)
+          : Promise.resolve({ data: [], error: null }),
+
+        ownerIds.length > 0
+          ? supabase
+              .from("PET_OWNER")
+              .select("po_id, po_fname, po_lname, po_username, po_email")
+              .in("po_id", ownerIds)
+          : Promise.resolve({ data: [], error: null }),
+
+        sitterIds.length > 0
+          ? supabase
+              .from("PET SITTER")
+              .select(
+                "petsitter_id, ps_fname, ps_lname, ps_username, ps_email"
+              )
+              .in("petsitter_id", sitterIds)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
-      if (bookingResult.error) throw bookingResult.error;
-
       if (petResult.error) {
-        console.warn("Unable to load PET records:", petResult.error);
+        console.error("Unable to load PET records:", petResult.error);
       }
 
       if (ownerResult.error) {
-        console.warn("Unable to load PET_OWNER records:", ownerResult.error);
+        console.error("Unable to load PET_OWNER records:", ownerResult.error);
       }
 
       if (sitterResult.error) {
-        console.warn("Unable to load PET SITTER records:", sitterResult.error);
+        console.error("Unable to load PET SITTER records:", sitterResult.error);
       }
 
       const petMap = createRecordMap(
@@ -109,7 +130,7 @@ export default function BookingsPage() {
         ["petsitter_id", "ps_id", "pet_sitter_id", "id"]
       );
 
-      const enrichedBookings = (bookingResult.data || []).map((booking) =>
+      const enrichedBookings = bookingRows.map((booking) =>
         enrichBooking(booking, petMap, ownerMap, sitterMap)
       );
 
@@ -660,6 +681,36 @@ function normalizeStatus(status) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function getUniqueIds(records, field) {
+  return [
+    ...new Set(
+      records
+        .map((record) => record?.[field])
+        .filter(
+          (value) =>
+            value !== null &&
+            value !== undefined &&
+            String(value).trim() !== ""
+        )
+    ),
+  ];
+}
+
+function normalizeReferenceKey(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    String(value).trim() === ""
+  ) {
+    return "";
+  }
+
+  const text = String(value).trim();
+  const numericValue = Number(text);
+
+  return Number.isNaN(numericValue) ? text : String(numericValue);
+}
+
 function createRecordMap(records, possibleIdFields) {
   const map = new Map();
 
@@ -673,8 +724,10 @@ function createRecordMap(records, possibleIdFields) {
           String(value).trim() !== ""
       );
 
-    if (id !== null && id !== undefined) {
-      map.set(String(id), record);
+    const key = normalizeReferenceKey(id);
+
+    if (key) {
+      map.set(key, record);
     }
   });
 
@@ -682,9 +735,14 @@ function createRecordMap(records, possibleIdFields) {
 }
 
 function enrichBooking(booking, petMap, ownerMap, sitterMap) {
-  const pet = petMap.get(String(booking.pet_id)) || null;
-  const owner = ownerMap.get(String(booking.po_id)) || null;
-  const sitter = sitterMap.get(String(booking.ps_id)) || null;
+  const pet =
+    petMap.get(normalizeReferenceKey(booking.pet_id)) || null;
+
+  const owner =
+    ownerMap.get(normalizeReferenceKey(booking.po_id)) || null;
+
+  const sitter =
+    sitterMap.get(normalizeReferenceKey(booking.ps_id)) || null;
 
   return {
     ...booking,

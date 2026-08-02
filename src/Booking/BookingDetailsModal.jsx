@@ -79,11 +79,6 @@ export default function BookingDetailsModal({
           />
 
           <DetailItem
-            label="Booking Date"
-            value={formatDateTime(booking.booking_date)}
-          />
-
-          <DetailItem
             label="Start Date"
             value={formatDate(booking.start_date)}
           />
@@ -108,12 +103,6 @@ export default function BookingDetailsModal({
 
         <div style={styles.modalGrid}>
           <DetailItem
-            label="Pet"
-            value={getPetName(booking)}
-            secondary={formatReference("Pet ID", booking.pet_id)}
-          />
-
-          <DetailItem
             label="Pet Owner"
             value={getOwnerName(booking)}
             secondary={formatReference("Owner ID", booking.po_id)}
@@ -127,6 +116,12 @@ export default function BookingDetailsModal({
                 ? formatReference("Sitter ID", booking.ps_id)
                 : "No sitter assigned"
             }
+          />
+
+          <DetailItem
+            label="Pet"
+            value={getPetName(booking)}
+            secondary={getPetSecondaryDetails(booking)}
             fullWidth
           />
         </div>
@@ -355,12 +350,31 @@ function getPetName(booking) {
   const pet = booking.petRecord || {};
 
   return (
-    booking.petName ||
     pet.pet_name ||
     pet.p_name ||
     pet.name ||
+    booking.petName ||
     (booking.pet_id ? `Pet ${booking.pet_id}` : "Not assigned")
   );
+}
+
+function getPetSecondaryDetails(booking) {
+  const pet = booking.petRecord || {};
+  const details = [];
+
+  if (
+    booking.pet_id !== null &&
+    booking.pet_id !== undefined &&
+    booking.pet_id !== ""
+  ) {
+    details.push(`Pet ID: ${booking.pet_id}`);
+  }
+
+  if (pet.pet_breed) {
+    details.push(`Breed: ${pet.pet_breed}`);
+  }
+
+  return details.length > 0 ? details.join(" • ") : "Pet details not available";
 }
 
 function getOwnerName(booking) {
@@ -450,22 +464,6 @@ function formatTime(timeValue) {
   }).format(date);
 }
 
-function formatDateTime(dateTimeValue) {
-  if (!dateTimeValue) return "Not set";
-
-  const date = new Date(dateTimeValue);
-
-  if (Number.isNaN(date.getTime())) return String(dateTimeValue);
-
-  return new Intl.DateTimeFormat("en-PH", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(date);
-}
 
 function formatAmount(amount) {
   if (
