@@ -91,6 +91,7 @@ export default function BookingDetailsModal({
           <DetailItem
             label="End Time"
             value={formatTime(booking.end_time)}
+            fullWidth
           />
         </div>
 
