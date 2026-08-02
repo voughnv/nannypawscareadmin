@@ -210,7 +210,7 @@ export default function BookingDetailsModal({
                   disabled={updating}
                   onClick={() => onApprove(booking)}
                 >
-                  {updating ? "Updating..." : "Confirm"}
+                  {updating ? "Updating..." : "Approve"}
                 </button>
               </>
             )}
