@@ -34,8 +34,7 @@ const ALLOWED_STATUS_TRANSITIONS = {
   "Not Set": ["Pending"],
 };
 
-const BOOKING_FIELDS =
-  "booking_id, booking_date, booking_time, service_type, start_date, end_date, booking_status";
+const BOOKING_FIELDS = "*";
 
 export default function BookingsPage() {
   const requestConfirmation = useConfirmation();
@@ -66,14 +65,55 @@ export default function BookingsPage() {
     setError("");
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("BOOKING")
-        .select(BOOKING_FIELDS)
-        .order("booking_id", { ascending: false });
+      const [
+        bookingResult,
+        petResult,
+        ownerResult,
+        sitterResult,
+      ] = await Promise.all([
+        supabase
+          .from("BOOKING")
+          .select(BOOKING_FIELDS)
+          .order("booking_id", { ascending: false }),
+        supabase.from("PET").select("*"),
+        supabase.from("PET_OWNER").select("*"),
+        supabase.from("PET SITTER").select("*"),
+      ]);
 
-      if (fetchError) throw fetchError;
+      if (bookingResult.error) throw bookingResult.error;
 
-      setBookings(data || []);
+      if (petResult.error) {
+        console.warn("Unable to load PET records:", petResult.error);
+      }
+
+      if (ownerResult.error) {
+        console.warn("Unable to load PET_OWNER records:", ownerResult.error);
+      }
+
+      if (sitterResult.error) {
+        console.warn("Unable to load PET SITTER records:", sitterResult.error);
+      }
+
+      const petMap = createRecordMap(
+        petResult.data || [],
+        ["pet_id", "p_id", "id"]
+      );
+
+      const ownerMap = createRecordMap(
+        ownerResult.data || [],
+        ["po_id", "petowner_id", "pet_owner_id", "owner_id", "id"]
+      );
+
+      const sitterMap = createRecordMap(
+        sitterResult.data || [],
+        ["petsitter_id", "ps_id", "pet_sitter_id", "id"]
+      );
+
+      const enrichedBookings = (bookingResult.data || []).map((booking) =>
+        enrichBooking(booking, petMap, ownerMap, sitterMap)
+      );
+
+      setBookings(enrichedBookings);
     } catch (fetchError) {
       console.error("Unable to load bookings:", fetchError);
       setError(
@@ -111,14 +151,21 @@ export default function BookingsPage() {
 
       if (updateError) throw updateError;
 
+      const updatedBooking = {
+        ...booking,
+        ...data,
+      };
+
       setBookings((previous) =>
         previous.map((item) =>
-          item.booking_id === booking.booking_id ? data : item
+          item.booking_id === booking.booking_id ? updatedBooking : item
         )
       );
 
       setSelectedBooking((previous) =>
-        previous?.booking_id === booking.booking_id ? data : previous
+        previous?.booking_id === booking.booking_id
+          ? updatedBooking
+          : previous
       );
 
     } catch (updateError) {
@@ -194,8 +241,14 @@ export default function BookingsPage() {
         booking.booking_status,
         booking.booking_date,
         booking.booking_time,
+        booking.start_time,
+        booking.end_time,
         booking.start_date,
         booking.end_date,
+        booking.petName,
+        booking.ownerName,
+        booking.sitterName,
+        booking.payment_method,
       ]
         .filter(Boolean)
         .map((value) => String(value).toLowerCase());
@@ -410,10 +463,11 @@ export default function BookingsPage() {
                 <tr style={styles.tableHeadRow}>
                   <Th>No.</Th>
                   <Th>Booking Date</Th>
-                  <Th>Booking Time</Th>
-                  <Th>Service Type</Th>
                   <Th>Start Date</Th>
                   <Th>End Date</Th>
+                  <Th>Start Time</Th>
+                  <Th>End Time</Th>
+                  <Th>Service Type</Th>
                   <Th>Status</Th>
                 </tr>
               </thead>
@@ -421,7 +475,7 @@ export default function BookingsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" style={styles.emptyCell}>
+                    <td colSpan="8" style={styles.emptyCell}>
                       <div style={styles.loadingContent}>
                         <RefreshCw size={22} />
                         <span>Loading booking records...</span>
@@ -444,7 +498,21 @@ export default function BookingsPage() {
                       </td>
 
                       <td style={styles.normalCell}>
-                        {formatTime(booking.booking_time)}
+                        {formatDate(booking.start_date)}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatDate(booking.end_date)}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatTime(
+                          booking.start_time || booking.booking_time
+                        )}
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {formatTime(booking.end_time)}
                       </td>
 
                       <td style={styles.normalCell}>
@@ -454,21 +522,13 @@ export default function BookingsPage() {
                       </td>
 
                       <td style={styles.normalCell}>
-                        {formatDate(booking.start_date)}
-                      </td>
-
-                      <td style={styles.normalCell}>
-                        {formatDate(booking.end_date)}
-                      </td>
-
-                      <td style={styles.normalCell}>
                         <StatusBadge status={booking.booking_status} />
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" style={styles.emptyCell}>
+                    <td colSpan="8" style={styles.emptyCell}>
                       No bookings found.
                     </td>
                   </tr>
@@ -598,6 +658,93 @@ function normalizeStatus(status) {
     return "Rejected";
 
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function createRecordMap(records, possibleIdFields) {
+  const map = new Map();
+
+  records.forEach((record) => {
+    const id = possibleIdFields
+      .map((field) => record?.[field])
+      .find(
+        (value) =>
+          value !== null &&
+          value !== undefined &&
+          String(value).trim() !== ""
+      );
+
+    if (id !== null && id !== undefined) {
+      map.set(String(id), record);
+    }
+  });
+
+  return map;
+}
+
+function enrichBooking(booking, petMap, ownerMap, sitterMap) {
+  const pet = petMap.get(String(booking.pet_id)) || null;
+  const owner = ownerMap.get(String(booking.po_id)) || null;
+  const sitter = sitterMap.get(String(booking.ps_id)) || null;
+
+  return {
+    ...booking,
+    petRecord: pet,
+    ownerRecord: owner,
+    sitterRecord: sitter,
+    petName: getPetName(pet, booking.pet_id),
+    ownerName: getOwnerName(owner, booking.po_id),
+    sitterName: getSitterName(sitter, booking.ps_id),
+  };
+}
+
+function getPetName(pet, fallbackId) {
+  if (!pet) {
+    return fallbackId ? `Pet ${fallbackId}` : "Not assigned";
+  }
+
+  return (
+    pet.pet_name ||
+    pet.p_name ||
+    pet.name ||
+    pet.petName ||
+    (fallbackId ? `Pet ${fallbackId}` : "Name not set")
+  );
+}
+
+function getOwnerName(owner, fallbackId) {
+  if (!owner) {
+    return fallbackId ? `Pet Owner ${fallbackId}` : "Not assigned";
+  }
+
+  const fullName = `${owner.po_fname || owner.first_name || ""} ${
+    owner.po_lname || owner.last_name || ""
+  }`.trim();
+
+  return (
+    fullName ||
+    owner.po_username ||
+    owner.username ||
+    owner.full_name ||
+    (fallbackId ? `Pet Owner ${fallbackId}` : "Name not set")
+  );
+}
+
+function getSitterName(sitter, fallbackId) {
+  if (!sitter) {
+    return fallbackId ? `Pet Sitter ${fallbackId}` : "Not assigned";
+  }
+
+  const fullName = `${sitter.ps_fname || sitter.first_name || ""} ${
+    sitter.ps_lname || sitter.last_name || ""
+  }`.trim();
+
+  return (
+    fullName ||
+    sitter.ps_username ||
+    sitter.username ||
+    sitter.full_name ||
+    (fallbackId ? `Pet Sitter ${fallbackId}` : "Name not set")
+  );
 }
 
 function formatBookingId(id) {
@@ -980,7 +1127,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 980,
+    minWidth: 1160,
     borderCollapse: "collapse",
   },
 

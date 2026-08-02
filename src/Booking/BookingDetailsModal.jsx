@@ -26,8 +26,14 @@ export default function BookingDetailsModal({
   const hasUnknownStatus =
     !isPending && !isConfirmed && !isCompleted && !isRejected;
 
+  const startTime = booking.start_time || booking.booking_time;
+  const paymentProof = String(booking.payment_proof || "").trim();
+
   return (
-    <div style={styles.modalOverlay} onClick={onClose}>
+    <div
+      style={styles.modalOverlay}
+      onClick={updating ? undefined : onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
@@ -40,50 +46,126 @@ export default function BookingDetailsModal({
             <h2 id="booking-details-title" style={styles.modalTitle}>
               Booking Details
             </h2>
+            <p style={styles.modalReference}>
+              {formatBookingId(booking.booking_id)}
+            </p>
           </div>
 
           <button
             type="button"
             aria-label="Close booking details"
-            style={styles.closeBtn}
+            style={{
+              ...styles.closeBtn,
+              ...(updating ? styles.disabledButton : {}),
+            }}
+            disabled={updating}
             onClick={onClose}
           >
             <X size={20} />
           </button>
         </div>
 
+        <h3 style={styles.sectionTitle}>Booking Information</h3>
+
         <div style={styles.modalGrid}>
-          <DetailItem
-            label="Booking ID"
-            value={formatBookingId(booking.booking_id)}
-          />
           <DetailItem
             label="Status"
             custom={<StatusBadge status={booking.booking_status} />}
           />
-          <DetailItem
-            label="Booking Date"
-            value={formatDate(booking.booking_date)}
-          />
-          <DetailItem
-            label="Booking Time"
-            value={formatTime(booking.booking_time)}
-          />
+
           <DetailItem
             label="Service Type"
             value={booking.service_type || "Not specified"}
           />
+
           <DetailItem
-            label="Date Created"
-            value={formatDateTime(booking.created_at)}
+            label="Booking Date"
+            value={formatDateTime(booking.booking_date)}
           />
+
           <DetailItem
             label="Start Date"
             value={formatDate(booking.start_date)}
           />
+
           <DetailItem
             label="End Date"
             value={formatDate(booking.end_date)}
+          />
+
+          <DetailItem
+            label="Start Time"
+            value={formatTime(startTime)}
+          />
+
+          <DetailItem
+            label="End Time"
+            value={formatTime(booking.end_time)}
+          />
+        </div>
+
+        <h3 style={styles.sectionTitle}>Pet and Assigned Users</h3>
+
+        <div style={styles.modalGrid}>
+          <DetailItem
+            label="Pet"
+            value={getPetName(booking)}
+            secondary={formatReference("Pet ID", booking.pet_id)}
+          />
+
+          <DetailItem
+            label="Pet Owner"
+            value={getOwnerName(booking)}
+            secondary={formatReference("Owner ID", booking.po_id)}
+          />
+
+          <DetailItem
+            label="Pet Sitter"
+            value={getSitterName(booking)}
+            secondary={
+              booking.ps_id
+                ? formatReference("Sitter ID", booking.ps_id)
+                : "No sitter assigned"
+            }
+            fullWidth
+          />
+        </div>
+
+        <h3 style={styles.sectionTitle}>Payment Information</h3>
+
+        <div style={styles.modalGrid}>
+          <DetailItem
+            label="Payment Method"
+            value={booking.payment_method || "Not specified"}
+          />
+
+          <DetailItem
+            label="Amount"
+            value={formatAmount(booking.amount)}
+          />
+
+          <DetailItem
+            label="Proof of Payment"
+            custom={
+              <PaymentProof
+                value={paymentProof}
+                bookingId={booking.booking_id}
+              />
+            }
+            fullWidth
+          />
+        </div>
+
+        <h3 style={styles.sectionTitle}>Additional Information</h3>
+
+        <div style={styles.modalGrid}>
+          <DetailItem
+            label="Instructions"
+            value={
+              booking.instructions ||
+              "No additional instructions provided."
+            }
+            fullWidth
           />
         </div>
 
@@ -158,18 +240,70 @@ export default function BookingDetailsModal({
             )}
           </div>
         )}
-
       </div>
     </div>
   );
 }
 
-function DetailItem({ label, value, custom }) {
+function DetailItem({
+  label,
+  value,
+  custom,
+  secondary = "",
+  fullWidth = false,
+}) {
   return (
-    <div style={styles.detailItem}>
+    <div
+      style={{
+        ...styles.detailItem,
+        ...(fullWidth ? styles.fullWidthItem : {}),
+      }}
+    >
       <p style={styles.detailLabel}>{label}</p>
-      {custom || <h4 style={styles.detailValue}>{value}</h4>}
+
+      {custom || (
+        <>
+          <h4 style={styles.detailValue}>{value}</h4>
+          {secondary && (
+            <p style={styles.detailSecondary}>{secondary}</p>
+          )}
+        </>
+      )}
     </div>
+  );
+}
+
+function PaymentProof({ value, bookingId }) {
+  if (!value) {
+    return <h4 style={styles.detailValue}>Not uploaded</h4>;
+  }
+
+  const isUrl =
+    value.startsWith("http://") ||
+    value.startsWith("https://");
+
+  if (!isUrl) {
+    return (
+      <div style={styles.proofTextBox}>
+        <span style={styles.proofText}>{value}</span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={value}
+      target="_blank"
+      rel="noreferrer"
+      style={styles.proofLink}
+    >
+      <img
+        src={value}
+        alt={`Payment proof for ${formatBookingId(bookingId)}`}
+        style={styles.proofImage}
+      />
+      <span>Open proof of payment</span>
+    </a>
   );
 }
 
@@ -200,8 +334,12 @@ function normalizeStatus(status) {
   const cleaned = String(status).trim().toLowerCase();
 
   if (cleaned === "pending") return "Pending";
-  if (cleaned === "confirmed" || cleaned === "approved") return "Confirmed";
-  if (cleaned === "completed" || cleaned === "complete") return "Completed";
+  if (cleaned === "confirmed" || cleaned === "approved") {
+    return "Confirmed";
+  }
+  if (cleaned === "completed" || cleaned === "complete") {
+    return "Completed";
+  }
   if (
     cleaned === "rejected" ||
     cleaned === "cancelled" ||
@@ -213,6 +351,62 @@ function normalizeStatus(status) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+function getPetName(booking) {
+  const pet = booking.petRecord || {};
+
+  return (
+    booking.petName ||
+    pet.pet_name ||
+    pet.p_name ||
+    pet.name ||
+    (booking.pet_id ? `Pet ${booking.pet_id}` : "Not assigned")
+  );
+}
+
+function getOwnerName(booking) {
+  const owner = booking.ownerRecord || {};
+
+  const fullName = `${owner.po_fname || owner.first_name || ""} ${
+    owner.po_lname || owner.last_name || ""
+  }`.trim();
+
+  return (
+    booking.ownerName ||
+    fullName ||
+    owner.po_username ||
+    owner.username ||
+    (booking.po_id
+      ? `Pet Owner ${booking.po_id}`
+      : "Not assigned")
+  );
+}
+
+function getSitterName(booking) {
+  const sitter = booking.sitterRecord || {};
+
+  const fullName = `${sitter.ps_fname || sitter.first_name || ""} ${
+    sitter.ps_lname || sitter.last_name || ""
+  }`.trim();
+
+  return (
+    booking.sitterName ||
+    fullName ||
+    sitter.ps_username ||
+    sitter.username ||
+    (booking.ps_id
+      ? `Pet Sitter ${booking.ps_id}`
+      : "Not assigned")
+  );
+}
+
+function formatReference(label, value) {
+  if (value === null || value === undefined || value === "") {
+    return `${label}: Not set`;
+  }
+
+  return `${label}: ${value}`;
+}
+
 function formatBookingId(id) {
   if (id === null || id === undefined || id === "") return "N/A";
   return `BK-${String(id).padStart(4, "0")}`;
@@ -221,9 +415,12 @@ function formatBookingId(id) {
 function formatDate(dateValue) {
   if (!dateValue) return "Not set";
 
-  const date = new Date(`${dateValue}T00:00:00`);
+  const text = String(dateValue);
+  const date = text.includes("T")
+    ? new Date(text)
+    : new Date(`${text}T00:00:00`);
 
-  if (Number.isNaN(date.getTime())) return String(dateValue);
+  if (Number.isNaN(date.getTime())) return text;
 
   return new Intl.DateTimeFormat("en-PH", {
     month: "short",
@@ -270,6 +467,28 @@ function formatDateTime(dateTimeValue) {
   }).format(date);
 }
 
+function formatAmount(amount) {
+  if (
+    amount === null ||
+    amount === undefined ||
+    amount === ""
+  ) {
+    return "Not specified";
+  }
+
+  const number = Number(amount);
+
+  if (Number.isNaN(number)) {
+    return String(amount);
+  }
+
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+  }).format(number);
+}
+
 const styles = {
   modalOverlay: {
     position: "fixed",
@@ -283,7 +502,7 @@ const styles = {
   },
 
   modal: {
-    width: "min(760px, 100%)",
+    width: "min(820px, 100%)",
     maxHeight: "90vh",
     overflowY: "auto",
     background: "#fff",
@@ -311,6 +530,13 @@ const styles = {
     fontWeight: 900,
   },
 
+  modalReference: {
+    margin: "5px 0 0",
+    color: BRAND.muted,
+    fontSize: 13,
+    fontWeight: 800,
+  },
+
   closeBtn: {
     width: 36,
     height: 36,
@@ -322,6 +548,13 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  sectionTitle: {
+    margin: "19px 0 10px",
+    color: BRAND.brown,
+    fontSize: 14,
+    fontWeight: 900,
   },
 
   modalGrid: {
@@ -339,6 +572,10 @@ const styles = {
     boxSizing: "border-box",
   },
 
+  fullWidthItem: {
+    gridColumn: "1 / -1",
+  },
+
   detailLabel: {
     margin: "0 0 7px",
     fontSize: 12,
@@ -351,6 +588,47 @@ const styles = {
     fontSize: 14,
     fontWeight: 900,
     color: BRAND.text,
+    overflowWrap: "anywhere",
+  },
+
+  detailSecondary: {
+    margin: "6px 0 0",
+    color: BRAND.muted,
+    fontSize: 11,
+    fontWeight: 700,
+  },
+
+  proofLink: {
+    display: "block",
+    color: BRAND.pink,
+    fontSize: 12,
+    fontWeight: 900,
+    textDecoration: "none",
+  },
+
+  proofImage: {
+    display: "block",
+    width: "100%",
+    maxHeight: 300,
+    marginBottom: 9,
+    borderRadius: 10,
+    border: "1px solid #E6D9D7",
+    background: "#FFF8F8",
+    objectFit: "contain",
+  },
+
+  proofTextBox: {
+    padding: "10px 12px",
+    borderRadius: 8,
+    background: "#FFF5F7",
+    border: "1px solid #F1CBD5",
+  },
+
+  proofText: {
+    color: BRAND.text,
+    fontSize: 12,
+    fontWeight: 700,
+    overflowWrap: "anywhere",
   },
 
   badge: {
