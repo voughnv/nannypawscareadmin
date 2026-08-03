@@ -69,102 +69,132 @@ export default function ProfilePage() {
     return "";
   }
 
-  async function getFreshAdmin() {
-    const { data, error } = await supabase
-      .from("ADMIN")
-      .select("*")
-      .eq("admin_email", email)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
-  }
-
   async function handleSave() {
     const cleanUsername = username.trim();
+    const adminId = storedAdmin?.admin_id;
+
+    if (!adminId) {
+      showMessage("Admin account information is missing. Please log in again.", "error");
+      return;
+    }
 
     if (!cleanUsername) {
       showMessage("Username is required.", "error");
       return;
     }
 
+    // Require the current password before changing either the username
+    // or password. This prevents an unrestricted browser update.
+    if (!currentPassword.trim()) {
+      showMessage(
+        "Enter your current password to save account changes.",
+        "error"
+      );
+      return;
+    }
+
     const wantsPasswordChange =
-      currentPassword.trim() || newPassword.trim() || confirmPassword.trim();
+      Boolean(newPassword.trim()) || Boolean(confirmPassword.trim());
 
     if (wantsPasswordChange) {
-      if (!currentPassword.trim()) {
-        showMessage("Current password is required.", "error");
-        return;
-      }
-
       const passwordError = validatePassword(newPassword);
+
       if (passwordError) {
         showMessage(passwordError, "error");
         return;
       }
 
       if (!confirmPassword.trim()) {
-        showMessage("Confirm password is required.", "error");
+        showMessage("Confirm new password is required.", "error");
         return;
       }
 
       if (newPassword !== confirmPassword) {
-        showMessage("New password and confirm password do not match.", "error");
+        showMessage(
+          "New password and confirm new password do not match.",
+          "error"
+        );
         return;
       }
 
       if (currentPassword === newPassword) {
-        showMessage("New password must be different from the current password.", "error");
+        showMessage(
+          "New password must be different from the current password.",
+          "error"
+        );
         return;
       }
     }
 
     try {
       setLoading(true);
+      setMessage("");
+      setMessageType("");
 
-      const freshAdmin = await getFreshAdmin();
+      const { data, error: updateError } = await supabase.rpc(
+        "update_admin_profile",
+        {
+          p_admin_id: Number(adminId),
+          p_current_password: currentPassword,
+          p_new_username: cleanUsername,
+          p_new_password: wantsPasswordChange ? newPassword : null,
+        }
+      );
 
-      if (!freshAdmin) {
-        showMessage("Admin account was not found in the ADMIN table.", "error");
-        return;
+      if (updateError) throw updateError;
+
+      if (!data || typeof data !== "object") {
+        throw new Error(
+          "The administrator account was updated, but no updated account information was returned."
+        );
       }
 
-      if (wantsPasswordChange && currentPassword !== freshAdmin.admin_password) {
-        showMessage("Current password is incorrect.", "error");
-        return;
-      }
-
-      const updateData = {
-        admin_username: cleanUsername,
+      const updatedAdmin = {
+        ...storedAdmin,
+        ...data,
+        admin_id: data.admin_id ?? storedAdmin.admin_id,
+        admin_username: data.admin_username || cleanUsername,
+        admin_email: data.admin_email || email,
       };
 
-      if (wantsPasswordChange) {
-        updateData.admin_password = newPassword;
-      }
+      localStorage.setItem("admin", JSON.stringify(updatedAdmin));
 
-      const { error: updateError } = await supabase
-        .from("ADMIN")
-        .update(updateData)
-        .eq("admin_email", email);
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      const data = await getFreshAdmin();
-
-      localStorage.setItem("admin", JSON.stringify(data));
+      // The sidebar is already listening for this event.
       window.dispatchEvent(new Event("admin-profile-updated"));
-      setUsername(data.admin_username || cleanUsername);
 
+      setUsername(updatedAdmin.admin_username);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
 
-      showMessage("Profile updated successfully.", "success");
+      showMessage(
+        wantsPasswordChange
+          ? "Username and password updated successfully."
+          : "Username updated successfully.",
+        "success"
+      );
     } catch (error) {
       console.error("Profile update error:", error);
-      showMessage(error.message || "Failed to update profile.", "error");
+
+      const errorMessage = String(error?.message || "");
+      const lowerMessage = errorMessage.toLowerCase();
+
+      if (lowerMessage.includes("current password is incorrect")) {
+        showMessage("Current password is incorrect.", "error");
+      } else if (
+        lowerMessage.includes("function") &&
+        lowerMessage.includes("update_admin_profile")
+      ) {
+        showMessage(
+          "The profile update function is not installed in Supabase. Run the provided SQL script first.",
+          "error"
+        );
+      } else {
+        showMessage(
+          errorMessage || "Failed to update the administrator profile.",
+          "error"
+        );
+      }
     } finally {
       setLoading(false);
     }
@@ -227,17 +257,22 @@ export default function ProfilePage() {
             <SectionTitle
               icon={<Lock size={22} />}
               title="Password & Security"
-              desc="Enter your current password to create a new one. Leave the password fields blank to update only your username."
+              desc="Enter your current password to save username or password changes. Leave the new password fields blank when changing only your username."
             />
 
             <div style={styles.formGrid}>
-              <PasswordInput
-                label="Current Password"
-                value={currentPassword}
-                setValue={setCurrentPassword}
-                show={showCurrentPassword}
-                setShow={setShowCurrentPassword}
-              />
+              <div>
+                <PasswordInput
+                  label="Current Password"
+                  value={currentPassword}
+                  setValue={setCurrentPassword}
+                  show={showCurrentPassword}
+                  setShow={setShowCurrentPassword}
+                />
+                <p style={styles.fieldNote}>
+                  Required to confirm any changes to your administrator account.
+                </p>
+              </div>
 
               <div>
                 <PasswordInput
