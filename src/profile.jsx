@@ -167,12 +167,23 @@ export default function ProfilePage() {
       setNewPassword("");
       setConfirmPassword("");
 
-      showMessage(
-        wantsPasswordChange
-          ? "Username and password updated successfully."
-          : "Username updated successfully.",
-        "success"
-      );
+      const originalUsername = String(
+        storedAdmin?.admin_username || ""
+      ).trim();
+
+      const usernameChanged = cleanUsername !== originalUsername;
+
+      let successMessage = "Profile updated successfully.";
+
+      if (usernameChanged && wantsPasswordChange) {
+        successMessage = "Username and password updated successfully.";
+      } else if (usernameChanged) {
+        successMessage = "Username updated successfully.";
+      } else if (wantsPasswordChange) {
+        successMessage = "Password updated successfully.";
+      }
+
+      showMessage(successMessage, "success");
     } catch (error) {
       console.error("Profile update error:", error);
 
