@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { supabase } from "./lib/supabase";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -6,6 +8,23 @@ const BRAND = {
   text: "#2E1B16",
   muted: "#6F625F",
 };
+
+// Set VITE_PAYMENT_PROOF_BUCKET in .env when your actual bucket uses
+// a different name. The common fallback names below are also checked.
+const PAYMENT_PROOF_BUCKET =
+  import.meta.env.VITE_PAYMENT_PROOF_BUCKET || "PAYMENT_PROOF";
+
+const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
+  new Set([
+    PAYMENT_PROOF_BUCKET,
+    "PAYMENT_PROOF",
+    "PAYMENT PROOF",
+    "payment-proof",
+    "payment_proof",
+    "paymentproof",
+    "proof-of-payment",
+  ])
+);
 
 export default function BookingDetailsModal({
   booking,
@@ -268,37 +287,146 @@ function DetailItem({
 }
 
 function PaymentProof({ value, bookingId }) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [loadingImage, setLoadingImage] = useState(false);
+  const [imageError, setImageError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolvePaymentProof() {
+      const storedValue = String(value || "").trim();
+
+      setImageUrl("");
+      setImageError("");
+
+      if (!storedValue) {
+        setLoadingImage(false);
+        return;
+      }
+
+      if (isHttpUrl(storedValue)) {
+        setImageUrl(storedValue);
+        setLoadingImage(false);
+        return;
+      }
+
+      setLoadingImage(true);
+
+      for (const bucketName of PAYMENT_PROOF_BUCKET_CANDIDATES) {
+        const storagePath = getPaymentProofStoragePath(
+          storedValue,
+          bucketName
+        );
+
+        if (!storagePath) continue;
+
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          if (!cancelled) {
+            setImageUrl(data.signedUrl);
+            setImageError("");
+            setLoadingImage(false);
+          }
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setLoadingImage(false);
+        setImageError(
+          "Unable to load the payment proof image. Check the Storage bucket name and read policy."
+        );
+      }
+    }
+
+    resolvePaymentProof();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+
   if (!value) {
     return <h4 style={styles.detailValue}>Not uploaded</h4>;
   }
 
-  const isUrl =
-    value.startsWith("http://") ||
-    value.startsWith("https://");
-
-  if (!isUrl) {
+  if (loadingImage) {
     return (
-      <div style={styles.proofTextBox}>
-        <span style={styles.proofText}>{value}</span>
+      <div style={styles.proofLoadingBox}>
+        Loading proof of payment...
+      </div>
+    );
+  }
+
+  if (imageError || !imageUrl) {
+    return (
+      <div style={styles.proofErrorBox}>
+        <strong>Image could not be displayed.</strong>
+        <span>{imageError}</span>
+        <span style={styles.proofFileName}>
+          Stored file: {getPaymentProofFileName(value)}
+        </span>
       </div>
     );
   }
 
   return (
     <a
-      href={value}
+      href={imageUrl}
       target="_blank"
       rel="noreferrer"
       style={styles.proofLink}
+      title="Open proof of payment in full size"
     >
       <img
-        src={value}
+        src={imageUrl}
         alt={`Payment proof for ${formatBookingId(bookingId)}`}
         style={styles.proofImage}
+        onError={() =>
+          setImageError(
+            "The image link was created, but the image could not be opened."
+          )
+        }
       />
-      <span>Open proof of payment</span>
+      <span style={styles.proofActionText}>
+        Click the image to open full size
+      </span>
     </a>
   );
+}
+
+function isHttpUrl(value) {
+  const text = String(value || "").trim();
+
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://")
+  );
+}
+
+function getPaymentProofStoragePath(value, bucketName) {
+  const text = String(value || "")
+    .trim()
+    .replace(/^\/+/, "");
+
+  if (!text || isHttpUrl(text)) return "";
+
+  const bucketPrefix = `${bucketName}/`;
+
+  return text.toLowerCase().startsWith(bucketPrefix.toLowerCase())
+    ? text.slice(bucketPrefix.length)
+    : text;
+}
+
+function getPaymentProofFileName(value) {
+  const text = String(value || "").trim();
+  const parts = text.split("/");
+
+  return parts[parts.length - 1] || text;
 }
 
 function StatusBadge({ status }) {
@@ -627,25 +755,50 @@ const styles = {
   proofImage: {
     display: "block",
     width: "100%",
-    maxHeight: 300,
-    marginBottom: 9,
+    maxHeight: 420,
     borderRadius: 10,
     border: "1px solid #E6D9D7",
     background: "#FFF8F8",
     objectFit: "contain",
+    cursor: "zoom-in",
   },
 
-  proofTextBox: {
-    padding: "10px 12px",
-    borderRadius: 8,
-    background: "#FFF5F7",
-    border: "1px solid #F1CBD5",
-  },
-
-  proofText: {
-    color: BRAND.text,
+  proofActionText: {
+    display: "inline-block",
+    marginTop: 9,
+    color: BRAND.pink,
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 900,
+  },
+
+  proofLoadingBox: {
+    minHeight: 130,
+    borderRadius: 10,
+    border: "1px dashed #E6D9D7",
+    background: "#FFF8F8",
+    color: BRAND.muted,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 13,
+    fontWeight: 800,
+  },
+
+  proofErrorBox: {
+    padding: "12px 14px",
+    borderRadius: 9,
+    border: "1px solid #F1CBD5",
+    background: "#FFF5F7",
+    color: "#B42335",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+
+  proofFileName: {
+    color: BRAND.muted,
     overflowWrap: "anywhere",
   },
 
