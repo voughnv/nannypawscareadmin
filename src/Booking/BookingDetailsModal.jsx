@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { supabase } from "./lib/supabase";
+import { supabase } from "../lib/supabase";
 
 const BRAND = {
   brown: "#3A1E14",
