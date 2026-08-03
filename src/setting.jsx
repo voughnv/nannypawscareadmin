@@ -20,6 +20,10 @@ export default function SettingPage() {
   const [fontSize, setFontSize] = useState(settings.fontSize);
   const [darkMode, setDarkMode] = useState(settings.darkMode);
 
+  // Use the saved global theme for rendering the page.
+  // The draft darkMode value only controls the toggle until Save Settings.
+  const appliedDarkMode = settings.darkMode;
+
   useEffect(() => {
     if (!localStorage.getItem("admin")) {
       navigate("/login");
@@ -69,17 +73,17 @@ export default function SettingPage() {
     );
   }
 
-  const cardBackground = darkMode ? "#2B2421" : "#FFFFFF";
-  const mainText = darkMode ? "#FFF7F4" : BRAND.brown;
-  const secondaryText = darkMode ? "#CFC2BE" : BRAND.muted;
-  const controlBackground = darkMode ? "#362E2A" : "#FFFFFF";
-  const controlBorder = darkMode ? "#514540" : BRAND.border;
+  const cardBackground = appliedDarkMode ? "#2B2421" : "#FFFFFF";
+  const mainText = appliedDarkMode ? "#FFF7F4" : BRAND.brown;
+  const secondaryText = appliedDarkMode ? "#CFC2BE" : BRAND.muted;
+  const controlBackground = appliedDarkMode ? "#362E2A" : "#FFFFFF";
+  const controlBorder = appliedDarkMode ? "#514540" : BRAND.border;
 
   return (
     <div
       style={{
         ...styles.page,
-        background: darkMode ? "#201A18" : "transparent",
+        background: appliedDarkMode ? "#201A18" : "transparent",
       }}
     >
       <header style={styles.header}>
@@ -130,7 +134,7 @@ export default function SettingPage() {
           <label
             style={{
               ...styles.settingRow,
-              background: darkMode ? "#312925" : "#FFFCFB",
+              background: appliedDarkMode ? "#312925" : "#FFFCFB",
               borderColor: controlBorder,
             }}
           >
@@ -151,7 +155,7 @@ export default function SettingPage() {
                 ...styles.select,
                 background: controlBackground,
                 borderColor: controlBorder,
-                color: darkMode ? "#FFF7F4" : BRAND.text,
+                color: appliedDarkMode ? "#FFF7F4" : BRAND.text,
               }}
             >
               <option>Default</option>
@@ -162,7 +166,7 @@ export default function SettingPage() {
           <div
             style={{
               ...styles.settingRow,
-              background: darkMode ? "#312925" : "#FFFCFB",
+              background: appliedDarkMode ? "#312925" : "#FFFCFB",
               borderColor: controlBorder,
             }}
           >
@@ -170,7 +174,7 @@ export default function SettingPage() {
               <div
                 style={{
                   ...styles.optionIcon,
-                  background: darkMode ? "#4A3A36" : "#F9DCE5",
+                  background: appliedDarkMode ? "#4A3A36" : "#F9DCE5",
                 }}
               >
                 <Moon size={20} />
