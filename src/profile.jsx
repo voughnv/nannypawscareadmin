@@ -175,7 +175,7 @@ export default function ProfilePage() {
         <header style={styles.header}>
           <div>
             <h1 style={styles.title}>Profile</h1>
-            <p style={styles.subtitle}>Manage administrator login credentials.</p>
+            <p style={styles.subtitle}>Manage your administrator account and security settings.</p>
           </div>
 
           <div style={styles.breadcrumb}>
@@ -201,8 +201,8 @@ export default function ProfilePage() {
           <section style={styles.card}>
             <SectionTitle
               icon={<User size={22} />}
-              title="Administrator Profile"
-              desc="Only the username and password can be changed."
+              title="Account Information"
+              desc="Update your username and review your registered email address."
             />
 
             <div style={styles.formGrid}>
@@ -218,7 +218,7 @@ export default function ProfilePage() {
                 icon={<Mail size={18} />}
                 value={email}
                 disabled
-                note="Email address cannot be changed."
+                note="This email address is linked to your administrator account and cannot be changed."
               />
             </div>
 
@@ -226,8 +226,8 @@ export default function ProfilePage() {
 
             <SectionTitle
               icon={<Lock size={22} />}
-              title="Security"
-              desc="Leave password fields empty if you only want to update username."
+              title="Password & Security"
+              desc="Enter your current password to create a new one. Leave the password fields blank to update only your username."
             />
 
             <div style={styles.formGrid}>
@@ -248,12 +248,12 @@ export default function ProfilePage() {
                   setShow={setShowNewPassword}
                 />
                 <p style={styles.fieldNote}>
-                  Must include 8 characters, uppercase, lowercase, number, and special character.
+                  Use at least 8 characters, including an uppercase letter, lowercase letter, number, and special character.
                 </p>
               </div>
 
               <PasswordInput
-                label="Confirm Password"
+                label="Confirm New Password"
                 value={confirmPassword}
                 setValue={setConfirmPassword}
                 show={showConfirmPassword}

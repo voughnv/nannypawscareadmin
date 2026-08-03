@@ -683,6 +683,7 @@ function FeedbackDetailsModal({
           </button>
         </div>
 
+        <div style={styles.modalBody}>
         <div style={styles.modalGrid}>
           <div style={styles.personBox}>
             <div style={styles.bigAvatar}>
@@ -751,6 +752,7 @@ function FeedbackDetailsModal({
             label="Date Created"
             value={formatDateTime(feedback.created_at)}
           />
+        </div>
         </div>
 
         <div style={styles.modalActions}>
@@ -1418,13 +1420,14 @@ const styles = {
   modal: {
     width: "min(720px, 100%)",
     maxHeight: "90vh",
-    overflowY: "auto",
     background: "#fff",
     borderRadius: 18,
     border: "1px solid #EEE2DF",
     boxShadow: "0 22px 50px rgba(51,26,18,0.22)",
-    padding: 22,
     boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
   },
 
   modalHeader: {
@@ -1433,8 +1436,15 @@ const styles = {
     alignItems: "flex-start",
     gap: 16,
     borderBottom: "1px solid #EEE2DF",
-    paddingBottom: 16,
-    marginBottom: 18,
+    padding: "22px 22px 16px",
+    flexShrink: 0,
+  },
+
+  modalBody: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "18px 22px 22px",
   },
 
   modalTitle: {
@@ -1563,12 +1573,19 @@ const styles = {
   },
 
   modalActions: {
-    marginTop: 20,
+    minHeight: 72,
+    padding: "14px 22px",
+    borderTop: "1px solid #EEE2DF",
+    background: "#FFFFFF",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
     flexWrap: "wrap",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    boxShadow: "0 -8px 18px rgba(51, 26, 18, 0.06)",
+    zIndex: 5,
   },
 
   modalActionsRight: {

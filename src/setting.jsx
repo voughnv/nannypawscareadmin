@@ -56,13 +56,13 @@ export default function SettingPage() {
     // This button confirms that the current settings are stored.
     saveSettings(settings);
     showMessage(
-      "Settings saved and applied to the entire Admin Web Panel."
+      "Your settings have been saved and applied across the administrator website."
     );
   }
 
   function handleReset() {
     resetSettings();
-    showMessage("Settings reset to default.");
+    showMessage("Default appearance settings have been restored.");
   }
 
   const cardBackground = darkMode ? "#2B2421" : "#FFFFFF";
@@ -85,7 +85,7 @@ export default function SettingPage() {
           </h1>
 
           <p style={{ ...styles.subtitle, color: secondaryText }}>
-            Manage the appearance of the entire admin website.
+            Customize the appearance of your administrator website.
           </p>
         </div>
 
@@ -113,11 +113,11 @@ export default function SettingPage() {
 
           <div>
             <h2 style={{ ...styles.sectionHeading, color: mainText }}>
-              Appearance
+              Display & Appearance
             </h2>
 
             <p style={{ ...styles.sectionDesc, color: secondaryText }}>
-              Adjust the admin panel font size and display theme.
+              Adjust the text size and display theme used throughout the admin panel.
             </p>
           </div>
         </div>
@@ -136,7 +136,7 @@ export default function SettingPage() {
               </h3>
 
               <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                Scale the text and content throughout the admin panel.
+                Choose the text size used across the administrator website.
               </p>
             </div>
 
@@ -178,7 +178,7 @@ export default function SettingPage() {
                 </h3>
 
                 <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                  Use a darker appearance across every admin page.
+                  Switch to a darker theme across all administrator pages.
                 </p>
               </div>
             </div>
@@ -217,7 +217,7 @@ export default function SettingPage() {
             }}
           >
             <RotateCcw size={17} />
-            Reset Default
+            Restore Defaults
           </button>
 
           <button type="submit" style={styles.saveBtn}>
