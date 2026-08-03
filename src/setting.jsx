@@ -13,27 +13,17 @@ const BRAND = {
 
 export default function SettingPage() {
   const navigate = useNavigate();
-  const { settings, saveSettings } = useAdminSettings();
+  const { settings, saveSettings, resetSettings } = useAdminSettings();
   const [message, setMessage] = useState("");
 
-  // Temporary selections. Global settings are updated only after Save Settings.
-  const [fontSize, setFontSize] = useState(settings.fontSize);
-  const [darkMode, setDarkMode] = useState(settings.darkMode);
-
-  // Use the saved global theme for rendering the page.
-  // The draft darkMode value only controls the toggle until Save Settings.
-  const appliedDarkMode = settings.darkMode;
+  const fontSize = settings.fontSize;
+  const darkMode = settings.darkMode;
 
   useEffect(() => {
     if (!localStorage.getItem("admin")) {
       navigate("/login");
     }
   }, [navigate]);
-
-  useEffect(() => {
-    setFontSize(settings.fontSize);
-    setDarkMode(settings.darkMode);
-  }, [settings.fontSize, settings.darkMode]);
 
   function showMessage(text) {
     setMessage(text);
@@ -44,46 +34,48 @@ export default function SettingPage() {
   }
 
   function handleFontSizeChange(event) {
-    setFontSize(event.target.value);
+    const nextFontSize = event.target.value;
+
+    saveSettings({
+      ...settings,
+      fontSize: nextFontSize,
+    });
   }
 
   function handleDarkModeToggle() {
-    setDarkMode((previous) => !previous);
+    saveSettings({
+      ...settings,
+      darkMode: !darkMode,
+    });
   }
 
   function handleSave(event) {
     event.preventDefault();
 
-    saveSettings({
-      ...settings,
-      fontSize,
-      darkMode,
-    });
-
+    // The controls already apply settings immediately.
+    // This button confirms that the current settings are stored.
+    saveSettings(settings);
     showMessage(
       "Your settings have been saved and applied across the administrator website."
     );
   }
 
   function handleReset() {
-    setFontSize("Default");
-    setDarkMode(false);
-    showMessage(
-      "Default settings selected. Click Save Settings to apply them."
-    );
+    resetSettings();
+    showMessage("Default appearance settings have been restored.");
   }
 
-  const cardBackground = appliedDarkMode ? "#2B2421" : "#FFFFFF";
-  const mainText = appliedDarkMode ? "#FFF7F4" : BRAND.brown;
-  const secondaryText = appliedDarkMode ? "#CFC2BE" : BRAND.muted;
-  const controlBackground = appliedDarkMode ? "#362E2A" : "#FFFFFF";
-  const controlBorder = appliedDarkMode ? "#514540" : BRAND.border;
+  const cardBackground = darkMode ? "#2B2421" : "#FFFFFF";
+  const mainText = darkMode ? "#FFF7F4" : BRAND.brown;
+  const secondaryText = darkMode ? "#CFC2BE" : BRAND.muted;
+  const controlBackground = darkMode ? "#362E2A" : "#FFFFFF";
+  const controlBorder = darkMode ? "#514540" : BRAND.border;
 
   return (
     <div
       style={{
         ...styles.page,
-        background: appliedDarkMode ? "#201A18" : "transparent",
+        background: darkMode ? "#201A18" : "transparent",
       }}
     >
       <header style={styles.header}>
@@ -93,7 +85,7 @@ export default function SettingPage() {
           </h1>
 
           <p style={{ ...styles.subtitle, color: secondaryText }}>
-            Manage the appearance of the entire admin website.
+            Customize the appearance of your administrator website.
           </p>
         </div>
 
@@ -121,11 +113,11 @@ export default function SettingPage() {
 
           <div>
             <h2 style={{ ...styles.sectionHeading, color: mainText }}>
-              Appearance
+              Display & Appearance
             </h2>
 
             <p style={{ ...styles.sectionDesc, color: secondaryText }}>
-              Preview your preferred text size and display theme, then click Save Settings to apply them across the admin panel.
+              Adjust the text size and display theme used throughout the admin panel.
             </p>
           </div>
         </div>
@@ -134,7 +126,7 @@ export default function SettingPage() {
           <label
             style={{
               ...styles.settingRow,
-              background: appliedDarkMode ? "#312925" : "#FFFCFB",
+              background: darkMode ? "#312925" : "#FFFCFB",
               borderColor: controlBorder,
             }}
           >
@@ -144,7 +136,7 @@ export default function SettingPage() {
               </h3>
 
               <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                Scale the text and content throughout the admin panel.
+                Choose the text size used across the administrator website.
               </p>
             </div>
 
@@ -155,7 +147,7 @@ export default function SettingPage() {
                 ...styles.select,
                 background: controlBackground,
                 borderColor: controlBorder,
-                color: appliedDarkMode ? "#FFF7F4" : BRAND.text,
+                color: darkMode ? "#FFF7F4" : BRAND.text,
               }}
             >
               <option>Default</option>
@@ -166,7 +158,7 @@ export default function SettingPage() {
           <div
             style={{
               ...styles.settingRow,
-              background: appliedDarkMode ? "#312925" : "#FFFCFB",
+              background: darkMode ? "#312925" : "#FFFCFB",
               borderColor: controlBorder,
             }}
           >
@@ -174,7 +166,7 @@ export default function SettingPage() {
               <div
                 style={{
                   ...styles.optionIcon,
-                  background: appliedDarkMode ? "#4A3A36" : "#F9DCE5",
+                  background: darkMode ? "#4A3A36" : "#F9DCE5",
                 }}
               >
                 <Moon size={20} />
@@ -186,7 +178,7 @@ export default function SettingPage() {
                 </h3>
 
                 <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                  Use a darker appearance across every admin page.
+                  Switch to a darker theme across all administrator pages.
                 </p>
               </div>
             </div>
@@ -225,7 +217,7 @@ export default function SettingPage() {
             }}
           >
             <RotateCcw size={17} />
-            Reset Default
+            Restore Defaults
           </button>
 
           <button type="submit" style={styles.saveBtn}>
