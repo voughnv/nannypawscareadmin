@@ -377,8 +377,8 @@ export default function SittersPage() {
     }
 
     const confirmed = await requestConfirmation({
-      title: "Save sitter changes?",
-      message: `Update the account information for ${getFullName(sitter)}?`,
+      title: "Save pet sitter changes?",
+      message: `Save the changes made to ${getFullName(sitter)}’s account information?`,
       confirmText: "Save Changes",
       variant: "primary",
     });
@@ -413,7 +413,7 @@ export default function SittersPage() {
 
       setSelectedSitter(data);
       setModalMode("view");
-      setSuccess(`${getFullName(data)}'s account was updated successfully.`);
+      setSuccess(`${getFullName(data)}’s account information was updated successfully.`);
       return true;
     } catch (updateError) {
       console.error("Unable to update pet sitter:", updateError);
@@ -1204,7 +1204,7 @@ function SitterModal({
         <div style={styles.modalHeader}>
           <div>
             <h2 id="sitter-modal-title" style={styles.modalTitle}>
-              {isEditing ? "Edit Pet Sitter" : "Pet Sitter Details"}
+              {isEditing ? "Edit Pet Sitter Details" : "Pet Sitter Details"}
             </h2>
           </div>
 
@@ -1246,7 +1246,7 @@ function SitterModal({
 
             <DetailItem
               icon={<CalendarPlus size={18} />}
-              label="Date Added"
+              label="Account Created"
               value={formatDateTime(sitter.created_at)}
             />
 
@@ -1282,7 +1282,7 @@ function SitterModal({
               disabled={Boolean(sitter.ps_auth_id)}
               note={
                 sitter.ps_auth_id
-                  ? "Linked to Supabase Auth. Change it through a secure Auth update flow."
+                  ? "This email is linked to the sitter’s login account and cannot be changed here."
                   : ""
               }
             />
@@ -1299,7 +1299,7 @@ function SitterModal({
             <PlacePhotoCard
               imageValue={sitter.ps_place}
               sitterName={getFullName(sitter)}
-              note="This photo is uploaded and managed by the pet sitter after logging in. Administrators cannot edit it."
+              note="The pet sitter can upload and manage this photo from their account. It cannot be changed from the admin website."
             />
           </div>
         ) : (
@@ -1503,7 +1503,7 @@ function PlacePhotoCard({ imageValue, sitterName, note }) {
         <div style={styles.detailText}>
           <p style={styles.detailLabel}>Place Photo</p>
           <h4 style={styles.detailValue}>
-            {imageUrl ? "Uploaded by pet sitter" : "Not set"}
+            {imageUrl ? "Photo uploaded" : "No photo uploaded yet"}
           </h4>
         </div>
       </div>
