@@ -1022,7 +1022,8 @@ function AddSitterPanel({
         </div>
 
         <form onSubmit={handleSubmit} style={styles.createForm}>
-          <CreateField
+          <div style={styles.createFormBody}>
+            <CreateField
             label="Full Name"
             placeholder="e.g. Michael Jordan"
             value={formValues.fullName}
@@ -1084,6 +1085,7 @@ function AddSitterPanel({
               This temporary password will be used after email verification. The pet sitter must change it upon first login.
             </span>
           </label>
+          </div>
 
           <div style={styles.createPanelFooter}>
             <button
@@ -1220,6 +1222,7 @@ function SitterModal({
           </button>
         </div>
 
+        <div style={styles.modalBody}>
         <div style={styles.modalProfile}>
           <div style={styles.modalAvatar}>
             <UserRound size={32} />
@@ -1344,6 +1347,8 @@ function SitterModal({
           </div>
           </div>
         )}
+
+        </div>
 
         <div style={styles.modalFooter}>
           <button
@@ -2136,13 +2141,14 @@ const styles = {
   createPanel: {
     width: "min(480px, 100%)",
     maxHeight: "calc(100vh - 40px)",
-    overflowY: "auto",
     borderRadius: 18,
     border: "1px solid #EEE2DF",
     background: "#FFFFFF",
     boxShadow: "0 24px 60px rgba(51, 26, 18, 0.28)",
-    padding: 22,
     boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
   },
 
   createPanelHeader: {
@@ -2150,9 +2156,9 @@ const styles = {
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 16,
-    paddingBottom: 17,
-    marginBottom: 18,
+    padding: "22px 22px 17px",
     borderBottom: "1px solid #EEE2DF",
+    flexShrink: 0,
   },
 
   createPanelEyebrow: {
@@ -2178,6 +2184,18 @@ const styles = {
   },
 
   createForm: {
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+  },
+
+  createFormBody: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "18px 22px 0",
     display: "flex",
     flexDirection: "column",
     gap: 15,
@@ -2231,13 +2249,18 @@ const styles = {
   },
 
   createPanelFooter: {
+    minHeight: 72,
+    padding: "14px 22px",
+    borderTop: "1px solid #EEE2DF",
+    background: "#FFFFFF",
     display: "flex",
     justifyContent: "flex-end",
     alignItems: "center",
     gap: 9,
-    marginTop: 9,
-    paddingTop: 18,
-    borderTop: "1px solid #EEE2DF",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    boxShadow: "0 -8px 18px rgba(51, 26, 18, 0.06)",
+    zIndex: 5,
   },
 
   createCancelBtn: {
@@ -2282,13 +2305,14 @@ const styles = {
   modal: {
     width: "min(760px, 100%)",
     maxHeight: "90vh",
-    overflowY: "auto",
     background: "#fff",
     borderRadius: 18,
     border: "1px solid #EEE2DF",
     boxShadow: "0 22px 50px rgba(51,26,18,0.22)",
-    padding: 22,
     boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
   },
 
   modalHeader: {
@@ -2297,8 +2321,15 @@ const styles = {
     justifyContent: "space-between",
     gap: 16,
     borderBottom: "1px solid #EEE2DF",
-    paddingBottom: 16,
-    marginBottom: 18,
+    padding: "22px 22px 16px",
+    flexShrink: 0,
+  },
+
+  modalBody: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "18px 22px",
   },
 
   modalTitle: {
@@ -2509,12 +2540,19 @@ const styles = {
   },
 
   modalFooter: {
-    marginTop: 18,
+    minHeight: 72,
+    padding: "14px 22px",
+    borderTop: "1px solid #EEE2DF",
+    background: "#FFFFFF",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: 10,
     flexWrap: "wrap",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    boxShadow: "0 -8px 18px rgba(51, 26, 18, 0.06)",
+    zIndex: 5,
   },
 
   modalFooterRight: {

@@ -65,6 +65,7 @@ export default function BookingDetailsModal({
           </button>
         </div>
 
+        <div style={styles.modalBody}>
         <h3 style={styles.sectionTitle}>Booking Information</h3>
 
         <div style={styles.modalGrid}>
@@ -160,8 +161,10 @@ export default function BookingDetailsModal({
           />
         </div>
 
+        </div>
+
         {(isCompleted || isRejected) && (
-          <div style={styles.readOnlyNotice}>
+          <div style={styles.stickyReadOnlyFooter}>
             {isCompleted
               ? "This booking has been completed and can no longer be changed."
               : "This booking has been rejected and can no longer be changed."}
@@ -511,13 +514,14 @@ const styles = {
   modal: {
     width: "min(820px, 100%)",
     maxHeight: "90vh",
-    overflowY: "auto",
     background: "#fff",
     borderRadius: 18,
     border: "1px solid #EEE2DF",
     boxShadow: "0 22px 50px rgba(51,26,18,0.22)",
-    padding: 22,
     boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
   },
 
   modalHeader: {
@@ -526,8 +530,15 @@ const styles = {
     justifyContent: "space-between",
     gap: 16,
     borderBottom: "1px solid #EEE2DF",
-    paddingBottom: 16,
-    marginBottom: 18,
+    padding: "22px 22px 16px",
+    flexShrink: 0,
+  },
+
+  modalBody: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "0 22px 22px",
   },
 
   modalTitle: {
@@ -676,24 +687,31 @@ const styles = {
     color: "#645854",
   },
 
-  readOnlyNotice: {
-    marginTop: 18,
-    padding: "12px 14px",
-    border: "1px solid #E6D9D7",
-    borderRadius: 10,
+  modalActions: {
+    flexShrink: 0,
+    minHeight: 74,
+    padding: "15px 22px",
+    borderTop: "1px solid #EEE2DF",
+    background: "#FFFFFF",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    flexWrap: "wrap",
+    boxSizing: "border-box",
+    boxShadow: "0 -8px 18px rgba(51, 26, 18, 0.06)",
+    zIndex: 5,
+  },
+
+  stickyReadOnlyFooter: {
+    flexShrink: 0,
+    padding: "15px 22px",
+    borderTop: "1px solid #E6D9D7",
     background: "#F8F5F4",
     color: BRAND.muted,
     fontSize: 13,
     fontWeight: 800,
     textAlign: "center",
-  },
-
-  modalActions: {
-    marginTop: 18,
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 8,
-    flexWrap: "wrap",
   },
 
   actionButton: {

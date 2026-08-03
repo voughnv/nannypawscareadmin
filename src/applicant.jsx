@@ -637,6 +637,7 @@ function ApplicantModal({
           <button style={styles.modalCloseBtn} onClick={onClose}><X size={22} /></button>
         </div>
 
+        <div style={styles.modalBody}>
         <div style={styles.profileTop}>
           <div style={styles.bigAvatar}><UserRound size={34} /></div>
           <div>
@@ -731,6 +732,7 @@ function ApplicantModal({
                 : styles.remarksInput
             }
           />
+        </div>
         </div>
 
         {!reviewCompleted && (
@@ -1059,8 +1061,33 @@ const styles = {
   resumeCardContent: { minWidth: 0 },
   modalFileButton: { marginTop: 10, border: "none", background: "transparent", padding: 0, display: "inline-flex", alignItems: "center", gap: 6, color: BRAND.pink, fontSize: 12, fontWeight: 900, cursor: "pointer" },
   modalOverlay: { position: "fixed", inset: 0, background: "rgba(35, 20, 16, 0.35)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 20 },
-  modal: { width: "min(760px, 100%)", maxHeight: "90vh", overflowY: "auto", background: "#fff", borderRadius: 18, border: "1px solid #EEE2DF", boxShadow: "0 22px 50px rgba(51,26,18,0.22)", padding: 22, boxSizing: "border-box" },
-  modalHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, borderBottom: "1px solid #EEE2DF", paddingBottom: 16, marginBottom: 18 },
+  modal: {
+    width: "min(760px, 100%)",
+    maxHeight: "90vh",
+    background: "#fff",
+    borderRadius: 18,
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 22px 50px rgba(51,26,18,0.22)",
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    borderBottom: "1px solid #EEE2DF",
+    padding: "22px 22px 16px",
+    flexShrink: 0,
+  },
+  modalBody: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "18px 22px 22px",
+  },
   modalTitle: { margin: 0, color: BRAND.brown, fontSize: 24, fontWeight: 900 },
   modalSubtitle: { margin: "4px 0 0", color: BRAND.pink, fontSize: 13, fontWeight: 800 },
   modalCloseBtn: { width: 36, height: 36, borderRadius: 9, border: "1px solid #E6D9D7", background: "#fff", color: BRAND.brown, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" },
@@ -1076,12 +1103,25 @@ const styles = {
   remarksBox: { marginTop: 14, border: "1px solid #EEE2DF", borderRadius: 12, padding: 14, background: "#FFFCFB" },
   remarksInput: { width: "100%", minHeight: 100, resize: "vertical", border: "1px solid #E2D5D3", borderRadius: 9, padding: 12, fontFamily: "inherit", fontSize: 13, boxSizing: "border-box" },
   readOnlyRemarks: { background: "#F8F3F2", color: BRAND.muted, cursor: "not-allowed" },
-  modalActions: { marginTop: 20, display: "flex", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" },
+  modalActions: {
+    minHeight: 72,
+    padding: "14px 22px",
+    borderTop: "1px solid #EEE2DF",
+    background: "#FFFFFF",
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    flexShrink: 0,
+    boxSizing: "border-box",
+    boxShadow: "0 -8px 18px rgba(51, 26, 18, 0.06)",
+    zIndex: 5,
+  },
   reviewCompleteNotice: {
-    marginTop: 18,
-    padding: "12px 14px",
-    borderRadius: 10,
-    border: "1px solid #D8CDC9",
+    flexShrink: 0,
+    padding: "15px 22px",
+    borderTop: "1px solid #D8CDC9",
     background: "#F8F3F2",
     color: BRAND.muted,
     fontSize: 13,
