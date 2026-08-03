@@ -13,17 +13,23 @@ const BRAND = {
 
 export default function SettingPage() {
   const navigate = useNavigate();
-  const { settings, saveSettings, resetSettings } = useAdminSettings();
+  const { settings, saveSettings } = useAdminSettings();
   const [message, setMessage] = useState("");
 
-  const fontSize = settings.fontSize;
-  const darkMode = settings.darkMode;
+  // Temporary selections. Global settings are updated only after Save Settings.
+  const [fontSize, setFontSize] = useState(settings.fontSize);
+  const [darkMode, setDarkMode] = useState(settings.darkMode);
 
   useEffect(() => {
     if (!localStorage.getItem("admin")) {
       navigate("/login");
     }
   }, [navigate]);
+
+  useEffect(() => {
+    setFontSize(settings.fontSize);
+    setDarkMode(settings.darkMode);
+  }, [settings.fontSize, settings.darkMode]);
 
   function showMessage(text) {
     setMessage(text);
@@ -34,35 +40,33 @@ export default function SettingPage() {
   }
 
   function handleFontSizeChange(event) {
-    const nextFontSize = event.target.value;
-
-    saveSettings({
-      ...settings,
-      fontSize: nextFontSize,
-    });
+    setFontSize(event.target.value);
   }
 
   function handleDarkModeToggle() {
-    saveSettings({
-      ...settings,
-      darkMode: !darkMode,
-    });
+    setDarkMode((previous) => !previous);
   }
 
   function handleSave(event) {
     event.preventDefault();
 
-    // The controls already apply settings immediately.
-    // This button confirms that the current settings are stored.
-    saveSettings(settings);
+    saveSettings({
+      ...settings,
+      fontSize,
+      darkMode,
+    });
+
     showMessage(
       "Your settings have been saved and applied across the administrator website."
     );
   }
 
   function handleReset() {
-    resetSettings();
-    showMessage("Default appearance settings have been restored.");
+    setFontSize("Default");
+    setDarkMode(false);
+    showMessage(
+      "Default settings selected. Click Save Settings to apply them."
+    );
   }
 
   const cardBackground = darkMode ? "#2B2421" : "#FFFFFF";
@@ -85,7 +89,7 @@ export default function SettingPage() {
           </h1>
 
           <p style={{ ...styles.subtitle, color: secondaryText }}>
-            Customize the appearance of your administrator website.
+            Manage the appearance of the entire admin website.
           </p>
         </div>
 
@@ -113,11 +117,11 @@ export default function SettingPage() {
 
           <div>
             <h2 style={{ ...styles.sectionHeading, color: mainText }}>
-              Display & Appearance
+              Appearance
             </h2>
 
             <p style={{ ...styles.sectionDesc, color: secondaryText }}>
-              Adjust the text size and display theme used throughout the admin panel.
+              Preview your preferred text size and display theme, then click Save Settings to apply them across the admin panel.
             </p>
           </div>
         </div>
@@ -136,7 +140,7 @@ export default function SettingPage() {
               </h3>
 
               <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                Choose the text size used across the administrator website.
+                Scale the text and content throughout the admin panel.
               </p>
             </div>
 
@@ -178,7 +182,7 @@ export default function SettingPage() {
                 </h3>
 
                 <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                  Switch to a darker theme across all administrator pages.
+                  Use a darker appearance across every admin page.
                 </p>
               </div>
             </div>
@@ -217,7 +221,7 @@ export default function SettingPage() {
             }}
           >
             <RotateCcw size={17} />
-            Restore Defaults
+            Reset Default
           </button>
 
           <button type="submit" style={styles.saveBtn}>
