@@ -21,9 +21,13 @@ const AdminSettingsContext = createContext(null);
 export function AdminSettingsProvider({ children }) {
   const [settings, setSettings] = useState(() => getStoredSettings());
 
+  // Apply only the SAVED settings to the website.
   useEffect(() => {
     applyDocumentSettings(settings);
+  }, [settings]);
 
+  // Keep settings synchronized when localStorage changes in another tab.
+  useEffect(() => {
     function handleStorage(event) {
       if (event.key === "adminSettings") {
         setSettings(getStoredSettings());
@@ -34,21 +38,17 @@ export function AdminSettingsProvider({ children }) {
 
     return () => {
       window.removeEventListener("storage", handleStorage);
-
-      const root = document.documentElement;
-      root.removeAttribute("data-admin-theme");
-      root.removeAttribute("data-admin-font-size");
-      root.style.removeProperty("--admin-font-scale");
-
-      document.body.style.removeProperty("background-color");
-      document.body.style.removeProperty("color");
     };
-  }, [settings]);
+  }, []);
 
   function saveSettings(nextSettings) {
     const normalized = normalizeSettings(nextSettings);
 
-    localStorage.setItem("adminSettings", JSON.stringify(normalized));
+    localStorage.setItem(
+      "adminSettings",
+      JSON.stringify(normalized)
+    );
+
     setSettings(normalized);
 
     window.dispatchEvent(
@@ -68,7 +68,8 @@ export function AdminSettingsProvider({ children }) {
     () => ({
       settings,
       fontScale:
-        FONT_SCALE_VALUES[settings.fontSize] || FONT_SCALE_VALUES.Default,
+        FONT_SCALE_VALUES[settings.fontSize] ||
+        FONT_SCALE_VALUES.Default,
       saveSettings,
       resetSettings,
     }),
@@ -124,12 +125,32 @@ function applyDocumentSettings(settings) {
   const root = document.documentElement;
   const darkMode = Boolean(settings.darkMode);
   const fontScale =
-    FONT_SCALE_VALUES[settings.fontSize] || FONT_SCALE_VALUES.Default;
+    FONT_SCALE_VALUES[settings.fontSize] ||
+    FONT_SCALE_VALUES.Default;
 
   root.dataset.adminTheme = darkMode ? "dark" : "light";
   root.dataset.adminFontSize = settings.fontSize;
-  root.style.setProperty("--admin-font-scale", String(fontScale));
 
-  document.body.style.backgroundColor = darkMode ? "#171311" : "#FFF9F8";
-  document.body.style.color = darkMode ? "#FFF7F4" : "#2E1B16";
+  root.style.setProperty(
+    "--admin-font-scale",
+    String(fontScale)
+  );
+
+  root.style.setProperty(
+    "--admin-page-background",
+    darkMode ? "#171311" : "#FFF9F8"
+  );
+
+  root.style.setProperty(
+    "--admin-text-color",
+    darkMode ? "#FFF7F4" : "#2E1B16"
+  );
+
+  root.style.colorScheme = darkMode ? "dark" : "light";
+
+  document.body.style.backgroundColor =
+    darkMode ? "#171311" : "#FFF9F8";
+
+  document.body.style.color =
+    darkMode ? "#FFF7F4" : "#2E1B16";
 }

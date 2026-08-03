@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Save, Type, Moon, RotateCcw } from "lucide-react";
-import { useAdminSettings } from "./context/AdminSettingsContext";
+import {
+  DEFAULT_ADMIN_SETTINGS,
+  useAdminSettings,
+} from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -13,17 +16,29 @@ const BRAND = {
 
 export default function SettingPage() {
   const navigate = useNavigate();
-  const { settings, saveSettings, resetSettings } = useAdminSettings();
-  const [message, setMessage] = useState("");
+  const { settings, saveSettings } = useAdminSettings();
 
-  const fontSize = settings.fontSize;
-  const darkMode = settings.darkMode;
+  // Draft settings are temporary until Save Settings is clicked.
+  const [draftSettings, setDraftSettings] = useState(settings);
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("admin")) {
       navigate("/login");
     }
   }, [navigate]);
+
+  // Refresh the draft after saved global settings change.
+  useEffect(() => {
+    setDraftSettings(settings);
+  }, [settings]);
+
+  const hasChanges = useMemo(
+    () =>
+      draftSettings.fontSize !== settings.fontSize ||
+      draftSettings.darkMode !== settings.darkMode,
+    [draftSettings, settings]
+  );
 
   function showMessage(text) {
     setMessage(text);
@@ -34,48 +49,74 @@ export default function SettingPage() {
   }
 
   function handleFontSizeChange(event) {
-    const nextFontSize = event.target.value;
-
-    saveSettings({
-      ...settings,
-      fontSize: nextFontSize,
-    });
+    setDraftSettings((previous) => ({
+      ...previous,
+      fontSize: event.target.value,
+    }));
   }
 
   function handleDarkModeToggle() {
-    saveSettings({
-      ...settings,
-      darkMode: !darkMode,
-    });
+    setDraftSettings((previous) => ({
+      ...previous,
+      darkMode: !previous.darkMode,
+    }));
   }
 
   function handleSave(event) {
     event.preventDefault();
 
-    // The controls already apply settings immediately.
-    // This button confirms that the current settings are stored.
-    saveSettings(settings);
+    saveSettings(draftSettings);
+
     showMessage(
       "Your settings have been saved and applied across the administrator website."
     );
   }
 
   function handleReset() {
-    resetSettings();
-    showMessage("Default appearance settings have been restored.");
+    setDraftSettings({ ...DEFAULT_ADMIN_SETTINGS });
+
+    showMessage(
+      "Default settings selected. Click Save Settings to apply them."
+    );
   }
 
-  const cardBackground = darkMode ? "#2B2421" : "#FFFFFF";
-  const mainText = darkMode ? "#FFF7F4" : BRAND.brown;
-  const secondaryText = darkMode ? "#CFC2BE" : BRAND.muted;
-  const controlBackground = darkMode ? "#362E2A" : "#FFFFFF";
-  const controlBorder = darkMode ? "#514540" : BRAND.border;
+  // Render the page using only the SAVED global theme.
+  // The switch and dropdown use the temporary draft values.
+  const appliedDarkMode = settings.darkMode;
+  const selectedFontSize = draftSettings.fontSize;
+  const selectedDarkMode = draftSettings.darkMode;
+
+  const cardBackground = appliedDarkMode
+    ? "#2B2421"
+    : "#FFFFFF";
+
+  const rowBackground = appliedDarkMode
+    ? "#312925"
+    : "#FFFCFB";
+
+  const mainText = appliedDarkMode
+    ? "#FFF7F4"
+    : BRAND.brown;
+
+  const secondaryText = appliedDarkMode
+    ? "#CFC2BE"
+    : BRAND.muted;
+
+  const controlBackground = appliedDarkMode
+    ? "#362E2A"
+    : "#FFFFFF";
+
+  const controlBorder = appliedDarkMode
+    ? "#514540"
+    : BRAND.border;
 
   return (
     <div
       style={{
         ...styles.page,
-        background: darkMode ? "#201A18" : "transparent",
+        background: appliedDarkMode
+          ? "#201A18"
+          : "transparent",
       }}
     >
       <header style={styles.header}>
@@ -96,7 +137,9 @@ export default function SettingPage() {
         </div>
       </header>
 
-      {message && <div style={styles.alertSuccess}>{message}</div>}
+      {message && (
+        <div style={styles.alertSuccess}>{message}</div>
+      )}
 
       <form
         onSubmit={handleSave}
@@ -112,12 +155,24 @@ export default function SettingPage() {
           </div>
 
           <div>
-            <h2 style={{ ...styles.sectionHeading, color: mainText }}>
+            <h2
+              style={{
+                ...styles.sectionHeading,
+                color: mainText,
+              }}
+            >
               Display & Appearance
             </h2>
 
-            <p style={{ ...styles.sectionDesc, color: secondaryText }}>
-              Adjust the text size and display theme used throughout the admin panel.
+            <p
+              style={{
+                ...styles.sectionDesc,
+                color: secondaryText,
+              }}
+            >
+              Select your preferred text size and display theme,
+              then click Save Settings to apply them across the
+              admin panel.
             </p>
           </div>
         </div>
@@ -126,39 +181,52 @@ export default function SettingPage() {
           <label
             style={{
               ...styles.settingRow,
-              background: darkMode ? "#312925" : "#FFFCFB",
+              background: rowBackground,
               borderColor: controlBorder,
             }}
           >
             <div>
-              <h3 style={{ ...styles.optionTitle, color: mainText }}>
+              <h3
+                style={{
+                  ...styles.optionTitle,
+                  color: mainText,
+                }}
+              >
                 Font Size
               </h3>
 
-              <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                Choose the text size used across the administrator website.
+              <p
+                style={{
+                  ...styles.optionDesc,
+                  color: secondaryText,
+                }}
+              >
+                Choose the text size used across the administrator
+                website.
               </p>
             </div>
 
             <select
-              value={fontSize}
+              value={selectedFontSize}
               onChange={handleFontSizeChange}
               style={{
                 ...styles.select,
                 background: controlBackground,
                 borderColor: controlBorder,
-                color: darkMode ? "#FFF7F4" : BRAND.text,
+                color: appliedDarkMode
+                  ? "#FFF7F4"
+                  : BRAND.text,
               }}
             >
-              <option>Default</option>
-              <option>Large</option>
+              <option value="Default">Default</option>
+              <option value="Large">Large</option>
             </select>
           </label>
 
           <div
             style={{
               ...styles.settingRow,
-              background: darkMode ? "#312925" : "#FFFCFB",
+              background: rowBackground,
               borderColor: controlBorder,
             }}
           >
@@ -166,19 +234,32 @@ export default function SettingPage() {
               <div
                 style={{
                   ...styles.optionIcon,
-                  background: darkMode ? "#4A3A36" : "#F9DCE5",
+                  background: appliedDarkMode
+                    ? "#4A3A36"
+                    : "#F9DCE5",
                 }}
               >
                 <Moon size={20} />
               </div>
 
               <div>
-                <h3 style={{ ...styles.optionTitle, color: mainText }}>
+                <h3
+                  style={{
+                    ...styles.optionTitle,
+                    color: mainText,
+                  }}
+                >
                   Dark Mode
                 </h3>
 
-                <p style={{ ...styles.optionDesc, color: secondaryText }}>
-                  Switch to a darker theme across all administrator pages.
+                <p
+                  style={{
+                    ...styles.optionDesc,
+                    color: secondaryText,
+                  }}
+                >
+                  Switch to a darker theme across all administrator
+                  pages.
                 </p>
               </div>
             </div>
@@ -186,17 +267,19 @@ export default function SettingPage() {
             <button
               type="button"
               aria-label="Toggle dark mode"
-              aria-pressed={darkMode}
+              aria-pressed={selectedDarkMode}
               onClick={handleDarkModeToggle}
               style={{
                 ...styles.toggle,
-                background: darkMode ? BRAND.pink : "#E6D9D7",
+                background: selectedDarkMode
+                  ? BRAND.pink
+                  : "#E6D9D7",
               }}
             >
               <span
                 style={{
                   ...styles.toggleCircle,
-                  transform: darkMode
+                  transform: selectedDarkMode
                     ? "translateX(22px)"
                     : "translateX(0)",
                 }}
@@ -205,7 +288,12 @@ export default function SettingPage() {
           </div>
         </div>
 
-        <div style={{ ...styles.buttonRow, borderColor: controlBorder }}>
+        <div
+          style={{
+            ...styles.buttonRow,
+            borderColor: controlBorder,
+          }}
+        >
           <button
             type="button"
             onClick={handleReset}
@@ -220,7 +308,14 @@ export default function SettingPage() {
             Restore Defaults
           </button>
 
-          <button type="submit" style={styles.saveBtn}>
+          <button
+            type="submit"
+            disabled={!hasChanges}
+            style={{
+              ...styles.saveBtn,
+              ...(!hasChanges ? styles.disabledSaveBtn : {}),
+            }}
+          >
             <Save size={18} />
             Save Settings
           </button>
@@ -445,5 +540,10 @@ const styles = {
     fontSize: 14,
     fontWeight: 900,
     cursor: "pointer",
+  },
+
+  disabledSaveBtn: {
+    opacity: 0.55,
+    cursor: "not-allowed",
   },
 };

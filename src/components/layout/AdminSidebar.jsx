@@ -17,31 +17,11 @@ const BRAND = {
 };
 
 const MENU_ITEMS = [
-  {
-    to: "/bookings",
-    text: "Bookings",
-    icon: CalendarDays,
-  },
-  {
-    to: "/sitters",
-    text: "Pet Sitters",
-    icon: User,
-  },
-  {
-    to: "/messages",
-    text: "Messages",
-    icon: MessagesSquare,
-  },
-  {
-    to: "/applicants",
-    text: "Applicants",
-    icon: Users,
-  },
-  {
-    to: "/feedbacks",
-    text: "Feedbacks",
-    icon: MessageSquare,
-  },
+  { to: "/bookings", text: "Bookings", icon: CalendarDays },
+  { to: "/sitters", text: "Pet Sitters", icon: User },
+  { to: "/messages", text: "Messages", icon: MessagesSquare },
+  { to: "/applicants", text: "Applicants", icon: Users },
+  { to: "/feedbacks", text: "Feedbacks", icon: MessageSquare },
 ];
 
 export default function AdminSidebar() {
@@ -56,11 +36,19 @@ export default function AdminSidebar() {
       setAdmin(getStoredAdmin());
     }
 
-    window.addEventListener("admin-profile-updated", refreshAdmin);
+    window.addEventListener(
+      "admin-profile-updated",
+      refreshAdmin
+    );
+
     window.addEventListener("storage", refreshAdmin);
 
     return () => {
-      window.removeEventListener("admin-profile-updated", refreshAdmin);
+      window.removeEventListener(
+        "admin-profile-updated",
+        refreshAdmin
+      );
+
       window.removeEventListener("storage", refreshAdmin);
     };
   }, []);
@@ -70,8 +58,13 @@ export default function AdminSidebar() {
     navigate("/login");
   }
 
-  const normalText = darkMode ? "#FFF7F4" : BRAND.brown;
-  const mutedText = darkMode ? "#CFC2BE" : "#8D7575";
+  const normalText = darkMode
+    ? "#FFF7F4"
+    : BRAND.brown;
+
+  const mutedText = darkMode
+    ? "#CFC2BE"
+    : "#8D7575";
 
   return (
     <aside
@@ -80,20 +73,28 @@ export default function AdminSidebar() {
         background: darkMode
           ? "linear-gradient(180deg, #241D1A 0%, #2B2320 48%, #1D1816 100%)"
           : "linear-gradient(180deg, #FCE4E7 0%, #FDEEEF 45%, #FFF8F8 100%)",
-        borderRightColor: darkMode ? "#443934" : "transparent",
+        borderRightColor: darkMode
+          ? "#443934"
+          : "transparent",
       }}
     >
       <div
         style={{
           ...styles.logoBox,
           background: "#FFFFFF",
-          borderColor: darkMode ? "#5A4B45" : "#E8DAD7",
+          borderColor: darkMode
+            ? "#5A4B45"
+            : "#E8DAD7",
           boxShadow: darkMode
             ? "0 8px 18px rgba(0, 0, 0, 0.28)"
             : "0 8px 18px rgba(85,54,48,0.12)",
         }}
       >
-        <img src="/nannylogo.png" alt="Nanny Paws" style={styles.logo} />
+        <img
+          src="/nannylogo.png"
+          alt="Nanny Paws"
+          style={styles.logo}
+        />
       </div>
 
       <nav style={styles.nav}>
@@ -114,7 +115,9 @@ export default function AdminSidebar() {
           to="/profile"
           style={({ isActive }) => ({
             ...styles.profileCard,
-            background: darkMode ? "#3A302C" : "#F9DADF",
+            background: darkMode
+              ? "#3A302C"
+              : "#F9DADF",
             borderColor: isActive
               ? BRAND.pink
               : darkMode
@@ -128,7 +131,9 @@ export default function AdminSidebar() {
           <div
             style={{
               ...styles.profileIcon,
-              background: darkMode ? "#2B2421" : "#FFFFFF",
+              background: darkMode
+                ? "#2B2421"
+                : "#FFFFFF",
             }}
           >
             <User size={24} />
@@ -182,7 +187,13 @@ export default function AdminSidebar() {
   );
 }
 
-function SidebarItem({ to, icon, text, darkMode, fontScale }) {
+function SidebarItem({
+  to,
+  icon,
+  text,
+  darkMode,
+  fontScale,
+}) {
   return (
     <NavLink
       to={to}
@@ -234,7 +245,8 @@ const styles = {
     boxSizing: "border-box",
     flexShrink: 0,
     borderRight: "1px solid transparent",
-    transition: "background 0.2s ease, border-color 0.2s ease",
+    transition:
+      "background 0.2s ease, border-color 0.2s ease",
   },
 
   logoBox: {
@@ -286,7 +298,8 @@ const styles = {
     textAlign: "left",
     textDecoration: "none",
     boxSizing: "border-box",
-    transition: "background 0.2s ease, color 0.2s ease",
+    transition:
+      "background 0.2s ease, color 0.2s ease",
   },
 
   sidebarBottom: {
@@ -308,7 +321,8 @@ const styles = {
     boxSizing: "border-box",
     textDecoration: "none",
     border: "1px solid",
-    transition: "background 0.2s ease, border-color 0.2s ease",
+    transition:
+      "background 0.2s ease, border-color 0.2s ease",
   },
 
   profileIcon: {
