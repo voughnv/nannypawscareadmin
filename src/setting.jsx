@@ -16,10 +16,16 @@ const BRAND = {
 
 export default function SettingPage() {
   const navigate = useNavigate();
-  const { settings, saveSettings } = useAdminSettings();
 
-  // Draft settings are temporary until Save Settings is clicked.
-  const [draftSettings, setDraftSettings] = useState(settings);
+  const {
+    settings,
+    savedSettings,
+    saveSettings,
+    previewAdminSettings,
+    clearSettingsPreview,
+  } = useAdminSettings();
+
+  const [draftSettings, setDraftSettings] = useState(savedSettings);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -28,16 +34,28 @@ export default function SettingPage() {
     }
   }, [navigate]);
 
-  // Refresh the draft after saved global settings change.
+  // Start with the last saved settings whenever this page opens.
   useEffect(() => {
-    setDraftSettings(settings);
-  }, [settings]);
+    setDraftSettings(savedSettings);
+  }, [savedSettings]);
+
+  // Preview changes across the entire website.
+  useEffect(() => {
+    previewAdminSettings(draftSettings);
+  }, [draftSettings, previewAdminSettings]);
+
+  // Leaving this page without saving restores the last saved settings.
+  useEffect(() => {
+    return () => {
+      clearSettingsPreview();
+    };
+  }, [clearSettingsPreview]);
 
   const hasChanges = useMemo(
     () =>
-      draftSettings.fontSize !== settings.fontSize ||
-      draftSettings.darkMode !== settings.darkMode,
-    [draftSettings, settings]
+      draftSettings.fontSize !== savedSettings.fontSize ||
+      draftSettings.darkMode !== savedSettings.darkMode,
+    [draftSettings, savedSettings]
   );
 
   function showMessage(text) {
@@ -76,37 +94,36 @@ export default function SettingPage() {
     setDraftSettings({ ...DEFAULT_ADMIN_SETTINGS });
 
     showMessage(
-      "Default settings selected. Click Save Settings to apply them."
+      "Default settings selected. Click Save Settings to keep them."
     );
   }
 
-  // Render the page using only the SAVED global theme.
-  // The switch and dropdown use the temporary draft values.
-  const appliedDarkMode = settings.darkMode;
+  // The page follows the effective settings, including the temporary preview.
+  const darkMode = settings.darkMode;
   const selectedFontSize = draftSettings.fontSize;
   const selectedDarkMode = draftSettings.darkMode;
 
-  const cardBackground = appliedDarkMode
+  const cardBackground = darkMode
     ? "#2B2421"
     : "#FFFFFF";
 
-  const rowBackground = appliedDarkMode
+  const rowBackground = darkMode
     ? "#312925"
     : "#FFFCFB";
 
-  const mainText = appliedDarkMode
+  const mainText = darkMode
     ? "#FFF7F4"
     : BRAND.brown;
 
-  const secondaryText = appliedDarkMode
+  const secondaryText = darkMode
     ? "#CFC2BE"
     : BRAND.muted;
 
-  const controlBackground = appliedDarkMode
+  const controlBackground = darkMode
     ? "#362E2A"
     : "#FFFFFF";
 
-  const controlBorder = appliedDarkMode
+  const controlBorder = darkMode
     ? "#514540"
     : BRAND.border;
 
@@ -114,7 +131,7 @@ export default function SettingPage() {
     <div
       style={{
         ...styles.page,
-        background: appliedDarkMode
+        background: darkMode
           ? "#201A18"
           : "transparent",
       }}
@@ -170,9 +187,8 @@ export default function SettingPage() {
                 color: secondaryText,
               }}
             >
-              Select your preferred text size and display theme,
-              then click Save Settings to apply them across the
-              admin panel.
+              Preview your preferred text size and display theme.
+              Click Save Settings to keep the changes.
             </p>
           </div>
         </div>
@@ -213,7 +229,7 @@ export default function SettingPage() {
                 ...styles.select,
                 background: controlBackground,
                 borderColor: controlBorder,
-                color: appliedDarkMode
+                color: darkMode
                   ? "#FFF7F4"
                   : BRAND.text,
               }}
@@ -234,7 +250,7 @@ export default function SettingPage() {
               <div
                 style={{
                   ...styles.optionIcon,
-                  background: appliedDarkMode
+                  background: darkMode
                     ? "#4A3A36"
                     : "#F9DCE5",
                 }}

@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -19,18 +20,27 @@ export const FONT_SCALE_VALUES = {
 const AdminSettingsContext = createContext(null);
 
 export function AdminSettingsProvider({ children }) {
-  const [settings, setSettings] = useState(() => getStoredSettings());
+  const [savedSettings, setSavedSettings] = useState(() =>
+    getStoredSettings()
+  );
 
-  // Apply only the SAVED settings to the website.
+  const [previewSettings, setPreviewSettingsState] = useState(null);
+
+  // Use preview settings while the Settings page is open.
+  // Otherwise, use the last saved settings.
+  const settings = previewSettings || savedSettings;
+
   useEffect(() => {
     applyDocumentSettings(settings);
   }, [settings]);
 
-  // Keep settings synchronized when localStorage changes in another tab.
   useEffect(() => {
     function handleStorage(event) {
       if (event.key === "adminSettings") {
-        setSettings(getStoredSettings());
+        const storedSettings = getStoredSettings();
+
+        setSavedSettings(storedSettings);
+        setPreviewSettingsState(null);
       }
     }
 
@@ -41,7 +51,17 @@ export function AdminSettingsProvider({ children }) {
     };
   }, []);
 
-  function saveSettings(nextSettings) {
+  const previewAdminSettings = useCallback((nextSettings) => {
+    const normalized = normalizeSettings(nextSettings);
+    setPreviewSettingsState(normalized);
+    return normalized;
+  }, []);
+
+  const clearSettingsPreview = useCallback(() => {
+    setPreviewSettingsState(null);
+  }, []);
+
+  const saveSettings = useCallback((nextSettings) => {
     const normalized = normalizeSettings(nextSettings);
 
     localStorage.setItem(
@@ -49,7 +69,8 @@ export function AdminSettingsProvider({ children }) {
       JSON.stringify(normalized)
     );
 
-    setSettings(normalized);
+    setSavedSettings(normalized);
+    setPreviewSettingsState(null);
 
     window.dispatchEvent(
       new CustomEvent("admin-settings-updated", {
@@ -58,22 +79,39 @@ export function AdminSettingsProvider({ children }) {
     );
 
     return normalized;
-  }
+  }, []);
 
-  function resetSettings() {
+  const resetSettings = useCallback(() => {
     return saveSettings(DEFAULT_ADMIN_SETTINGS);
-  }
+  }, [saveSettings]);
 
   const value = useMemo(
     () => ({
+      // Effective settings used by the whole website.
       settings,
+
+      // Last settings actually saved to localStorage.
+      savedSettings,
+
       fontScale:
         FONT_SCALE_VALUES[settings.fontSize] ||
         FONT_SCALE_VALUES.Default,
+
       saveSettings,
       resetSettings,
+      previewAdminSettings,
+      clearSettingsPreview,
+      isPreviewing: previewSettings !== null,
     }),
-    [settings]
+    [
+      settings,
+      savedSettings,
+      previewSettings,
+      saveSettings,
+      resetSettings,
+      previewAdminSettings,
+      clearSettingsPreview,
+    ]
   );
 
   return (
@@ -124,6 +162,7 @@ function normalizeSettings(settings) {
 function applyDocumentSettings(settings) {
   const root = document.documentElement;
   const darkMode = Boolean(settings.darkMode);
+
   const fontScale =
     FONT_SCALE_VALUES[settings.fontSize] ||
     FONT_SCALE_VALUES.Default;
