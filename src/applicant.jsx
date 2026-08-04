@@ -128,7 +128,7 @@ export default function ApplicantPage() {
       const payload = {
         application_status: status,
         review_remarks: remarks.trim() || null,
-        review_date: getPhilippineDateOnly(),
+        review_date: [getPhilippineDateOnly()],
       };
 
       let result;
