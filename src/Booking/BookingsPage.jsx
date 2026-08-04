@@ -399,16 +399,6 @@ export default function BookingsPage() {
         booking.booking_id,
         formatBookingId(booking.booking_id),
         booking.service_type,
-        booking.booking_status,
-        booking.booking_date,
-        booking.booking_time,
-        booking.start_time,
-        booking.end_time,
-        booking.end_date,
-        booking.petName,
-        booking.ownerName,
-        booking.sitterName,
-        booking.payment_method,
       ]
         .filter(Boolean)
         .map((value) => String(value).toLowerCase());
