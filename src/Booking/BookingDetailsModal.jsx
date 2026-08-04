@@ -209,16 +209,10 @@ export default function BookingDetailsModal({
             <DetailItem
               label="Pet Sitter"
               value={getSitterName(booking)}
-              secondary={
-                isPending
-                  ? "Pet sitter assignment is unavailable."
-                  : booking.ps_id
-                  ? `${formatReference(
-                      "Sitter ID",
-                      booking.ps_id
-                    )} • Assignment locked`
-                  : "No sitter assigned • Assignment locked"
-              }
+              secondary={getSitterAssignmentStatusText(
+                booking,
+                normalizedStatus
+              )}
             />
           )}
 
@@ -711,6 +705,31 @@ function getSitterName(booking) {
       ? `Pet Sitter ${booking.ps_id}`
       : "Not assigned")
   );
+}
+
+function getSitterAssignmentStatusText(
+  booking,
+  normalizedStatus
+) {
+  const sitterReference = booking.ps_id
+    ? formatReference("Sitter ID", booking.ps_id)
+    : "No sitter assigned";
+
+  if (normalizedStatus === "Confirmed") {
+    return `${sitterReference} • Assignment finalized`;
+  }
+
+  if (normalizedStatus === "Completed") {
+    return `${sitterReference} • Service completed`;
+  }
+
+  if (normalizedStatus === "Rejected") {
+    return `${sitterReference} • Booking rejected`;
+  }
+
+  return booking.ps_id
+    ? sitterReference
+    : "No sitter assigned";
 }
 
 function getSitterRecordId(sitter) {
