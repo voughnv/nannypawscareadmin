@@ -39,6 +39,7 @@ export default function BookingDetailsModal({
   onComplete,
 }) {
   const [selectedSitterId, setSelectedSitterId] = useState("");
+  const [assignmentError, setAssignmentError] = useState("");
 
   useEffect(() => {
     setSelectedSitterId(
@@ -48,6 +49,7 @@ export default function BookingDetailsModal({
         ? ""
         : String(booking.ps_id)
     );
+    setAssignmentError("");
   }, [booking?.booking_id, booking?.ps_id]);
 
   if (!booking) return null;
@@ -77,6 +79,43 @@ export default function BookingDetailsModal({
 
   const startTime = booking.start_time || booking.booking_time;
   const paymentProof = String(booking.payment_proof || "").trim();
+
+  const selectedSitter =
+    petSitters.find(
+      (sitter) =>
+        String(getSitterRecordId(sitter)) === selectedSitterId
+    ) || null;
+
+  async function handleApproveBooking() {
+    setAssignmentError("");
+
+    if (!selectedSitterId || !selectedSitter) {
+      setAssignmentError(
+        "Select a pet sitter before approving this booking."
+      );
+      return;
+    }
+
+    let bookingForApproval = booking;
+
+    if (sitterAssignmentChanged) {
+      const assignmentUpdated = await onChangeSitter?.(
+        booking,
+        selectedSitterId
+      );
+
+      if (!assignmentUpdated) return;
+
+      bookingForApproval = {
+        ...booking,
+        ps_id: Number(selectedSitterId),
+        sitterRecord: selectedSitter,
+        sitterName: getSitterDisplayName(selectedSitter),
+      };
+    }
+
+    await onApprove?.(bookingForApproval);
+  }
 
   return (
     <div
@@ -159,12 +198,12 @@ export default function BookingDetailsModal({
               booking={booking}
               petSitters={petSitters}
               selectedSitterId={selectedSitterId}
-              onSelect={setSelectedSitterId}
-              changed={sitterAssignmentChanged}
+              onSelect={(nextSitterId) => {
+                setSelectedSitterId(nextSitterId);
+                setAssignmentError("");
+              }}
               updating={updating}
-              onSave={() =>
-                onChangeSitter?.(booking, selectedSitterId)
-              }
+              error={assignmentError}
             />
           ) : (
             <DetailItem
@@ -276,10 +315,17 @@ export default function BookingDetailsModal({
                   style={{
                     ...styles.actionButton,
                     ...styles.confirmButton,
-                    ...(updating ? styles.disabledButton : {}),
+                    ...(updating || !selectedSitterId
+                      ? styles.disabledButton
+                      : {}),
                   }}
-                  disabled={updating}
-                  onClick={() => onApprove(booking)}
+                  disabled={updating || !selectedSitterId}
+                  onClick={handleApproveBooking}
+                  title={
+                    selectedSitterId
+                      ? "Save the selected sitter and approve the booking"
+                      : "Select a pet sitter before approving"
+                  }
                 >
                   {updating ? "Updating..." : "Approve"}
                 </button>
@@ -312,9 +358,8 @@ function SitterAssignmentField({
   petSitters,
   selectedSitterId,
   onSelect,
-  changed,
   updating,
-  onSave,
+  error,
 }) {
   const currentSitterId =
     booking.ps_id === null ||
@@ -346,10 +391,11 @@ function SitterAssignmentField({
         disabled={updating}
         style={{
           ...styles.sitterSelect,
+          ...(error ? styles.sitterSelectError : {}),
           ...(updating ? styles.disabledControl : {}),
         }}
       >
-        <option value="">Not assigned</option>
+        <option value="">Select a pet sitter</option>
 
         {!currentSitterIncluded && currentSitterId && (
           <option value={currentSitterId}>
@@ -370,25 +416,17 @@ function SitterAssignmentField({
       </select>
 
       <p style={styles.assignmentHelper}>
-        Select the appropriate pet sitter before approving this booking.
+        The selected pet sitter will be saved when you approve the
+        booking.
       </p>
 
-      <button
-        type="button"
-        disabled={!changed || updating}
-        onClick={onSave}
-        style={{
-          ...styles.assignmentButton,
-          ...(!changed || updating
-            ? styles.disabledAssignmentButton
-            : {}),
-        }}
-      >
-        {updating ? "Updating..." : "Update Assignment"}
-      </button>
+      {error && (
+        <p style={styles.assignmentError}>{error}</p>
+      )}
     </div>
   );
 }
+
 
 function DetailItem({
   label,
@@ -929,22 +967,17 @@ const styles = {
     lineHeight: 1.4,
   },
 
-  assignmentButton: {
-    minHeight: 36,
-    marginTop: 10,
-    border: "none",
-    borderRadius: 8,
-    padding: "0 12px",
-    background: BRAND.pink,
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: 900,
-    cursor: "pointer",
+  sitterSelectError: {
+    borderColor: "#DF101D",
+    background: "#FFF7F7",
   },
 
-  disabledAssignmentButton: {
-    opacity: 0.5,
-    cursor: "not-allowed",
+  assignmentError: {
+    margin: "7px 0 0",
+    color: "#DF101D",
+    fontSize: 11,
+    fontWeight: 800,
+    lineHeight: 1.4,
   },
 
   disabledControl: {

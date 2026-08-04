@@ -301,9 +301,20 @@ export default function BookingsPage() {
 
       if (updateError) throw updateError;
 
+      const updatedSitter =
+        petSitters.find(
+          (sitter) =>
+            normalizeReferenceKey(sitter.petsitter_id) ===
+            normalizeReferenceKey(data.ps_id)
+        ) ||
+        booking.sitterRecord ||
+        null;
+
       const updatedBooking = {
         ...booking,
         ...data,
+        sitterRecord: updatedSitter,
+        sitterName: getSitterName(updatedSitter, data.ps_id),
       };
 
       setBookings((previous) =>
