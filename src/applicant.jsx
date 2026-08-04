@@ -38,6 +38,7 @@ export default function ApplicantPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [showDateFilter, setShowDateFilter] = useState(false);
+  const [dateFilterType, setDateFilterType] = useState("Reviewed On");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -49,7 +50,9 @@ export default function ApplicantPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => { fetchApplicantRecords(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, dateFrom, dateTo]);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter, dateFilterType, dateFrom, dateTo]);
 
   async function fetchApplicantRecords() {
     setLoading(true);
@@ -237,6 +240,7 @@ export default function ApplicantPage() {
   function clearFilters() {
     setSearch("");
     setStatusFilter("All Status");
+    setDateFilterType("Reviewed On");
     setDateFrom("");
     setDateTo("");
     setShowDateFilter(false);
@@ -281,17 +285,26 @@ export default function ApplicantPage() {
         statusFilter === "All Status" ||
         record.normalizedStatus === statusFilter;
 
-      const submittedDate = getDateOnlyValue(
-        record.created_at
-      );
+      const reviewDateValue = Array.isArray(
+        record.review_date
+      )
+        ? record.review_date[0]
+        : record.review_date;
+
+      const selectedRecordDate =
+        dateFilterType === "Reviewed On"
+          ? getDateOnlyValue(reviewDateValue)
+          : getDateOnlyValue(record.created_at);
 
       const matchesDateFrom =
         !dateFrom ||
-        (submittedDate && submittedDate >= dateFrom);
+        (selectedRecordDate &&
+          selectedRecordDate >= dateFrom);
 
       const matchesDateTo =
         !dateTo ||
-        (submittedDate && submittedDate <= dateTo);
+        (selectedRecordDate &&
+          selectedRecordDate <= dateTo);
 
       return (
         matchesSearch &&
@@ -300,7 +313,14 @@ export default function ApplicantPage() {
         matchesDateTo
       );
     });
-  }, [normalizedRecords, search, statusFilter, dateFrom, dateTo]);
+  }, [
+    normalizedRecords,
+    search,
+    statusFilter,
+    dateFilterType,
+    dateFrom,
+    dateTo,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / ROWS_PER_PAGE));
 
@@ -414,6 +434,20 @@ export default function ApplicantPage() {
           {/* DATE FILTER PANEL - exactly like Booking page */}
           {showDateFilter && (
             <div style={styles.datePanel}>
+              <label style={styles.dateLabel}>
+                Filter by
+                <select
+                  value={dateFilterType}
+                  onChange={(event) =>
+                    setDateFilterType(event.target.value)
+                  }
+                  style={styles.dateTypeSelect}
+                >
+                  <option value="Reviewed On">Reviewed On</option>
+                  <option value="Submitted On">Submitted On</option>
+                </select>
+              </label>
+
               <label style={styles.dateLabel}>
                 From
                 <input
@@ -1104,6 +1138,18 @@ const styles = {
     color: BRAND.brown,
   },
   
+  dateTypeSelect: {
+    height: 38,
+    border: "1px solid #E2D5D3",
+    borderRadius: 7,
+    padding: "0 10px",
+    background: "#fff",
+    color: BRAND.text,
+    fontSize: 13,
+    fontWeight: 700,
+    outline: "none",
+  },
+
   dateInput: {
     height: 38,
     border: "1px solid #E2D5D3",
