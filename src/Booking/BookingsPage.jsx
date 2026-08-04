@@ -420,12 +420,30 @@ export default function BookingsPage() {
       const matchesStatus =
         status === "All Status" || booking.normalizedStatus === status;
 
-      const filterDate = getDateOnlyValue(booking.booking_date);
+      const bookingStartDate = getDateOnlyValue(
+        booking.booking_date
+      );
 
-      const matchesDateFrom = !dateFrom || (filterDate && filterDate >= dateFrom);
-      const matchesDateTo = !dateTo || (filterDate && filterDate <= dateTo);
+      const bookingEndDate =
+        getDateOnlyValue(booking.end_date) ||
+        bookingStartDate;
 
-      return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
+      const matchesDateFrom =
+        !dateFrom ||
+        (bookingStartDate &&
+          bookingStartDate >= dateFrom);
+
+      const matchesDateTo =
+        !dateTo ||
+        (bookingEndDate &&
+          bookingEndDate <= dateTo);
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesDateFrom &&
+        matchesDateTo
+      );
     });
   }, [normalizedBookings, search, status, dateFrom, dateTo]);
 
@@ -594,7 +612,20 @@ export default function BookingsPage() {
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(event) => setDateFrom(event.target.value)}
+                  max={dateTo || undefined}
+                  onChange={(event) => {
+                    const nextFrom = event.target.value;
+
+                    setDateFrom(nextFrom);
+
+                    if (
+                      dateTo &&
+                      nextFrom &&
+                      nextFrom > dateTo
+                    ) {
+                      setDateTo(nextFrom);
+                    }
+                  }}
                   style={styles.dateInput}
                 />
               </label>
@@ -605,7 +636,19 @@ export default function BookingsPage() {
                   type="date"
                   value={dateTo}
                   min={dateFrom || undefined}
-                  onChange={(event) => setDateTo(event.target.value)}
+                  onChange={(event) => {
+                    const nextTo = event.target.value;
+
+                    setDateTo(nextTo);
+
+                    if (
+                      dateFrom &&
+                      nextTo &&
+                      nextTo < dateFrom
+                    ) {
+                      setDateFrom(nextTo);
+                    }
+                  }}
                   style={styles.dateInput}
                 />
               </label>
