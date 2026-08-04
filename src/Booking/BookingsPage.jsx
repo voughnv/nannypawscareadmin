@@ -738,11 +738,25 @@ export default function BookingsPage() {
 
       {selectedBooking && (
         <BookingDetailsModal
+          key={`${selectedBooking.booking_id}-${normalizeStatus(
+            selectedBooking.booking_status
+          )}`}
           booking={selectedBooking}
-          petSitters={petSitters}
+          petSitters={
+            normalizeStatus(selectedBooking.booking_status) === "Pending"
+              ? petSitters
+              : []
+          }
+          allowSitterReassignment={
+            normalizeStatus(selectedBooking.booking_status) === "Pending"
+          }
           updating={updatingId === selectedBooking.booking_id}
           onClose={() => setSelectedBooking(null)}
-          onChangeSitter={updateBookingSitter}
+          onChangeSitter={
+            normalizeStatus(selectedBooking.booking_status) === "Pending"
+              ? updateBookingSitter
+              : undefined
+          }
           onPending={setPendingBooking}
           onApprove={approveBooking}
           onReject={rejectBooking}

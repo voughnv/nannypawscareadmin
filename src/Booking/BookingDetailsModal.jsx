@@ -29,6 +29,7 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
 export default function BookingDetailsModal({
   booking,
   petSitters = [],
+  allowSitterReassignment = false,
   updating,
   onClose,
   onChangeSitter,
@@ -60,7 +61,9 @@ export default function BookingDetailsModal({
     !isPending && !isConfirmed && !isCompleted && !isRejected;
 
   const canReassignSitter =
-    isPending || isConfirmed || hasUnknownStatus;
+    allowSitterReassignment === true &&
+    isPending &&
+    typeof onChangeSitter === "function";
 
   const currentSitterId =
     booking.ps_id === null ||
@@ -168,9 +171,14 @@ export default function BookingDetailsModal({
               label="Pet Sitter"
               value={getSitterName(booking)}
               secondary={
-                booking.ps_id
-                  ? formatReference("Sitter ID", booking.ps_id)
-                  : "No sitter assigned"
+                isPending
+                  ? "Pet sitter assignment is unavailable."
+                  : booking.ps_id
+                  ? `${formatReference(
+                      "Sitter ID",
+                      booking.ps_id
+                    )} • Assignment locked`
+                  : "No sitter assigned • Assignment locked"
               }
             />
           )}
@@ -362,8 +370,7 @@ function SitterAssignmentField({
       </select>
 
       <p style={styles.assignmentHelper}>
-        Select another registered pet sitter when reassignment is
-        needed.
+        Select the appropriate pet sitter before approving this booking.
       </p>
 
       <button
