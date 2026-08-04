@@ -128,7 +128,7 @@ export default function ApplicantPage() {
       const payload = {
         application_status: status,
         review_remarks: remarks.trim() || null,
-        review_date: [new Date().toISOString().slice(0, 10)],
+        review_date: getPhilippineDateOnly(),
       };
 
       let result;
@@ -744,7 +744,7 @@ function ApplicantModal({
           </div>
           <DetailItem icon={<Calendar size={16} />} label="Date of Birth" value={formatDate(record.a_dob, "Not set")} />
           <DetailItem icon={<Calendar size={16} />} label="Submitted On" value={formatDateTime(record.created_at)} />
-          <DetailItem icon={<Calendar size={16} />} label="Review Date" value={formatDate(record.review_date)} />
+          <DetailItem icon={<Calendar size={16} />} label="Reviewed On" value={formatDate(record.review_date)} />
           <div style={styles.resumeCard}>
             <div style={styles.detailIcon}><FileText size={16} /></div>
             <div style={styles.resumeCardContent}>
@@ -932,6 +932,21 @@ function getDateOnlyValue(dateValue) {
     month: "2-digit",
     day: "2-digit",
   }).format(date);
+}
+
+function getPhilippineDateOnly() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatDate(value, fallback = "Not reviewed") {
