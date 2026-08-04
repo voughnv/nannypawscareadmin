@@ -253,33 +253,52 @@ export default function ApplicantPage() {
   );
 
   const filteredRecords = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = search
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
 
     return normalizedRecords.filter((record) => {
-      const values = [
-        record.applicant_id,
-        formatApplicantId(record.applicant_id),
-        getFullName(record),
-        record.a_address,
-        record.a_contactno,
-        record.resume_file,
-        record.pet_place,
-        record.a_dob,
-        record.application_status,
-        record.review_remarks,
-      ]
-        .filter(Boolean)
-        .map((value) => String(value).toLowerCase());
+      const applicantName = getFullName(record)
+        .replace(/\s+/g, " ")
+        .toLowerCase();
 
-      const matchesSearch = !keyword || values.some((value) => value.includes(keyword));
+      const rawApplicantId = String(
+        record.applicant_id ?? ""
+      ).toLowerCase();
+
+      const formattedApplicantId = formatApplicantId(
+        record.applicant_id
+      ).toLowerCase();
+
+      const matchesSearch =
+        !keyword ||
+        applicantName.includes(keyword) ||
+        rawApplicantId.includes(keyword) ||
+        formattedApplicantId.includes(keyword);
+
       const matchesStatus =
-        statusFilter === "All Status" || record.normalizedStatus === statusFilter;
+        statusFilter === "All Status" ||
+        record.normalizedStatus === statusFilter;
 
-      const submittedDate = record.created_at?.slice(0, 10) || "";
-      const matchesDateFrom = !dateFrom || submittedDate >= dateFrom;
-      const matchesDateTo = !dateTo || submittedDate <= dateTo;
+      const submittedDate = getDateOnlyValue(
+        record.created_at
+      );
 
-      return matchesSearch && matchesStatus && matchesDateFrom && matchesDateTo;
+      const matchesDateFrom =
+        !dateFrom ||
+        (submittedDate && submittedDate >= dateFrom);
+
+      const matchesDateTo =
+        !dateTo ||
+        (submittedDate && submittedDate <= dateTo);
+
+      return (
+        matchesSearch &&
+        matchesStatus &&
+        matchesDateFrom &&
+        matchesDateTo
+      );
     });
   }, [normalizedRecords, search, statusFilter, dateFrom, dateTo]);
 
@@ -351,7 +370,7 @@ export default function ApplicantPage() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search name, address, or contact number"
+                  placeholder="Search Applicant ID or name"
                   style={styles.searchInput}
                 />
               </div>
@@ -400,7 +419,26 @@ export default function ApplicantPage() {
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(event) => setDateFrom(event.target.value)}
+                  min="0001-01-01"
+                  max={dateTo || "9999-12-31"}
+                  onInput={(event) => {
+                    const nextValue = sanitizeDateInput(
+                      event.currentTarget.value
+                    );
+                    if (event.currentTarget.value !== nextValue) {
+                      event.currentTarget.value = nextValue;
+                    }
+                  }}
+                  onChange={(event) => {
+                    const nextFrom = sanitizeDateInput(
+                      event.target.value
+                    );
+                    setDateFrom(nextFrom);
+
+                    if (dateTo && nextFrom && nextFrom > dateTo) {
+                      setDateTo(nextFrom);
+                    }
+                  }}
                   style={styles.dateInput}
                 />
               </label>
@@ -410,8 +448,26 @@ export default function ApplicantPage() {
                 <input
                   type="date"
                   value={dateTo}
-                  min={dateFrom || undefined}
-                  onChange={(event) => setDateTo(event.target.value)}
+                  min={dateFrom || "0001-01-01"}
+                  max="9999-12-31"
+                  onInput={(event) => {
+                    const nextValue = sanitizeDateInput(
+                      event.currentTarget.value
+                    );
+                    if (event.currentTarget.value !== nextValue) {
+                      event.currentTarget.value = nextValue;
+                    }
+                  }}
+                  onChange={(event) => {
+                    const nextTo = sanitizeDateInput(
+                      event.target.value
+                    );
+                    setDateTo(nextTo);
+
+                    if (dateFrom && nextTo && nextTo < dateFrom) {
+                      setDateFrom(nextTo);
+                    }
+                  }}
                   style={styles.dateInput}
                 />
               </label>
@@ -834,6 +890,51 @@ function getStoragePath(value, bucketName) {
   return normalized.startsWith(bucketPrefix)
     ? normalized.slice(bucketPrefix.length)
     : normalized;
+}
+
+function sanitizeDateInput(value) {
+  const text = String(value || "").trim();
+
+  if (!text) return "";
+
+  const match = text.match(/^(\d{1,})-(\d{1,2})-(\d{1,2})$/);
+
+  if (!match) return text;
+
+  const year = match[1].slice(0, 4);
+  const month = match[2].padStart(2, "0").slice(0, 2);
+  const day = match[3].padStart(2, "0").slice(0, 2);
+
+  if (year.length < 4) return "";
+
+  const normalized = `${year}-${month}-${day}`;
+
+  return normalized > "9999-12-31"
+    ? "9999-12-31"
+    : normalized;
+}
+
+function getDateOnlyValue(dateValue) {
+  if (!dateValue) return "";
+
+  const text = String(dateValue).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return text;
+  }
+
+  const date = new Date(text);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
 }
 
 function formatDate(value, fallback = "Not reviewed") {
