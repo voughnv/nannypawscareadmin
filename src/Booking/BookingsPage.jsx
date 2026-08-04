@@ -150,6 +150,15 @@ export default function BookingsPage() {
   }
 
   async function updateBookingSitter(booking, nextSitterId) {
+    const currentStatus = normalizeStatus(booking.booking_status);
+
+    if (currentStatus !== "Pending") {
+      setError(
+        "The assigned pet sitter can only be changed while the booking is pending."
+      );
+      return false;
+    }
+
     const currentSitterKey = normalizeReferenceKey(booking.ps_id);
     const nextSitterKey = normalizeReferenceKey(nextSitterId);
 
