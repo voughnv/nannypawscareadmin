@@ -169,8 +169,20 @@ export default function SittersPage() {
       return false;
     }
 
+    if (!/^[A-Za-z0-9_]{4,30}$/.test(username)) {
+      setError(
+        "Username must be 4 to 30 characters and may contain only letters, numbers, and underscores."
+      );
+      return false;
+    }
+
     if (!contactNumber) {
       setError("Contact number is required.");
+      return false;
+    }
+
+    if (!/^\d{11}$/.test(contactNumber)) {
+      setError("Contact number must contain exactly 11 digits.");
       return false;
     }
 
@@ -976,16 +988,120 @@ function AddSitterPanel({
     email: "",
   });
 
+  const [fieldErrors, setFieldErrors] = useState({
+    fullName: "",
+    username: "",
+    contactNumber: "",
+    email: "",
+  });
+
   function updateField(field, value) {
+    let nextValue = value;
+
+    if (field === "contactNumber") {
+      nextValue = String(value || "")
+        .replace(/\D/g, "")
+        .slice(0, 11);
+    }
+
+    if (field === "email") {
+      nextValue = String(value || "").toLowerCase();
+    }
+
     setFormValues((previous) => ({
       ...previous,
-      [field]: value,
+      [field]: nextValue,
     }));
+
+    setFieldErrors((previous) => ({
+      ...previous,
+      [field]: "",
+    }));
+  }
+
+  function validateForm() {
+    const nextErrors = {
+      fullName: "",
+      username: "",
+      contactNumber: "",
+      email: "",
+    };
+
+    const fullName = formValues.fullName
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const username = formValues.username.trim();
+    const contactNumber = formValues.contactNumber.trim();
+    const email = formValues.email.trim().toLowerCase();
+
+    const nameParts = fullName.split(" ").filter(Boolean);
+
+    if (!fullName) {
+      nextErrors.fullName = "Full name is required.";
+    } else if (nameParts.length < 2) {
+      nextErrors.fullName =
+        "Enter both the first name and last name.";
+    } else if (
+      !/^[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+)+$/.test(
+        fullName
+      )
+    ) {
+      nextErrors.fullName =
+        "Full name may contain only letters, spaces, apostrophes, hyphens, and periods.";
+    }
+
+    if (!username) {
+      nextErrors.username = "Username is required.";
+    } else if (username.length < 4) {
+      nextErrors.username =
+        "Username must contain at least 4 characters.";
+    } else if (username.length > 30) {
+      nextErrors.username =
+        "Username cannot exceed 30 characters.";
+    } else if (!/^[A-Za-z0-9_]+$/.test(username)) {
+      nextErrors.username =
+        "Use only letters, numbers, and underscores.";
+    }
+
+    if (!contactNumber) {
+      nextErrors.contactNumber =
+        "Contact number is required.";
+    } else if (!/^\d+$/.test(contactNumber)) {
+      nextErrors.contactNumber =
+        "Contact number must contain numbers only.";
+    } else if (contactNumber.length !== 11) {
+      nextErrors.contactNumber =
+        "Contact number must contain exactly 11 digits.";
+    }
+
+    if (!email) {
+      nextErrors.email = "Email address is required.";
+    } else if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+    ) {
+      nextErrors.email =
+        "Enter a valid email address.";
+    }
+
+    setFieldErrors(nextErrors);
+
+    return !Object.values(nextErrors).some(Boolean);
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    await onCreate(formValues);
+
+    if (!validateForm()) return;
+
+    await onCreate({
+      fullName: formValues.fullName
+        .trim()
+        .replace(/\s+/g, " "),
+      username: formValues.username.trim(),
+      contactNumber: formValues.contactNumber.trim(),
+      email: formValues.email.trim().toLowerCase(),
+    });
   }
 
   return (
@@ -1025,70 +1141,82 @@ function AddSitterPanel({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={styles.createForm}>
+        <form onSubmit={handleSubmit} style={styles.createForm} noValidate>
           <div style={styles.createFormBody}>
             <CreateField
-            label="Full Name"
-            placeholder="e.g. Michael Jordan"
-            value={formValues.fullName}
-            onChange={(value) => updateField("fullName", value)}
-            icon={<UserRound size={18} />}
-            autoComplete="name"
-            required
-          />
+              label="Full Name"
+              placeholder="e.g. Michael Jordan"
+              value={formValues.fullName}
+              onChange={(value) => updateField("fullName", value)}
+              icon={<UserRound size={18} />}
+              autoComplete="name"
+              required
+              error={fieldErrors.fullName}
+            />
 
-          <CreateField
-            label="Username"
-            placeholder="e.g. michaeljordan321"
-            value={formValues.username}
-            onChange={(value) => updateField("username", value)}
-            icon={<AtSign size={18} />}
-            autoComplete="username"
-            required
-          />
+            <CreateField
+              label="Username"
+              placeholder="e.g. michaeljordan321"
+              value={formValues.username}
+              onChange={(value) => updateField("username", value)}
+              icon={<AtSign size={18} />}
+              autoComplete="username"
+              required
+              maxLength={30}
+              error={fieldErrors.username}
+              note="Use 4–30 letters, numbers, or underscores."
+            />
 
-          <CreateField
-            label="Contact Number"
-            placeholder="e.g. 09171234567"
-            value={formValues.contactNumber}
-            onChange={(value) => updateField("contactNumber", value)}
-            icon={<Phone size={18} />}
-            inputMode="tel"
-            autoComplete="tel"
-            required
-          />
+            <CreateField
+              label="Contact Number"
+              placeholder="e.g. 09171234567"
+              value={formValues.contactNumber}
+              onChange={(value) =>
+                updateField("contactNumber", value)
+              }
+              icon={<Phone size={18} />}
+              inputMode="numeric"
+              autoComplete="tel"
+              required
+              maxLength={11}
+              error={fieldErrors.contactNumber}
+              note={`${formValues.contactNumber.length}/11 digits`}
+            />
 
-          <CreateField
-            label="Email Address"
-            placeholder="e.g. michaeljordan@gmail.com"
-            value={formValues.email}
-            onChange={(value) => updateField("email", value)}
-            icon={<Mail size={18} />}
-            type="email"
-            autoComplete="email"
-            required
-          />
+            <CreateField
+              label="Email Address"
+              placeholder="e.g. michaeljordan@gmail.com"
+              value={formValues.email}
+              onChange={(value) => updateField("email", value)}
+              icon={<Mail size={18} />}
+              type="email"
+              autoComplete="email"
+              required
+              error={fieldErrors.email}
+            />
 
-          <label style={styles.createField}>
-            <span style={styles.createFieldLabel}>Default Password</span>
+            <label style={styles.createField}>
+              <span style={styles.createFieldLabel}>
+                Default Password
+              </span>
 
-            <div style={styles.createInputWrap}>
-              <KeyRound size={18} />
-              <input
-                type="text"
-                value={defaultPassword}
-                readOnly
-                style={{
-                  ...styles.createInput,
-                  ...styles.readOnlyInput,
-                }}
-              />
-            </div>
+              <div style={styles.createInputWrap}>
+                <KeyRound size={18} />
+                <input
+                  type="text"
+                  value={defaultPassword}
+                  readOnly
+                  style={{
+                    ...styles.createInput,
+                    ...styles.readOnlyInput,
+                  }}
+                />
+              </div>
 
-            <span style={styles.createFieldNote}>
-              This temporary password will be used after email verification. The pet sitter must change it upon first login.
-            </span>
-          </label>
+              <span style={styles.createFieldNote}>
+                This temporary password will be used after email verification. The pet sitter must change it upon first login.
+              </span>
+            </label>
           </div>
 
           <div style={styles.createPanelFooter}>
@@ -1113,7 +1241,9 @@ function AddSitterPanel({
               disabled={creating}
             >
               <UserPlus size={17} />
-              {creating ? "Creating..." : "Create & Send Verification"}
+              {creating
+                ? "Creating..."
+                : "Create & Send Verification"}
             </button>
           </div>
         </form>
@@ -1132,6 +1262,9 @@ function CreateField({
   inputMode,
   autoComplete,
   required = false,
+  maxLength,
+  error = "",
+  note = "",
 }) {
   return (
     <label style={styles.createField}>
@@ -1140,7 +1273,12 @@ function CreateField({
         {required ? " *" : ""}
       </span>
 
-      <div style={styles.createInputWrap}>
+      <div
+        style={{
+          ...styles.createInputWrap,
+          ...(error ? styles.createInputWrapError : {}),
+        }}
+      >
         {icon}
         <input
           type={type}
@@ -1149,10 +1287,22 @@ function CreateField({
           value={value}
           placeholder={placeholder}
           required={required}
+          maxLength={maxLength}
+          aria-invalid={Boolean(error)}
           onChange={(event) => onChange(event.target.value)}
           style={styles.createInput}
         />
       </div>
+
+      {error ? (
+        <span style={styles.createFieldError}>
+          {error}
+        </span>
+      ) : note ? (
+        <span style={styles.createFieldNote}>
+          {note}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -2239,6 +2389,19 @@ const styles = {
     color: BRAND.text,
     fontFamily: "inherit",
     fontSize: 14,
+  },
+
+  createInputWrapError: {
+    borderColor: "#D98E94",
+    background: "#FFF7F7",
+    color: "#B3404A",
+  },
+
+  createFieldError: {
+    color: "#B3404A",
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1.4,
   },
 
   readOnlyInput: {
