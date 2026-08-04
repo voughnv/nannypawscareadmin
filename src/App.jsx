@@ -6,7 +6,7 @@ import {
 } from "react-router-dom";
 
 import AdminLayout from "./layouts/AdminLayout";
-import ProtectedAdminRoute from "./components/auth/ProtectedAdminRoute";
+import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import Auth from "./Auth";
 import BookingsPage from "./Booking/BookingsPage";
 import SitterPage from "./sitter";
