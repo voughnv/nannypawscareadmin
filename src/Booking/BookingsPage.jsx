@@ -602,9 +602,23 @@ export default function BookingsPage() {
                 <input
                   type="date"
                   value={dateFrom}
-                  max={dateTo || undefined}
+                  min="0001-01-01"
+                  max={dateTo || "9999-12-31"}
+                  onInput={(event) => {
+                    const sanitizedValue = sanitizeDateInput(
+                      event.currentTarget.value
+                    );
+
+                    if (
+                      event.currentTarget.value !== sanitizedValue
+                    ) {
+                      event.currentTarget.value = sanitizedValue;
+                    }
+                  }}
                   onChange={(event) => {
-                    const nextFrom = event.target.value;
+                    const nextFrom = sanitizeDateInput(
+                      event.target.value
+                    );
 
                     setDateFrom(nextFrom);
 
@@ -625,9 +639,23 @@ export default function BookingsPage() {
                 <input
                   type="date"
                   value={dateTo}
-                  min={dateFrom || undefined}
+                  min={dateFrom || "0001-01-01"}
+                  max="9999-12-31"
+                  onInput={(event) => {
+                    const sanitizedValue = sanitizeDateInput(
+                      event.currentTarget.value
+                    );
+
+                    if (
+                      event.currentTarget.value !== sanitizedValue
+                    ) {
+                      event.currentTarget.value = sanitizedValue;
+                    }
+                  }}
                   onChange={(event) => {
-                    const nextTo = event.target.value;
+                    const nextTo = sanitizeDateInput(
+                      event.target.value
+                    );
 
                     setDateTo(nextTo);
 
@@ -993,6 +1021,27 @@ function getSitterName(sitter, fallbackId) {
 function formatBookingId(id) {
   if (id === null || id === undefined || id === "") return "N/A";
   return `BK-${String(id).padStart(4, "0")}`;
+}
+
+function sanitizeDateInput(value) {
+  const text = String(value || "").trim();
+
+  if (!text) return "";
+
+  const parts = text.split("-");
+  const year = String(parts[0] || "").replace(/\D/g, "").slice(0, 4);
+  const month = String(parts[1] || "").replace(/\D/g, "").slice(0, 2);
+  const day = String(parts[2] || "").replace(/\D/g, "").slice(0, 2);
+
+  if (year.length < 4 || month.length < 2 || day.length < 2) {
+    return text;
+  }
+
+  const normalized = `${year}-${month}-${day}`;
+
+  return normalized > "9999-12-31"
+    ? "9999-12-31"
+    : normalized;
 }
 
 function getDateOnlyValue(dateValue) {
