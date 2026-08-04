@@ -281,17 +281,17 @@ export default function ApplicantPage() {
         statusFilter === "All Status" ||
         record.normalizedStatus === statusFilter;
 
-      const submittedDate = getDateOnlyValue(
-        record.created_at
+      const reviewedDate = getDateOnlyValue(
+        record.review_date
       );
 
       const matchesDateFrom =
         !dateFrom ||
-        (submittedDate && submittedDate >= dateFrom);
+        (reviewedDate && reviewedDate >= dateFrom);
 
       const matchesDateTo =
         !dateTo ||
-        (submittedDate && submittedDate <= dateTo);
+        (reviewedDate && reviewedDate <= dateTo);
 
       return (
         matchesSearch &&
@@ -414,6 +414,10 @@ export default function ApplicantPage() {
           {/* DATE FILTER PANEL - exactly like Booking page */}
           {showDateFilter && (
             <div style={styles.datePanel}>
+              <span style={styles.dateFilterHint}>
+                Reviewed On
+              </span>
+
               <label style={styles.dateLabel}>
                 From
                 <input
@@ -914,13 +918,7 @@ function sanitizeDateInput(value) {
 function getDateOnlyValue(dateValue) {
   if (!dateValue) return "";
 
-  const rawValue = Array.isArray(dateValue)
-    ? dateValue[0]
-    : dateValue;
-
-  const text = String(rawValue || "").trim();
-
-  if (!text) return "";
+  const text = String(dateValue).trim();
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return text;
@@ -932,28 +930,12 @@ function getDateOnlyValue(dateValue) {
     return "";
   }
 
-  const parts = new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(date);
-
-  const year = parts.find(
-    (part) => part.type === "year"
-  )?.value;
-
-  const month = parts.find(
-    (part) => part.type === "month"
-  )?.value;
-
-  const day = parts.find(
-    (part) => part.type === "day"
-  )?.value;
-
-  if (!year || !month || !day) return "";
-
-  return `${year}-${month}-${day}`;
+  }).format(date);
 }
 
 function getPhilippineDateOnly() {
@@ -1117,6 +1099,13 @@ const styles = {
     flexWrap: "wrap",
   },
   
+  dateFilterHint: {
+    fontSize: 13,
+    fontWeight: 900,
+    color: BRAND.pink,
+    marginRight: 2,
+  },
+
   dateLabel: {
     display: "flex",
     alignItems: "center",
