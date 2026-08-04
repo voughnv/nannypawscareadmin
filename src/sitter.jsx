@@ -152,7 +152,10 @@ export default function SittersPage() {
   }
 
   async function createSitterAccount(formValues) {
-    const fullName = formValues.fullName.trim().replace(/\s+/g, " ");
+    const fullName = formValues.fullName
+      .trim()
+      .replace(/\s+/g, " ");
+
     const username = formValues.username.trim();
     const contactNumber = formValues.contactNumber.trim();
     const email = formValues.email.trim().toLowerCase();
@@ -160,64 +163,51 @@ export default function SittersPage() {
     const { firstName, lastName } = splitFullName(fullName);
 
     if (!firstName || !lastName) {
-      setError("Enter the sitter's complete first and last name.");
-      return false;
+      return {
+        success: false,
+        fieldErrors: {
+          fullName:
+            "Enter both the first name and last name.",
+        },
+      };
     }
 
     if (!username) {
-      setError("Username is required.");
-      return false;
+      return {
+        success: false,
+        fieldErrors: {
+          username: "Username is required.",
+        },
+      };
     }
 
     if (!/^[A-Za-z0-9_]{4,30}$/.test(username)) {
-      setError(
-        "Username must be 4 to 30 characters and may contain only letters, numbers, and underscores."
-      );
-      return false;
-    }
-
-    if (!contactNumber) {
-      setError("Contact number is required.");
-      return false;
+      return {
+        success: false,
+        fieldErrors: {
+          username:
+            "Username must be 4 to 30 characters using only letters, numbers, and underscores.",
+        },
+      };
     }
 
     if (!/^\d{11}$/.test(contactNumber)) {
-      setError("Contact number must contain exactly 11 digits.");
-      return false;
-    }
-
-    if (!email) {
-      setError("Email address is required.");
-      return false;
+      return {
+        success: false,
+        fieldErrors: {
+          contactNumber:
+            "Contact number must contain exactly 11 digits.",
+        },
+      };
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Enter a valid email address.");
-      return false;
-    }
-
-    try {
-      const { data: existingSitter, error: checkError } = await supabase
-        .from("PET SITTER")
-        .select("petsitter_id, ps_email, ps_auth_id")
-        .ilike("ps_email", email)
-        .maybeSingle();
-
-      if (checkError) throw checkError;
-
-      if (existingSitter) {
-        setError(
-          `The email "${email}" is already registered to a pet sitter account.`
-        );
-        return false;
-      }
-    } catch (checkError) {
-      console.error("Unable to check the sitter email:", checkError);
-      setError(
-        checkError?.message ||
-          "Unable to verify whether the email is already registered."
-      );
-      return false;
+      return {
+        success: false,
+        fieldErrors: {
+          email: "Enter a valid email address.",
+        },
+      };
     }
 
     const confirmed = await requestConfirmation({
@@ -227,7 +217,12 @@ export default function SittersPage() {
       variant: "success",
     });
 
-    if (!confirmed) return false;
+    if (!confirmed) {
+      return {
+        success: false,
+        cancelled: true,
+      };
+    }
 
     setCreating(true);
     setError("");
@@ -259,16 +254,17 @@ export default function SittersPage() {
         );
       }
 
-      // With email confirmation enabled, Supabase can hide whether a confirmed
-      // account already exists. An empty identities array is a strong signal
-      // that the email already belongs to an Auth account.
       if (
         Array.isArray(authUser.identities) &&
         authUser.identities.length === 0
       ) {
-        throw new Error(
-          "An authentication account already exists for this email address."
-        );
+        return {
+          success: false,
+          fieldErrors: {
+            email:
+              "This email address is already linked to an existing account.",
+          },
+        };
       }
 
       const payload = {
@@ -291,9 +287,14 @@ export default function SittersPage() {
       if (createError) throw createError;
 
       setSitters((previous) => [...previous, data]);
+
       setCurrentPage(
-        Math.max(1, Math.ceil((sitters.length + 1) / ROWS_PER_PAGE))
+        Math.max(
+          1,
+          Math.ceil((sitters.length + 1) / ROWS_PER_PAGE)
+        )
       );
+
       setShowCreatePanel(false);
 
       setSuccess(
@@ -302,60 +303,96 @@ export default function SittersPage() {
         )}'s account was created. A verification email was sent to ${email}. The sitter must confirm the email before signing in.`
       );
 
-      return true;
+      return { success: true };
     } catch (createError) {
       console.error(
         "Unable to create the pet sitter Auth/profile account:",
         createError
       );
 
-      const errorMessage = String(createError?.message || "");
+      const errorMessage = String(
+        createError?.message || ""
+      );
+
       const lowerMessage = errorMessage.toLowerCase();
 
       if (
         lowerMessage.includes("already registered") ||
-        lowerMessage.includes("already exists") ||
+        lowerMessage.includes("already exists")
+      ) {
+        return {
+          success: false,
+          fieldErrors: {
+            email:
+              "This email address is already linked to an existing account.",
+          },
+        };
+      }
+
+      if (
         lowerMessage.includes("duplicate") ||
         lowerMessage.includes("unique")
       ) {
-        setError(
-          `The email "${email}" is already linked to an existing account.`
-        );
-      } else if (
-        lowerMessage.includes(SITTER_AUTH_ID_COLUMN.toLowerCase())
+        return {
+          success: false,
+          formError:
+            "One or more entered values are already registered. Review the highlighted fields.",
+        };
+      }
+
+      if (
+        lowerMessage.includes(
+          SITTER_AUTH_ID_COLUMN.toLowerCase()
+        )
       ) {
-        setError(
-          `The "${SITTER_AUTH_ID_COLUMN}" column is missing or is not configured correctly in the PET SITTER table. Add it as a UUID linked to auth.users.id.`
-        );
-      } else if (
-        lowerMessage.includes(SITTER_PASSWORD_COLUMN.toLowerCase())
+        return {
+          success: false,
+          formError:
+            `The "${SITTER_AUTH_ID_COLUMN}" column is missing or is not configured correctly in the PET SITTER table.`,
+        };
+      }
+
+      if (
+        lowerMessage.includes(
+          SITTER_PASSWORD_COLUMN.toLowerCase()
+        )
       ) {
-        setError(
-          `The "${SITTER_PASSWORD_COLUMN}" column was not found in the PET SITTER table.`
-        );
-      } else if (
+        return {
+          success: false,
+          formError:
+            `The "${SITTER_PASSWORD_COLUMN}" column was not found in the PET SITTER table.`,
+        };
+      }
+
+      if (
         lowerMessage.includes("password") &&
         (lowerMessage.includes("characters") ||
           lowerMessage.includes("weak"))
       ) {
-        setError(
-          "Supabase rejected the temporary password. Update DEFAULT_SITTER_PASSWORD to meet your Auth password rules."
-        );
-      } else if (
+        return {
+          success: false,
+          formError:
+            "Supabase rejected the temporary password because it does not meet the authentication password rules.",
+        };
+      }
+
+      if (
         lowerMessage.includes("rate limit") ||
         lowerMessage.includes("email rate")
       ) {
-        setError(
-          "Supabase temporarily blocked the verification email because the email rate limit was reached. Wait a moment and try again."
-        );
-      } else {
-        setError(
-          createError?.message ||
-            "Unable to create the Auth account and pet sitter profile. Check Auth settings, the PET SITTER INSERT policy, and the ps_auth_id column."
-        );
+        return {
+          success: false,
+          formError:
+            "The verification email could not be sent because the email rate limit was reached. Please try again later.",
+        };
       }
 
-      return false;
+      return {
+        success: false,
+        formError:
+          createError?.message ||
+          "Unable to create the pet sitter account. Check the database policies and authentication settings.",
+      };
     } finally {
       setCreating(false);
     }
@@ -995,6 +1032,12 @@ function AddSitterPanel({
     email: "",
   });
 
+  const [formError, setFormError] = useState("");
+  const [checkingDuplicates, setCheckingDuplicates] =
+    useState(false);
+
+  const busy = creating || checkingDuplicates;
+
   function updateField(field, value) {
     let nextValue = value;
 
@@ -1017,6 +1060,8 @@ function AddSitterPanel({
       ...previous,
       [field]: "",
     }));
+
+    setFormError("");
   }
 
   function validateForm() {
@@ -1032,13 +1077,20 @@ function AddSitterPanel({
       .replace(/\s+/g, " ");
 
     const username = formValues.username.trim();
-    const contactNumber = formValues.contactNumber.trim();
-    const email = formValues.email.trim().toLowerCase();
+    const contactNumber =
+      formValues.contactNumber.trim();
 
-    const nameParts = fullName.split(" ").filter(Boolean);
+    const email = formValues.email
+      .trim()
+      .toLowerCase();
+
+    const nameParts = fullName
+      .split(" ")
+      .filter(Boolean);
 
     if (!fullName) {
-      nextErrors.fullName = "Full name is required.";
+      nextErrors.fullName =
+        "Full name is required.";
     } else if (nameParts.length < 2) {
       nextErrors.fullName =
         "Enter both the first name and last name.";
@@ -1048,11 +1100,12 @@ function AddSitterPanel({
       )
     ) {
       nextErrors.fullName =
-        "Full name may contain only letters, spaces, apostrophes, hyphens, and periods.";
+        "Enter a valid first name and last name.";
     }
 
     if (!username) {
-      nextErrors.username = "Username is required.";
+      nextErrors.username =
+        "Username is required.";
     } else if (username.length < 4) {
       nextErrors.username =
         "Username must contain at least 4 characters.";
@@ -1061,22 +1114,20 @@ function AddSitterPanel({
         "Username cannot exceed 30 characters.";
     } else if (!/^[A-Za-z0-9_]+$/.test(username)) {
       nextErrors.username =
-        "Use only letters, numbers, and underscores.";
+        "Username may contain only letters, numbers, and underscores.";
     }
 
     if (!contactNumber) {
       nextErrors.contactNumber =
         "Contact number is required.";
-    } else if (!/^\d+$/.test(contactNumber)) {
-      nextErrors.contactNumber =
-        "Contact number must contain numbers only.";
     } else if (contactNumber.length !== 11) {
       nextErrors.contactNumber =
         "Contact number must contain exactly 11 digits.";
     }
 
     if (!email) {
-      nextErrors.email = "Email address is required.";
+      nextErrors.email =
+        "Email address is required.";
     } else if (
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
     ) {
@@ -1089,39 +1140,180 @@ function AddSitterPanel({
     return !Object.values(nextErrors).some(Boolean);
   }
 
+  async function checkForDuplicates() {
+    const normalizedFullName = formValues.fullName
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const { firstName, lastName } =
+      splitFullName(normalizedFullName);
+
+    const username = formValues.username.trim();
+    const contactNumber =
+      formValues.contactNumber.trim();
+
+    const email = formValues.email
+      .trim()
+      .toLowerCase();
+
+    setCheckingDuplicates(true);
+    setFormError("");
+
+    try {
+      const [
+        fullNameResult,
+        usernameResult,
+        contactResult,
+        emailResult,
+      ] = await Promise.all([
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_fname", firstName)
+          .ilike("ps_lname", lastName)
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_username", username)
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .eq("ps_contactno", contactNumber)
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_email", email)
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const duplicateCheckError =
+        fullNameResult.error ||
+        usernameResult.error ||
+        contactResult.error ||
+        emailResult.error;
+
+      if (duplicateCheckError) {
+        throw duplicateCheckError;
+      }
+
+      const duplicateErrors = {
+        fullName: fullNameResult.data
+          ? "A pet sitter with this full name already exists."
+          : "",
+
+        username: usernameResult.data
+          ? "This username is already in use."
+          : "",
+
+        contactNumber: contactResult.data
+          ? "This contact number is already registered."
+          : "",
+
+        email: emailResult.data
+          ? "This email address is already registered."
+          : "",
+      };
+
+      setFieldErrors((previous) => ({
+        ...previous,
+        ...duplicateErrors,
+      }));
+
+      return !Object.values(
+        duplicateErrors
+      ).some(Boolean);
+    } catch (duplicateError) {
+      console.error(
+        "Unable to check duplicate sitter information:",
+        duplicateError
+      );
+
+      setFormError(
+        duplicateError?.message ||
+          "Unable to check whether the entered information is already registered."
+      );
+
+      return false;
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  }
+
   async function handleSubmit(event) {
     event.preventDefault();
+    setFormError("");
 
     if (!validateForm()) return;
 
-    await onCreate({
+    const hasNoDuplicates =
+      await checkForDuplicates();
+
+    if (!hasNoDuplicates) return;
+
+    const result = await onCreate({
       fullName: formValues.fullName
         .trim()
         .replace(/\s+/g, " "),
+
       username: formValues.username.trim(),
-      contactNumber: formValues.contactNumber.trim(),
-      email: formValues.email.trim().toLowerCase(),
+
+      contactNumber:
+        formValues.contactNumber.trim(),
+
+      email: formValues.email
+        .trim()
+        .toLowerCase(),
     });
+
+    if (result?.fieldErrors) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        ...result.fieldErrors,
+      }));
+    }
+
+    if (result?.formError) {
+      setFormError(result.formError);
+    }
   }
 
   return (
     <div
       style={styles.createPanelOverlay}
-      onClick={creating ? undefined : onClose}
+      onClick={busy ? undefined : onClose}
     >
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="create-sitter-title"
         style={styles.createPanel}
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) =>
+          event.stopPropagation()
+        }
       >
         <div style={styles.createPanelHeader}>
           <div>
-            <p style={styles.createPanelEyebrow}>ACCOUNT CREATION</p>
-            <h2 id="create-sitter-title" style={styles.createPanelTitle}>
+            <p style={styles.createPanelEyebrow}>
+              ACCOUNT CREATION
+            </p>
+
+            <h2
+              id="create-sitter-title"
+              style={styles.createPanelTitle}
+            >
               Add Pet Sitter
             </h2>
+
             <p style={styles.createPanelSubtitle}>
               Create a verified account for an approved pet sitter and send an email confirmation link.
             </p>
@@ -1132,22 +1324,37 @@ function AddSitterPanel({
             aria-label="Close account creation form"
             style={{
               ...styles.closeBtn,
-              ...(creating ? styles.disabledAction : {}),
+              ...(busy
+                ? styles.disabledAction
+                : {}),
             }}
-            disabled={creating}
+            disabled={busy}
             onClick={onClose}
           >
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={styles.createForm} noValidate>
+        <form
+          onSubmit={handleSubmit}
+          style={styles.createForm}
+          noValidate
+        >
           <div style={styles.createFormBody}>
+            {formError && (
+              <div style={styles.createFormError}>
+                <AlertCircle size={18} />
+                <span>{formError}</span>
+              </div>
+            )}
+
             <CreateField
               label="Full Name"
               placeholder="e.g. Michael Jordan"
               value={formValues.fullName}
-              onChange={(value) => updateField("fullName", value)}
+              onChange={(value) =>
+                updateField("fullName", value)
+              }
               icon={<UserRound size={18} />}
               autoComplete="name"
               required
@@ -1158,13 +1365,14 @@ function AddSitterPanel({
               label="Username"
               placeholder="e.g. michaeljordan321"
               value={formValues.username}
-              onChange={(value) => updateField("username", value)}
+              onChange={(value) =>
+                updateField("username", value)
+              }
               icon={<AtSign size={18} />}
               autoComplete="username"
               required
               maxLength={30}
               error={fieldErrors.username}
-              note="Use 4–30 letters, numbers, or underscores."
             />
 
             <CreateField
@@ -1172,7 +1380,10 @@ function AddSitterPanel({
               placeholder="e.g. 09171234567"
               value={formValues.contactNumber}
               onChange={(value) =>
-                updateField("contactNumber", value)
+                updateField(
+                  "contactNumber",
+                  value
+                )
               }
               icon={<Phone size={18} />}
               inputMode="numeric"
@@ -1180,14 +1391,15 @@ function AddSitterPanel({
               required
               maxLength={11}
               error={fieldErrors.contactNumber}
-              note={`${formValues.contactNumber.length}/11 digits`}
             />
 
             <CreateField
               label="Email Address"
               placeholder="e.g. michaeljordan@gmail.com"
               value={formValues.email}
-              onChange={(value) => updateField("email", value)}
+              onChange={(value) =>
+                updateField("email", value)
+              }
               icon={<Mail size={18} />}
               type="email"
               autoComplete="email"
@@ -1202,6 +1414,7 @@ function AddSitterPanel({
 
               <div style={styles.createInputWrap}>
                 <KeyRound size={18} />
+
                 <input
                   type="text"
                   value={defaultPassword}
@@ -1214,7 +1427,7 @@ function AddSitterPanel({
               </div>
 
               <span style={styles.createFieldNote}>
-                This temporary password will be used after email verification. The pet sitter must change it upon first login.
+                This temporary password will be used after email verification.
               </span>
             </label>
           </div>
@@ -1224,9 +1437,11 @@ function AddSitterPanel({
               type="button"
               style={{
                 ...styles.createCancelBtn,
-                ...(creating ? styles.disabledAction : {}),
+                ...(busy
+                  ? styles.disabledAction
+                  : {}),
               }}
-              disabled={creating}
+              disabled={busy}
               onClick={onClose}
             >
               Cancel
@@ -1236,12 +1451,17 @@ function AddSitterPanel({
               type="submit"
               style={{
                 ...styles.createSubmitBtn,
-                ...(creating ? styles.disabledAction : {}),
+                ...(busy
+                  ? styles.disabledAction
+                  : {}),
               }}
-              disabled={creating}
+              disabled={busy}
             >
               <UserPlus size={17} />
-              {creating
+
+              {checkingDuplicates
+                ? "Checking..."
+                : creating
                 ? "Creating..."
                 : "Create & Send Verification"}
             </button>
@@ -1264,7 +1484,6 @@ function CreateField({
   required = false,
   maxLength,
   error = "",
-  note = "",
 }) {
   return (
     <label style={styles.createField}>
@@ -1276,10 +1495,13 @@ function CreateField({
       <div
         style={{
           ...styles.createInputWrap,
-          ...(error ? styles.createInputWrapError : {}),
+          ...(error
+            ? styles.createInputWrapError
+            : {}),
         }}
       >
         {icon}
+
         <input
           type={type}
           inputMode={inputMode}
@@ -1289,20 +1511,18 @@ function CreateField({
           required={required}
           maxLength={maxLength}
           aria-invalid={Boolean(error)}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
           style={styles.createInput}
         />
       </div>
 
-      {error ? (
+      {error && (
         <span style={styles.createFieldError}>
           {error}
         </span>
-      ) : note ? (
-        <span style={styles.createFieldNote}>
-          {note}
-        </span>
-      ) : null}
+      )}
     </label>
   );
 }
@@ -2389,6 +2609,20 @@ const styles = {
     color: BRAND.text,
     fontFamily: "inherit",
     fontSize: 14,
+  },
+
+  createFormError: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 9,
+    padding: "11px 12px",
+    borderRadius: 9,
+    border: "1px solid #F1BFC5",
+    background: "#FFF0F2",
+    color: "#B42335",
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.45,
   },
 
   createInputWrapError: {
