@@ -28,13 +28,27 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
 
 export default function BookingDetailsModal({
   booking,
+  petSitters = [],
   updating,
   onClose,
+  onChangeSitter,
   onPending,
   onApprove,
   onReject,
   onComplete,
 }) {
+  const [selectedSitterId, setSelectedSitterId] = useState("");
+
+  useEffect(() => {
+    setSelectedSitterId(
+      booking?.ps_id === null ||
+        booking?.ps_id === undefined ||
+        booking?.ps_id === ""
+        ? ""
+        : String(booking.ps_id)
+    );
+  }, [booking?.booking_id, booking?.ps_id]);
+
   if (!booking) return null;
 
   const normalizedStatus = normalizeStatus(booking.booking_status);
@@ -44,6 +58,19 @@ export default function BookingDetailsModal({
   const isRejected = normalizedStatus === "Rejected";
   const hasUnknownStatus =
     !isPending && !isConfirmed && !isCompleted && !isRejected;
+
+  const canReassignSitter =
+    isPending || isConfirmed || hasUnknownStatus;
+
+  const currentSitterId =
+    booking.ps_id === null ||
+    booking.ps_id === undefined ||
+    booking.ps_id === ""
+      ? ""
+      : String(booking.ps_id);
+
+  const sitterAssignmentChanged =
+    selectedSitterId !== currentSitterId;
 
   const startTime = booking.start_time || booking.booking_time;
   const paymentProof = String(booking.payment_proof || "").trim();
@@ -124,15 +151,29 @@ export default function BookingDetailsModal({
             secondary={formatReference("Owner ID", booking.po_id)}
           />
 
-          <DetailItem
-            label="Pet Sitter"
-            value={getSitterName(booking)}
-            secondary={
-              booking.ps_id
-                ? formatReference("Sitter ID", booking.ps_id)
-                : "No sitter assigned"
-            }
-          />
+          {canReassignSitter ? (
+            <SitterAssignmentField
+              booking={booking}
+              petSitters={petSitters}
+              selectedSitterId={selectedSitterId}
+              onSelect={setSelectedSitterId}
+              changed={sitterAssignmentChanged}
+              updating={updating}
+              onSave={() =>
+                onChangeSitter?.(booking, selectedSitterId)
+              }
+            />
+          ) : (
+            <DetailItem
+              label="Pet Sitter"
+              value={getSitterName(booking)}
+              secondary={
+                booking.ps_id
+                  ? formatReference("Sitter ID", booking.ps_id)
+                  : "No sitter assigned"
+              }
+            />
+          )}
 
           <DetailItem
             label="Pet"
@@ -254,6 +295,90 @@ export default function BookingDetailsModal({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function SitterAssignmentField({
+  booking,
+  petSitters,
+  selectedSitterId,
+  onSelect,
+  changed,
+  updating,
+  onSave,
+}) {
+  const currentSitterId =
+    booking.ps_id === null ||
+    booking.ps_id === undefined ||
+    booking.ps_id === ""
+      ? ""
+      : String(booking.ps_id);
+
+  const sortedSitters = [...petSitters].sort((first, second) =>
+    getSitterDisplayName(first).localeCompare(
+      getSitterDisplayName(second)
+    )
+  );
+
+  const currentSitterIncluded =
+    !currentSitterId ||
+    sortedSitters.some(
+      (sitter) =>
+        String(getSitterRecordId(sitter)) === currentSitterId
+    );
+
+  return (
+    <div style={styles.detailItem}>
+      <p style={styles.detailLabel}>Pet Sitter</p>
+
+      <select
+        value={selectedSitterId}
+        onChange={(event) => onSelect(event.target.value)}
+        disabled={updating}
+        style={{
+          ...styles.sitterSelect,
+          ...(updating ? styles.disabledControl : {}),
+        }}
+      >
+        <option value="">Not assigned</option>
+
+        {!currentSitterIncluded && currentSitterId && (
+          <option value={currentSitterId}>
+            {getSitterName(booking)} — Current assignment
+          </option>
+        )}
+
+        {sortedSitters.map((sitter) => {
+          const sitterId = getSitterRecordId(sitter);
+
+          return (
+            <option key={sitterId} value={String(sitterId)}>
+              {getSitterDisplayName(sitter)} —{" "}
+              {formatSitterId(sitterId)}
+            </option>
+          );
+        })}
+      </select>
+
+      <p style={styles.assignmentHelper}>
+        Select another registered pet sitter when reassignment is
+        needed.
+      </p>
+
+      <button
+        type="button"
+        disabled={!changed || updating}
+        onClick={onSave}
+        style={{
+          ...styles.assignmentButton,
+          ...(!changed || updating
+            ? styles.disabledAssignmentButton
+            : {}),
+        }}
+      >
+        {updating ? "Updating..." : "Update Assignment"}
+      </button>
     </div>
   );
 }
@@ -543,6 +668,37 @@ function getSitterName(booking) {
   );
 }
 
+function getSitterRecordId(sitter) {
+  return (
+    sitter?.petsitter_id ??
+    sitter?.ps_id ??
+    sitter?.pet_sitter_id ??
+    sitter?.id ??
+    ""
+  );
+}
+
+function getSitterDisplayName(sitter) {
+  const fullName = `${sitter?.ps_fname || ""} ${
+    sitter?.ps_lname || ""
+  }`.trim();
+
+  return (
+    fullName ||
+    sitter?.ps_username ||
+    sitter?.username ||
+    "Name not set"
+  );
+}
+
+function formatSitterId(id) {
+  if (id === null || id === undefined || id === "") {
+    return "ID not set";
+  }
+
+  return `PS-${String(id).padStart(4, "0")}`;
+}
+
 function formatReference(label, value) {
   if (value === null || value === undefined || value === "") {
     return `${label}: Not set`;
@@ -742,6 +898,51 @@ const styles = {
     color: BRAND.muted,
     fontSize: 11,
     fontWeight: 700,
+  },
+
+  sitterSelect: {
+    width: "100%",
+    height: 40,
+    border: "1px solid #E2D5D3",
+    borderRadius: 8,
+    padding: "0 10px",
+    background: "#FFFFFF",
+    color: BRAND.text,
+    fontFamily: "inherit",
+    fontSize: 13,
+    fontWeight: 800,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+
+  assignmentHelper: {
+    margin: "7px 0 0",
+    color: BRAND.muted,
+    fontSize: 10,
+    lineHeight: 1.4,
+  },
+
+  assignmentButton: {
+    minHeight: 36,
+    marginTop: 10,
+    border: "none",
+    borderRadius: 8,
+    padding: "0 12px",
+    background: BRAND.pink,
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  disabledAssignmentButton: {
+    opacity: 0.5,
+    cursor: "not-allowed",
+  },
+
+  disabledControl: {
+    opacity: 0.65,
+    cursor: "not-allowed",
   },
 
   proofLink: {

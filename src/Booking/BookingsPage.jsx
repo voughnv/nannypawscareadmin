@@ -40,6 +40,7 @@ export default function BookingsPage() {
   const requestConfirmation = useConfirmation();
 
   const [bookings, setBookings] = useState([]);
+  const [petSitters, setPetSitters] = useState([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All Status");
   const [showDateFilter, setShowDateFilter] = useState(false);
@@ -76,7 +77,6 @@ export default function BookingsPage() {
 
       const petIds = getUniqueIds(bookingRows, "pet_id");
       const ownerIds = getUniqueIds(bookingRows, "po_id");
-      const sitterIds = getUniqueIds(bookingRows, "ps_id");
 
       const [petResult, ownerResult, sitterResult] = await Promise.all([
         petIds.length > 0
@@ -93,14 +93,13 @@ export default function BookingsPage() {
               .in("po_id", ownerIds)
           : Promise.resolve({ data: [], error: null }),
 
-        sitterIds.length > 0
-          ? supabase
-              .from("PET SITTER")
-              .select(
-                "petsitter_id, ps_fname, ps_lname, ps_username, ps_email"
-              )
-              .in("petsitter_id", sitterIds)
-          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("PET SITTER")
+          .select(
+            "petsitter_id, ps_fname, ps_lname, ps_username, ps_email"
+          )
+          .order("ps_fname", { ascending: true })
+          .order("ps_lname", { ascending: true }),
       ]);
 
       if (petResult.error) {
@@ -125,8 +124,12 @@ export default function BookingsPage() {
         ["po_id", "petowner_id", "pet_owner_id", "owner_id", "id"]
       );
 
+      const allPetSitters = sitterResult.data || [];
+
+      setPetSitters(allPetSitters);
+
       const sitterMap = createRecordMap(
-        sitterResult.data || [],
+        allPetSitters,
         ["petsitter_id", "ps_id", "pet_sitter_id", "id"]
       );
 
@@ -143,6 +146,123 @@ export default function BookingsPage() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function updateBookingSitter(booking, nextSitterId) {
+    const currentSitterKey = normalizeReferenceKey(booking.ps_id);
+    const nextSitterKey = normalizeReferenceKey(nextSitterId);
+
+    if (currentSitterKey === nextSitterKey) {
+      return true;
+    }
+
+    let databaseSitterId = null;
+    let nextSitter = null;
+
+    if (nextSitterKey) {
+      const parsedSitterId = Number(nextSitterId);
+
+      if (Number.isNaN(parsedSitterId)) {
+        setError("The selected pet sitter ID is invalid.");
+        return false;
+      }
+
+      databaseSitterId = parsedSitterId;
+
+      nextSitter =
+        petSitters.find(
+          (sitter) =>
+            normalizeReferenceKey(sitter.petsitter_id) === nextSitterKey
+        ) || null;
+
+      if (!nextSitter) {
+        setError(
+          "The selected pet sitter could not be found. Refresh the booking page and try again."
+        );
+        return false;
+      }
+    }
+
+    const currentSitterName = booking.ps_id
+      ? getSitterName(booking.sitterRecord, booking.ps_id)
+      : "No assigned sitter";
+
+    const nextSitterName = nextSitter
+      ? getSitterName(nextSitter, databaseSitterId)
+      : "No assigned sitter";
+
+    const confirmed = await requestConfirmation({
+      title: nextSitter
+        ? "Change assigned pet sitter?"
+        : "Remove assigned pet sitter?",
+      message: nextSitter
+        ? `Reassign booking ${formatBookingId(
+            booking.booking_id
+          )} from ${currentSitterName} to ${nextSitterName}?`
+        : `Remove ${currentSitterName} from booking ${formatBookingId(
+            booking.booking_id
+          )}?`,
+      confirmText: nextSitter
+        ? "Update Assignment"
+        : "Remove Assignment",
+      variant: "primary",
+    });
+
+    if (!confirmed) return false;
+
+    setUpdatingId(booking.booking_id);
+    setError("");
+
+    try {
+      const { data, error: updateError } = await supabase
+        .from("BOOKING")
+        .update({ ps_id: databaseSitterId })
+        .eq("booking_id", booking.booking_id)
+        .select(BOOKING_FIELDS)
+        .single();
+
+      if (updateError) throw updateError;
+
+      const updatedBooking = {
+        ...booking,
+        ...data,
+        ps_id: databaseSitterId,
+        sitterRecord: nextSitter,
+        sitterName: nextSitter
+          ? getSitterName(nextSitter, databaseSitterId)
+          : "Not assigned",
+      };
+
+      setBookings((previous) =>
+        previous.map((item) =>
+          item.booking_id === booking.booking_id
+            ? updatedBooking
+            : item
+        )
+      );
+
+      setSelectedBooking((previous) =>
+        previous?.booking_id === booking.booking_id
+          ? updatedBooking
+          : previous
+      );
+
+      return true;
+    } catch (updateError) {
+      console.error(
+        "Unable to update the assigned pet sitter:",
+        updateError
+      );
+
+      setError(
+        updateError?.message ||
+          "Unable to update the assigned pet sitter. Please try again."
+      );
+
+      return false;
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -610,8 +730,10 @@ export default function BookingsPage() {
       {selectedBooking && (
         <BookingDetailsModal
           booking={selectedBooking}
+          petSitters={petSitters}
           updating={updatingId === selectedBooking.booking_id}
           onClose={() => setSelectedBooking(null)}
+          onChangeSitter={updateBookingSitter}
           onPending={setPendingBooking}
           onApprove={approveBooking}
           onReject={rejectBooking}
