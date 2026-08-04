@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   CalendarDays,
   LogOut,
@@ -25,7 +25,6 @@ const MENU_ITEMS = [
 ];
 
 export default function AdminSidebar() {
-  const navigate = useNavigate();
   const { settings, fontScale } = useAdminSettings();
   const darkMode = settings.darkMode;
 
@@ -54,8 +53,17 @@ export default function AdminSidebar() {
   }, []);
 
   function handleLogout() {
+    // Remove the local administrator session first.
     localStorage.removeItem("admin");
-    navigate("/login");
+    setAdmin(null);
+
+    // Notify every protected component before leaving the page.
+    window.dispatchEvent(new Event("admin-session-ended"));
+
+    // Replace the current protected history entry with Login.
+    // A full-page replacement also prevents stale React content
+    // from remaining visible after logout.
+    window.location.replace("/login");
   }
 
   const normalText = darkMode
@@ -65,6 +73,12 @@ export default function AdminSidebar() {
   const mutedText = darkMode
     ? "#CFC2BE"
     : "#8D7575";
+
+  const adminUsername =
+    admin?.admin_username || "Administrator";
+
+  const adminEmail =
+    admin?.admin_email || "Administrator account";
 
   return (
     <aside
@@ -147,7 +161,7 @@ export default function AdminSidebar() {
                 fontSize: 15 * fontScale,
               }}
             >
-              {admin.admin_username || "Administrator"}
+              {adminUsername}
             </h4>
 
             <p
@@ -157,7 +171,7 @@ export default function AdminSidebar() {
                 fontSize: 11 * fontScale,
               }}
             >
-              {admin.admin_email || "admin@nannypaws.com"}
+              {adminEmail}
             </p>
           </div>
         </NavLink>
@@ -219,18 +233,22 @@ function SidebarItem({
 }
 
 function getStoredAdmin() {
+  const storedAdmin = localStorage.getItem("admin");
+
+  if (!storedAdmin) return null;
+
   try {
-    return (
-      JSON.parse(localStorage.getItem("admin")) || {
-        admin_username: "Administrator",
-        admin_email: "admin@nannypaws.com",
-      }
-    );
+    const admin = JSON.parse(storedAdmin);
+
+    return admin &&
+      (admin.admin_id ||
+        admin.admin_email ||
+        admin.admin_username)
+      ? admin
+      : null;
   } catch {
-    return {
-      admin_username: "Administrator",
-      admin_email: "admin@nannypaws.com",
-    };
+    localStorage.removeItem("admin");
+    return null;
   }
 }
 

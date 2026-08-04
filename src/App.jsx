@@ -1,6 +1,12 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
 import AdminLayout from "./layouts/AdminLayout";
+import ProtectedAdminRoute from "./components/auth/ProtectedAdminRoute";
 import Auth from "./Auth";
 import BookingsPage from "./Booking/BookingsPage";
 import SitterPage from "./sitter";
@@ -18,17 +24,27 @@ function App() {
         <Routes>
           <Route path="/login" element={<Auth />} />
 
-          <Route element={<AdminLayout />}>
-            <Route path="/bookings" element={<BookingsPage />} />
-            <Route path="/sitters" element={<SitterPage />} />
-            <Route path="messages" element={<MessagesPage />} />
-            <Route path="/applicants" element={<ApplicantPage />} />
-            <Route path="/feedbacks" element={<FeedbackPage />} />
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/settings" element={<SettingPage />} />
+          <Route element={<ProtectedAdminRoute />}>
+            <Route element={<AdminLayout />}>
+              <Route path="/bookings" element={<BookingsPage />} />
+              <Route path="/sitters" element={<SitterPage />} />
+              <Route path="/messages" element={<MessagesPage />} />
+              <Route path="/applicants" element={<ApplicantPage />} />
+              <Route path="/feedbacks" element={<FeedbackPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/settings" element={<SettingPage />} />
+            </Route>
           </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route
+            path="/"
+            element={<Navigate to="/login" replace />}
+          />
+
+          <Route
+            path="*"
+            element={<Navigate to="/login" replace />}
+          />
         </Routes>
       </BrowserRouter>
     </ConfirmationProvider>
