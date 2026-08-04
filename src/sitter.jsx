@@ -181,12 +181,12 @@ export default function SittersPage() {
       };
     }
 
-    if (!/^[A-Za-z0-9_]{4,30}$/.test(username)) {
+    if (!/^[A-Za-z0-9_]{4,20}$/.test(username)) {
       return {
         success: false,
         fieldErrors: {
           username:
-            "Username must be 4 to 30 characters using only letters, numbers, and underscores.",
+            "Username must be 4 to 20 characters using only letters, numbers, and underscores.",
         },
       };
     }
@@ -399,78 +399,190 @@ export default function SittersPage() {
   }
 
   async function updateSitter(sitter, formValues) {
-    const firstName = formValues.ps_fname.trim();
-    const lastName = formValues.ps_lname.trim();
-    const username = formValues.ps_username.trim();
-    const email = formValues.ps_email.trim().toLowerCase();
-    const contactNumber = formValues.ps_contactno.trim();
+    const firstName = formValues.ps_fname
+      .trim()
+      .replace(/\s+/g, " ");
 
-    if (!firstName || !lastName) {
-      setError("First name and last name are required.");
-      return false;
+    const lastName = formValues.ps_lname
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const username = formValues.ps_username.trim();
+
+    const email = formValues.ps_email
+      .trim()
+      .toLowerCase();
+
+    const contactNumber =
+      formValues.ps_contactno.trim();
+
+    if (!firstName) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_fname: "First name is required.",
+        },
+      };
     }
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Enter a valid email address.");
-      return false;
+    if (!lastName) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_lname: "Last name is required.",
+        },
+      };
+    }
+
+    if (!username) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_username: "Username is required.",
+        },
+      };
+    }
+
+    if (!/^[A-Za-z0-9_]{4,20}$/.test(username)) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_username:
+            "Username must be 4 to 20 characters using only letters, numbers, and underscores.",
+        },
+      };
+    }
+
+    if (!/^\d{11}$/.test(contactNumber)) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_contactno:
+            "Contact number must contain exactly 11 digits.",
+        },
+      };
+    }
+
+    if (!email) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_email: "Email address is required.",
+        },
+      };
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return {
+        success: false,
+        fieldErrors: {
+          ps_email: "Enter a valid email address.",
+        },
+      };
     }
 
     if (
       sitter.ps_auth_id &&
-      email !== String(sitter.ps_email || "").trim().toLowerCase()
+      email !==
+        String(sitter.ps_email || "")
+          .trim()
+          .toLowerCase()
     ) {
-      setError(
-        "This email is linked to Supabase Auth and cannot be changed from the Pet Sitters page."
-      );
-      return false;
+      return {
+        success: false,
+        fieldErrors: {
+          ps_email:
+            "This email is linked to the sitter’s login account and cannot be changed here.",
+        },
+      };
     }
 
     const confirmed = await requestConfirmation({
       title: "Save pet sitter changes?",
-      message: `Save the changes made to ${getFullName(sitter)}’s account information?`,
+      message: `Save the changes made to ${getFullName(
+        sitter
+      )}’s account information?`,
       confirmText: "Save Changes",
       variant: "primary",
     });
 
-    if (!confirmed) return false;
+    if (!confirmed) {
+      return {
+        success: false,
+        cancelled: true,
+      };
+    }
 
     setUpdatingId(sitter.petsitter_id);
     setError("");
     setSuccess("");
 
     try {
-      const { data, error: updateError } = await supabase
-        .from("PET SITTER")
-        .update({
-          ps_fname: firstName,
-          ps_lname: lastName,
-          ps_username: username || null,
-          ps_contactno: contactNumber || null,
-          ps_email: email || null,
-        })
-        .eq("petsitter_id", sitter.petsitter_id)
-        .select(SITTER_FIELDS)
-        .single();
+      const { data, error: updateError } =
+        await supabase
+          .from("PET SITTER")
+          .update({
+            ps_fname: firstName,
+            ps_lname: lastName,
+            ps_username: username,
+            ps_contactno: contactNumber,
+            ps_email: email,
+          })
+          .eq(
+            "petsitter_id",
+            sitter.petsitter_id
+          )
+          .select(SITTER_FIELDS)
+          .single();
 
       if (updateError) throw updateError;
 
       setSitters((previous) =>
         previous.map((item) =>
-          item.petsitter_id === sitter.petsitter_id ? data : item
+          item.petsitter_id ===
+          sitter.petsitter_id
+            ? data
+            : item
         )
       );
 
       setSelectedSitter(data);
       setModalMode("view");
-      setSuccess(`${getFullName(data)}’s account information was updated successfully.`);
-      return true;
-    } catch (updateError) {
-      console.error("Unable to update pet sitter:", updateError);
-      setError(
-        updateError?.message ||
-          "Unable to update the pet sitter. Check your Supabase UPDATE policy."
+
+      setSuccess(
+        `${getFullName(
+          data
+        )}’s account information was updated successfully.`
       );
-      return false;
+
+      return { success: true };
+    } catch (updateError) {
+      console.error(
+        "Unable to update pet sitter:",
+        updateError
+      );
+
+      const message = String(
+        updateError?.message || ""
+      ).toLowerCase();
+
+      if (
+        message.includes("duplicate") ||
+        message.includes("unique")
+      ) {
+        return {
+          success: false,
+          formError:
+            "One or more entered values are already registered. Review the highlighted fields.",
+        };
+      }
+
+      return {
+        success: false,
+        formError:
+          updateError?.message ||
+          "Unable to update the pet sitter. Check the database update policy.",
+      };
     } finally {
       setUpdatingId(null);
     }
@@ -1109,9 +1221,9 @@ function AddSitterPanel({
     } else if (username.length < 4) {
       nextErrors.username =
         "Username must contain at least 4 characters.";
-    } else if (username.length > 30) {
+    } else if (username.length > 20) {
       nextErrors.username =
-        "Username cannot exceed 30 characters.";
+        "Username cannot exceed 20 characters.";
     } else if (!/^[A-Za-z0-9_]+$/.test(username)) {
       nextErrors.username =
         "Username may contain only letters, numbers, and underscores.";
@@ -1371,7 +1483,7 @@ function AddSitterPanel({
               icon={<AtSign size={18} />}
               autoComplete="username"
               required
-              maxLength={30}
+              maxLength={20}
               error={fieldErrors.username}
             />
 
@@ -1536,49 +1648,435 @@ function SitterModal({
   onUpdate,
   onDelete,
 }) {
-  const [isEditing, setIsEditing] = useState(initialEditing);
-  const [formValues, setFormValues] = useState(() => getSitterFormValues(sitter));
+  const [isEditing, setIsEditing] =
+    useState(initialEditing);
+
+  const [formValues, setFormValues] = useState(
+    () => getSitterFormValues(sitter)
+  );
+
+  const [fieldErrors, setFieldErrors] =
+    useState({
+      ps_fname: "",
+      ps_lname: "",
+      ps_username: "",
+      ps_contactno: "",
+      ps_email: "",
+    });
+
+  const [formError, setFormError] =
+    useState("");
+
+  const [
+    checkingDuplicates,
+    setCheckingDuplicates,
+  ] = useState(false);
 
   useEffect(() => {
     setIsEditing(initialEditing);
-    setFormValues(getSitterFormValues(sitter));
+    setFormValues(
+      getSitterFormValues(sitter)
+    );
+
+    setFieldErrors({
+      ps_fname: "",
+      ps_lname: "",
+      ps_username: "",
+      ps_contactno: "",
+      ps_email: "",
+    });
+
+    setFormError("");
   }, [sitter, initialEditing]);
 
   function updateField(field, value) {
+    let nextValue = value;
+
+    if (field === "ps_contactno") {
+      nextValue = String(value || "")
+        .replace(/\D/g, "")
+        .slice(0, 11);
+    }
+
+    if (field === "ps_username") {
+      nextValue = String(value || "")
+        .slice(0, 20);
+    }
+
+    if (field === "ps_email") {
+      nextValue = String(value || "")
+        .toLowerCase();
+    }
+
     setFormValues((previous) => ({
       ...previous,
-      [field]: value,
+      [field]: nextValue,
     }));
+
+    setFieldErrors((previous) => ({
+      ...previous,
+      [field]: "",
+    }));
+
+    if (
+      field === "ps_fname" ||
+      field === "ps_lname"
+    ) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        ps_fname:
+          field === "ps_fname"
+            ? ""
+            : previous.ps_fname,
+        ps_lname:
+          field === "ps_lname"
+            ? ""
+            : previous.ps_lname,
+      }));
+    }
+
+    setFormError("");
+  }
+
+  function validateEditForm() {
+    const nextErrors = {
+      ps_fname: "",
+      ps_lname: "",
+      ps_username: "",
+      ps_contactno: "",
+      ps_email: "",
+    };
+
+    const firstName = formValues.ps_fname
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const lastName = formValues.ps_lname
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const username =
+      formValues.ps_username.trim();
+
+    const contactNumber =
+      formValues.ps_contactno.trim();
+
+    const email = formValues.ps_email
+      .trim()
+      .toLowerCase();
+
+    const validNamePattern =
+      /^[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+)*$/;
+
+    if (!firstName) {
+      nextErrors.ps_fname =
+        "First name is required.";
+    } else if (
+      !validNamePattern.test(firstName)
+    ) {
+      nextErrors.ps_fname =
+        "Enter a valid first name.";
+    }
+
+    if (!lastName) {
+      nextErrors.ps_lname =
+        "Last name is required.";
+    } else if (
+      !validNamePattern.test(lastName)
+    ) {
+      nextErrors.ps_lname =
+        "Enter a valid last name.";
+    }
+
+    if (!username) {
+      nextErrors.ps_username =
+        "Username is required.";
+    } else if (username.length < 4) {
+      nextErrors.ps_username =
+        "Username must contain at least 4 characters.";
+    } else if (username.length > 20) {
+      nextErrors.ps_username =
+        "Username cannot exceed 20 characters.";
+    } else if (
+      !/^[A-Za-z0-9_]+$/.test(username)
+    ) {
+      nextErrors.ps_username =
+        "Username may contain only letters, numbers, and underscores.";
+    }
+
+    if (!contactNumber) {
+      nextErrors.ps_contactno =
+        "Contact number is required.";
+    } else if (
+      contactNumber.length !== 11
+    ) {
+      nextErrors.ps_contactno =
+        "Contact number must contain exactly 11 digits.";
+    }
+
+    if (!email) {
+      nextErrors.ps_email =
+        "Email address is required.";
+    } else if (
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+        email
+      )
+    ) {
+      nextErrors.ps_email =
+        "Enter a valid email address.";
+    }
+
+    setFieldErrors(nextErrors);
+
+    return !Object.values(
+      nextErrors
+    ).some(Boolean);
+  }
+
+  async function checkEditDuplicates() {
+    const firstName = formValues.ps_fname
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const lastName = formValues.ps_lname
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const username =
+      formValues.ps_username.trim();
+
+    const contactNumber =
+      formValues.ps_contactno.trim();
+
+    const email = formValues.ps_email
+      .trim()
+      .toLowerCase();
+
+    setCheckingDuplicates(true);
+    setFormError("");
+
+    try {
+      const [
+        fullNameResult,
+        usernameResult,
+        contactResult,
+        emailResult,
+      ] = await Promise.all([
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_fname", firstName)
+          .ilike("ps_lname", lastName)
+          .neq(
+            "petsitter_id",
+            sitter.petsitter_id
+          )
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_username", username)
+          .neq(
+            "petsitter_id",
+            sitter.petsitter_id
+          )
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .eq(
+            "ps_contactno",
+            contactNumber
+          )
+          .neq(
+            "petsitter_id",
+            sitter.petsitter_id
+          )
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_email", email)
+          .neq(
+            "petsitter_id",
+            sitter.petsitter_id
+          )
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      const duplicateCheckError =
+        fullNameResult.error ||
+        usernameResult.error ||
+        contactResult.error ||
+        emailResult.error;
+
+      if (duplicateCheckError) {
+        throw duplicateCheckError;
+      }
+
+      const duplicateErrors = {
+        ps_fname: fullNameResult.data
+          ? "A pet sitter with this full name already exists."
+          : "",
+
+        ps_lname: "",
+
+        ps_username: usernameResult.data
+          ? "This username is already in use."
+          : "",
+
+        ps_contactno: contactResult.data
+          ? "This contact number is already registered."
+          : "",
+
+        ps_email: emailResult.data
+          ? "This email address is already registered."
+          : "",
+      };
+
+      setFieldErrors((previous) => ({
+        ...previous,
+        ...duplicateErrors,
+      }));
+
+      return !Object.values(
+        duplicateErrors
+      ).some(Boolean);
+    } catch (duplicateError) {
+      console.error(
+        "Unable to check duplicate sitter information:",
+        duplicateError
+      );
+
+      setFormError(
+        duplicateError?.message ||
+          "Unable to check whether the entered information is already registered."
+      );
+
+      return false;
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  }
+
+  function beginEditing() {
+    setFormValues(
+      getSitterFormValues(sitter)
+    );
+
+    setFieldErrors({
+      ps_fname: "",
+      ps_lname: "",
+      ps_username: "",
+      ps_contactno: "",
+      ps_email: "",
+    });
+
+    setFormError("");
+    setIsEditing(true);
   }
 
   function cancelEditing() {
-    setFormValues(getSitterFormValues(sitter));
+    setFormValues(
+      getSitterFormValues(sitter)
+    );
+
+    setFieldErrors({
+      ps_fname: "",
+      ps_lname: "",
+      ps_username: "",
+      ps_contactno: "",
+      ps_email: "",
+    });
+
+    setFormError("");
     setIsEditing(false);
   }
 
   async function handleSave() {
-    const saved = await onUpdate(sitter, formValues);
+    setFormError("");
 
-    if (saved) {
+    if (!validateEditForm()) return;
+
+    const hasNoDuplicates =
+      await checkEditDuplicates();
+
+    if (!hasNoDuplicates) return;
+
+    const result = await onUpdate(
+      sitter,
+      {
+        ps_fname: formValues.ps_fname
+          .trim()
+          .replace(/\s+/g, " "),
+
+        ps_lname: formValues.ps_lname
+          .trim()
+          .replace(/\s+/g, " "),
+
+        ps_username:
+          formValues.ps_username.trim(),
+
+        ps_contactno:
+          formValues.ps_contactno.trim(),
+
+        ps_email: formValues.ps_email
+          .trim()
+          .toLowerCase(),
+      }
+    );
+
+    if (result?.fieldErrors) {
+      setFieldErrors((previous) => ({
+        ...previous,
+        ...result.fieldErrors,
+      }));
+    }
+
+    if (result?.formError) {
+      setFormError(result.formError);
+    }
+
+    if (result?.success) {
       setIsEditing(false);
     }
   }
 
-  const busy = updating || deleting;
+  const busy =
+    updating ||
+    deleting ||
+    checkingDuplicates;
 
   return (
-    <div style={styles.modalOverlay} onClick={busy ? undefined : onClose}>
+    <div
+      style={styles.modalOverlay}
+      onClick={busy ? undefined : onClose}
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="sitter-modal-title"
         style={styles.modal}
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) =>
+          event.stopPropagation()
+        }
       >
         <div style={styles.modalHeader}>
           <div>
-            <h2 id="sitter-modal-title" style={styles.modalTitle}>
-              {isEditing ? "Edit Pet Sitter Details" : "Pet Sitter Details"}
+            <h2
+              id="sitter-modal-title"
+              style={styles.modalTitle}
+            >
+              {isEditing
+                ? "Edit Pet Sitter Details"
+                : "Pet Sitter Details"}
             </h2>
           </div>
 
@@ -1587,7 +2085,9 @@ function SitterModal({
             aria-label="Close sitter details"
             style={{
               ...styles.closeBtn,
-              ...(busy ? styles.disabledAction : {}),
+              ...(busy
+                ? styles.disabledAction
+                : {}),
             }}
             disabled={busy}
             onClick={onClose}
@@ -1597,131 +2097,252 @@ function SitterModal({
         </div>
 
         <div style={styles.modalBody}>
-        <div style={styles.modalProfile}>
-          <div style={styles.modalAvatar}>
-            <UserRound size={32} />
-          </div>
-
-          <div>
-            <h3 style={styles.modalName}>{getFullName(sitter)}</h3>
-            <p style={styles.modalUsername}>
-              @{sitter.ps_username || "no-username"}
-            </p>
-          </div>
-        </div>
-
-        {isEditing ? (
-          <div style={styles.modalGrid}>
-            <DetailItem
-              icon={<UserRound size={18} />}
-              label="Pet Sitter ID"
-              value={formatSitterId(sitter.petsitter_id)}
-            />
-
-            <DetailItem
-              icon={<CalendarPlus size={18} />}
-              label="Account Created"
-              value={formatDateTime(sitter.created_at)}
-            />
-
-            <EditField
-              icon={<User size={18} />}
-              label="First Name"
-              value={formValues.ps_fname}
-              onChange={(value) => updateField("ps_fname", value)}
-              required
-            />
-
-            <EditField
-              icon={<User size={18} />}
-              label="Last Name"
-              value={formValues.ps_lname}
-              onChange={(value) => updateField("ps_lname", value)}
-              required
-            />
-
-            <EditField
-              icon={<AtSign size={18} />}
-              label="Username"
-              value={formValues.ps_username}
-              onChange={(value) => updateField("ps_username", value)}
-            />
-
-            <EditField
-              icon={<Mail size={18} />}
-              label="Email Address"
-              type="email"
-              value={formValues.ps_email}
-              onChange={(value) => updateField("ps_email", value)}
-              disabled={Boolean(sitter.ps_auth_id)}
-              note={
-                sitter.ps_auth_id
-                  ? "This email is linked to the sitter’s login account and cannot be changed here."
-                  : ""
-              }
-            />
-
-              <div style={styles.fullWidthItem}>
-              <EditField
-                icon={<Phone size={18} />}
-                label="Contact Number"
-                value={formValues.ps_contactno}
-                onChange={(value) => updateField("ps_contactno", value)}
-              />
+          <div style={styles.modalProfile}>
+            <div style={styles.modalAvatar}>
+              <UserRound size={32} />
             </div>
 
-            <PlacePhotoCard
-              imageValue={sitter.ps_place}
-              sitterName={getFullName(sitter)}
-              note="The pet sitter can upload and manage this photo from their account. It cannot be changed from the admin website."
-            />
-          </div>
-        ) : (
-          <div style={styles.modalGrid}>
-            <DetailItem
-              icon={<UserRound size={18} />}
-              label="Pet Sitter ID"
-              value={formatSitterId(sitter.petsitter_id)}
-            />
-            <DetailItem
-              icon={<User size={18} />}
-              label="First Name"
-              value={sitter.ps_fname || "Not set"}
-            />
-            <DetailItem
-              icon={<User size={18} />}
-              label="Last Name"
-              value={sitter.ps_lname || "Not set"}
-            />
-            <DetailItem
-              icon={<AtSign size={18} />}
-              label="Username"
-              value={sitter.ps_username || "Not set"}
-            />
-            <DetailItem
-              icon={<Mail size={18} />}
-              label="Email Address"
-              value={sitter.ps_email || "Not set"}
-            />
-            <DetailItem
-              icon={<Phone size={18} />}
-              label="Contact Number"
-              value={formatContactNumber(sitter.ps_contactno)}
-            />
-            <PlacePhotoCard
-              imageValue={sitter.ps_place}
-              sitterName={getFullName(sitter)}
-            />
-            <div style={styles.fullWidthItem}>
-            <DetailItem
-              icon={<CalendarPlus size={18} />}
-              label="Date Added"
-              value={formatDateTime(sitter.created_at)}
-            />
-          </div>
-          </div>
-        )}
+            <div>
+              <h3 style={styles.modalName}>
+                {getFullName(sitter)}
+              </h3>
 
+              <p style={styles.modalUsername}>
+                @{sitter.ps_username ||
+                  "no-username"}
+              </p>
+            </div>
+          </div>
+
+          {isEditing && formError && (
+            <div
+              style={{
+                ...styles.createFormError,
+                marginBottom: 12,
+              }}
+            >
+              <AlertCircle size={18} />
+              <span>{formError}</span>
+            </div>
+          )}
+
+          {isEditing ? (
+            <div style={styles.modalGrid}>
+              <DetailItem
+                icon={
+                  <UserRound size={18} />
+                }
+                label="Pet Sitter ID"
+                value={formatSitterId(
+                  sitter.petsitter_id
+                )}
+              />
+
+              <DetailItem
+                icon={
+                  <CalendarPlus size={18} />
+                }
+                label="Account Created"
+                value={formatDateTime(
+                  sitter.created_at
+                )}
+              />
+
+              <EditField
+                icon={<User size={18} />}
+                label="First Name"
+                value={formValues.ps_fname}
+                onChange={(value) =>
+                  updateField(
+                    "ps_fname",
+                    value
+                  )
+                }
+                required
+                error={
+                  fieldErrors.ps_fname
+                }
+              />
+
+              <EditField
+                icon={<User size={18} />}
+                label="Last Name"
+                value={formValues.ps_lname}
+                onChange={(value) =>
+                  updateField(
+                    "ps_lname",
+                    value
+                  )
+                }
+                required
+                error={
+                  fieldErrors.ps_lname
+                }
+              />
+
+              <EditField
+                icon={<AtSign size={18} />}
+                label="Username"
+                value={
+                  formValues.ps_username
+                }
+                onChange={(value) =>
+                  updateField(
+                    "ps_username",
+                    value
+                  )
+                }
+                required
+                maxLength={20}
+                autoComplete="username"
+                error={
+                  fieldErrors.ps_username
+                }
+              />
+
+              <EditField
+                icon={<Mail size={18} />}
+                label="Email Address"
+                type="email"
+                value={formValues.ps_email}
+                onChange={(value) =>
+                  updateField(
+                    "ps_email",
+                    value
+                  )
+                }
+                required
+                autoComplete="email"
+                disabled={Boolean(
+                  sitter.ps_auth_id
+                )}
+                note={
+                  sitter.ps_auth_id
+                    ? "This email is linked to the sitter’s login account and cannot be changed here."
+                    : ""
+                }
+                error={
+                  fieldErrors.ps_email
+                }
+              />
+
+              <div
+                style={
+                  styles.fullWidthItem
+                }
+              >
+                <EditField
+                  icon={<Phone size={18} />}
+                  label="Contact Number"
+                  value={
+                    formValues.ps_contactno
+                  }
+                  onChange={(value) =>
+                    updateField(
+                      "ps_contactno",
+                      value
+                    )
+                  }
+                  required
+                  inputMode="numeric"
+                  autoComplete="tel"
+                  maxLength={11}
+                  error={
+                    fieldErrors.ps_contactno
+                  }
+                />
+              </div>
+
+              <PlacePhotoCard
+                imageValue={sitter.ps_place}
+                sitterName={
+                  getFullName(sitter)
+                }
+                note="The pet sitter can upload and manage this photo from their account. It cannot be changed from the admin website."
+              />
+            </div>
+          ) : (
+            <div style={styles.modalGrid}>
+              <DetailItem
+                icon={
+                  <UserRound size={18} />
+                }
+                label="Pet Sitter ID"
+                value={formatSitterId(
+                  sitter.petsitter_id
+                )}
+              />
+
+              <DetailItem
+                icon={<User size={18} />}
+                label="First Name"
+                value={
+                  sitter.ps_fname ||
+                  "Not set"
+                }
+              />
+
+              <DetailItem
+                icon={<User size={18} />}
+                label="Last Name"
+                value={
+                  sitter.ps_lname ||
+                  "Not set"
+                }
+              />
+
+              <DetailItem
+                icon={<AtSign size={18} />}
+                label="Username"
+                value={
+                  sitter.ps_username ||
+                  "Not set"
+                }
+              />
+
+              <DetailItem
+                icon={<Mail size={18} />}
+                label="Email Address"
+                value={
+                  sitter.ps_email ||
+                  "Not set"
+                }
+              />
+
+              <DetailItem
+                icon={<Phone size={18} />}
+                label="Contact Number"
+                value={formatContactNumber(
+                  sitter.ps_contactno
+                )}
+              />
+
+              <PlacePhotoCard
+                imageValue={sitter.ps_place}
+                sitterName={
+                  getFullName(sitter)
+                }
+              />
+
+              <div
+                style={
+                  styles.fullWidthItem
+                }
+              >
+                <DetailItem
+                  icon={
+                    <CalendarPlus
+                      size={18}
+                    />
+                  }
+                  label="Date Added"
+                  value={formatDateTime(
+                    sitter.created_at
+                  )}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={styles.modalFooter}>
@@ -1729,23 +2350,34 @@ function SitterModal({
             type="button"
             style={{
               ...styles.deleteModalBtn,
-              ...(busy ? styles.disabledAction : {}),
+              ...(busy
+                ? styles.disabledAction
+                : {}),
             }}
             disabled={busy}
-            onClick={() => onDelete(sitter)}
+            onClick={() =>
+              onDelete(sitter)
+            }
           >
             <Trash2 size={16} />
-            {deleting ? "Deleting..." : "Delete Sitter"}
+
+            {deleting
+              ? "Deleting..."
+              : "Delete Sitter"}
           </button>
 
-          <div style={styles.modalFooterRight}>
+          <div
+            style={styles.modalFooterRight}
+          >
             {isEditing ? (
               <>
                 <button
                   type="button"
                   style={{
                     ...styles.cancelEditBtn,
-                    ...(busy ? styles.disabledAction : {}),
+                    ...(busy
+                      ? styles.disabledAction
+                      : {}),
                   }}
                   disabled={busy}
                   onClick={cancelEditing}
@@ -1757,13 +2389,20 @@ function SitterModal({
                   type="button"
                   style={{
                     ...styles.saveChangesBtn,
-                    ...(busy ? styles.disabledAction : {}),
+                    ...(busy
+                      ? styles.disabledAction
+                      : {}),
                   }}
                   disabled={busy}
                   onClick={handleSave}
                 >
                   <Save size={16} />
-                  {updating ? "Saving..." : "Save Changes"}
+
+                  {checkingDuplicates
+                    ? "Checking..."
+                    : updating
+                    ? "Saving..."
+                    : "Save Changes"}
                 </button>
               </>
             ) : (
@@ -1772,10 +2411,12 @@ function SitterModal({
                   type="button"
                   style={{
                     ...styles.editModalBtn,
-                    ...(busy ? styles.disabledAction : {}),
+                    ...(busy
+                      ? styles.disabledAction
+                      : {}),
                   }}
                   disabled={busy}
-                  onClick={() => setIsEditing(true)}
+                  onClick={beginEditing}
                 >
                   <Pencil size={16} />
                   Edit Details
@@ -1785,7 +2426,9 @@ function SitterModal({
                   type="button"
                   style={{
                     ...styles.closeModalBtn,
-                    ...(busy ? styles.disabledAction : {}),
+                    ...(busy
+                      ? styles.disabledAction
+                      : {}),
                   }}
                   disabled={busy}
                   onClick={onClose}
@@ -1810,10 +2453,23 @@ function EditField({
   required = false,
   disabled = false,
   note = "",
+  inputMode,
+  autoComplete,
+  maxLength,
+  error = "",
 }) {
   return (
-    <label style={styles.editField}>
-      <div style={styles.detailIcon}>{icon}</div>
+    <label
+      style={{
+        ...styles.editField,
+        ...(error
+          ? styles.editFieldError
+          : {}),
+      }}
+    >
+      <div style={styles.detailIcon}>
+        {icon}
+      </div>
 
       <div style={styles.editFieldContent}>
         <span style={styles.detailLabel}>
@@ -1825,14 +2481,33 @@ function EditField({
           type={type}
           value={value}
           disabled={disabled}
-          onChange={(event) => onChange(event.target.value)}
+          inputMode={inputMode}
+          autoComplete={autoComplete}
+          maxLength={maxLength}
+          aria-invalid={Boolean(error)}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
           style={{
             ...styles.editInput,
-            ...(disabled ? styles.disabledEditInput : {}),
+            ...(disabled
+              ? styles.disabledEditInput
+              : {}),
+            ...(error
+              ? styles.editInputError
+              : {}),
           }}
         />
 
-        {note && <span style={styles.editFieldNote}>{note}</span>}
+        {error ? (
+          <span style={styles.editFieldErrorText}>
+            {error}
+          </span>
+        ) : note ? (
+          <span style={styles.editFieldNote}>
+            {note}
+          </span>
+        ) : null}
       </div>
     </label>
   );
@@ -2912,6 +3587,20 @@ const styles = {
     flex: 1,
   },
 
+  editFieldError: {
+    borderColor: "#D98E94",
+    background: "#FFF7F7",
+  },
+
+  editFieldErrorText: {
+    display: "block",
+    marginTop: 7,
+    color: "#B3404A",
+    fontSize: 10,
+    fontWeight: 700,
+    lineHeight: 1.4,
+  },
+
   editInput: {
     width: "100%",
     height: 36,
@@ -2924,6 +3613,11 @@ const styles = {
     boxSizing: "border-box",
     fontFamily: "inherit",
     fontSize: 13,
+  },
+
+  editInputError: {
+    borderColor: "#D98E94",
+    background: "#FFFFFF",
   },
 
   disabledEditInput: {
