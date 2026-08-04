@@ -473,30 +473,22 @@ export default function SittersPage() {
   }
 
   const filteredSitters = useMemo(() => {
-    const keyword = search.trim().toLowerCase();
+    const keyword = search
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
 
     if (!keyword) return sitters;
 
     return sitters.filter((sitter) => {
       const fullName = `${sitter.ps_fname || ""} ${
         sitter.ps_lname || ""
-      }`.trim();
+      }`
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLowerCase();
 
-      const searchableValues = [
-        sitter.petsitter_id,
-        sitter.ps_auth_id,
-        formatSitterId(sitter.petsitter_id),
-        fullName,
-        sitter.ps_fname,
-        sitter.ps_lname,
-        sitter.ps_username,
-        sitter.ps_contactno,
-        sitter.ps_email,
-      ]
-        .filter(Boolean)
-        .map((value) => String(value).toLowerCase());
-
-      return searchableValues.some((value) => value.includes(keyword));
+      return fullName.includes(keyword);
     });
   }, [sitters, search]);
 
@@ -629,7 +621,7 @@ export default function SittersPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name, username, or email"
+                placeholder="Search name"
                 style={styles.searchInput}
               />
             </div>
