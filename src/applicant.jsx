@@ -38,7 +38,6 @@ export default function ApplicantPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
   const [showDateFilter, setShowDateFilter] = useState(false);
-  const [dateFilterType, setDateFilterType] = useState("Reviewed On");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -50,9 +49,7 @@ export default function ApplicantPage() {
   const [success, setSuccess] = useState("");
 
   useEffect(() => { fetchApplicantRecords(); }, []);
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, statusFilter, dateFilterType, dateFrom, dateTo]);
+  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, dateFrom, dateTo]);
 
   async function fetchApplicantRecords() {
     setLoading(true);
@@ -240,7 +237,6 @@ export default function ApplicantPage() {
   function clearFilters() {
     setSearch("");
     setStatusFilter("All Status");
-    setDateFilterType("Reviewed On");
     setDateFrom("");
     setDateTo("");
     setShowDateFilter(false);
@@ -285,26 +281,17 @@ export default function ApplicantPage() {
         statusFilter === "All Status" ||
         record.normalizedStatus === statusFilter;
 
-      const reviewDateValue = Array.isArray(
-        record.review_date
-      )
-        ? record.review_date[0]
-        : record.review_date;
-
-      const selectedRecordDate =
-        dateFilterType === "Reviewed On"
-          ? getDateOnlyValue(reviewDateValue)
-          : getDateOnlyValue(record.created_at);
+      const submittedDate = getDateOnlyValue(
+        record.created_at
+      );
 
       const matchesDateFrom =
         !dateFrom ||
-        (selectedRecordDate &&
-          selectedRecordDate >= dateFrom);
+        (submittedDate && submittedDate >= dateFrom);
 
       const matchesDateTo =
         !dateTo ||
-        (selectedRecordDate &&
-          selectedRecordDate <= dateTo);
+        (submittedDate && submittedDate <= dateTo);
 
       return (
         matchesSearch &&
@@ -313,14 +300,7 @@ export default function ApplicantPage() {
         matchesDateTo
       );
     });
-  }, [
-    normalizedRecords,
-    search,
-    statusFilter,
-    dateFilterType,
-    dateFrom,
-    dateTo,
-  ]);
+  }, [normalizedRecords, search, statusFilter, dateFrom, dateTo]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRecords.length / ROWS_PER_PAGE));
 
@@ -434,20 +414,6 @@ export default function ApplicantPage() {
           {/* DATE FILTER PANEL - exactly like Booking page */}
           {showDateFilter && (
             <div style={styles.datePanel}>
-              <label style={styles.dateLabel}>
-                Filter by
-                <select
-                  value={dateFilterType}
-                  onChange={(event) =>
-                    setDateFilterType(event.target.value)
-                  }
-                  style={styles.dateTypeSelect}
-                >
-                  <option value="Reviewed On">Reviewed On</option>
-                  <option value="Submitted On">Submitted On</option>
-                </select>
-              </label>
-
               <label style={styles.dateLabel}>
                 From
                 <input
@@ -948,7 +914,13 @@ function sanitizeDateInput(value) {
 function getDateOnlyValue(dateValue) {
   if (!dateValue) return "";
 
-  const text = String(dateValue).trim();
+  const rawValue = Array.isArray(dateValue)
+    ? dateValue[0]
+    : dateValue;
+
+  const text = String(rawValue || "").trim();
+
+  if (!text) return "";
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return text;
@@ -960,12 +932,28 @@ function getDateOnlyValue(dateValue) {
     return "";
   }
 
-  return new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "Asia/Manila",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(date);
+  }).formatToParts(date);
+
+  const year = parts.find(
+    (part) => part.type === "year"
+  )?.value;
+
+  const month = parts.find(
+    (part) => part.type === "month"
+  )?.value;
+
+  const day = parts.find(
+    (part) => part.type === "day"
+  )?.value;
+
+  if (!year || !month || !day) return "";
+
+  return `${year}-${month}-${day}`;
 }
 
 function getPhilippineDateOnly() {
@@ -1138,18 +1126,6 @@ const styles = {
     color: BRAND.brown,
   },
   
-  dateTypeSelect: {
-    height: 38,
-    border: "1px solid #E2D5D3",
-    borderRadius: 7,
-    padding: "0 10px",
-    background: "#fff",
-    color: BRAND.text,
-    fontSize: 13,
-    fontWeight: 700,
-    outline: "none",
-  },
-
   dateInput: {
     height: 38,
     border: "1px solid #E2D5D3",
