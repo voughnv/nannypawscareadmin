@@ -546,8 +546,7 @@ export default function SittersPage() {
         )
       );
 
-      setSelectedSitter(data);
-      setModalMode("view");
+      closeSitterModal();
 
       setSuccess(
         `${getFullName(
