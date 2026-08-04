@@ -658,14 +658,6 @@ export default function BookingsPage() {
                     );
 
                     setDateTo(nextTo);
-
-                    if (
-                      dateFrom &&
-                      nextTo &&
-                      nextTo < dateFrom
-                    ) {
-                      setDateFrom(nextTo);
-                    }
                   }}
                   style={styles.dateInput}
                 />

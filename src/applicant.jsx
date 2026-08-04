@@ -462,11 +462,8 @@ export default function ApplicantPage() {
                     const nextTo = sanitizeDateInput(
                       event.target.value
                     );
-                    setDateTo(nextTo);
 
-                    if (dateFrom && nextTo && nextTo < dateFrom) {
-                      setDateFrom(nextTo);
-                    }
+                    setDateTo(nextTo);
                   }}
                   style={styles.dateInput}
                 />
@@ -706,7 +703,7 @@ function ApplicantModal({
         <div style={styles.detailsGrid}>
           <DetailItem
             icon={<FileText size={16} />}
-            label="Application ID"
+            label="Application Form ID"
             value={formatApplicationId(record.application_id)}
           />
           <DetailItem
