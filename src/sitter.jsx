@@ -488,7 +488,19 @@ export default function SittersPage() {
         .replace(/\s+/g, " ")
         .toLowerCase();
 
-      return fullName.includes(keyword);
+      const rawSitterId = String(
+        sitter.petsitter_id ?? ""
+      ).toLowerCase();
+
+      const formattedSitterId = formatSitterId(
+        sitter.petsitter_id
+      ).toLowerCase();
+
+      return (
+        fullName.includes(keyword) ||
+        rawSitterId.includes(keyword) ||
+        formattedSitterId.includes(keyword)
+      );
     });
   }, [sitters, search]);
 
@@ -621,7 +633,7 @@ export default function SittersPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search name"
+                placeholder="Search Pet Sitter ID or name"
                 style={styles.searchInput}
               />
             </div>
