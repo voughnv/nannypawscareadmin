@@ -28,29 +28,13 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
 
 export default function BookingDetailsModal({
   booking,
-  petSitters = [],
-  allowSitterReassignment = false,
   updating,
   onClose,
-  onChangeSitter,
   onPending,
   onApprove,
   onReject,
   onComplete,
 }) {
-  const [selectedSitterId, setSelectedSitterId] = useState("");
-  const [assignmentError, setAssignmentError] = useState("");
-
-  useEffect(() => {
-    setSelectedSitterId(
-      booking?.ps_id === null ||
-        booking?.ps_id === undefined ||
-        booking?.ps_id === ""
-        ? ""
-        : String(booking.ps_id)
-    );
-    setAssignmentError("");
-  }, [booking?.booking_id, booking?.ps_id]);
 
   if (!booking) return null;
 
@@ -62,60 +46,8 @@ export default function BookingDetailsModal({
   const hasUnknownStatus =
     !isPending && !isConfirmed && !isCompleted && !isRejected;
 
-  const canReassignSitter =
-    allowSitterReassignment === true &&
-    isPending &&
-    typeof onChangeSitter === "function";
-
-  const currentSitterId =
-    booking.ps_id === null ||
-    booking.ps_id === undefined ||
-    booking.ps_id === ""
-      ? ""
-      : String(booking.ps_id);
-
-  const sitterAssignmentChanged =
-    selectedSitterId !== currentSitterId;
-
   const startTime = booking.start_time || booking.booking_time;
   const paymentProof = String(booking.payment_proof || "").trim();
-
-  const selectedSitter =
-    petSitters.find(
-      (sitter) =>
-        String(getSitterRecordId(sitter)) === selectedSitterId
-    ) || null;
-
-  async function handleApproveBooking() {
-    setAssignmentError("");
-
-    if (!selectedSitterId || !selectedSitter) {
-      setAssignmentError(
-        "Select a pet sitter before approving this booking."
-      );
-      return;
-    }
-
-    let bookingForApproval = booking;
-
-    if (sitterAssignmentChanged) {
-      const assignmentUpdated = await onChangeSitter?.(
-        booking,
-        selectedSitterId
-      );
-
-      if (!assignmentUpdated) return;
-
-      bookingForApproval = {
-        ...booking,
-        ps_id: Number(selectedSitterId),
-        sitterRecord: selectedSitter,
-        sitterName: getSitterDisplayName(selectedSitter),
-      };
-    }
-
-    await onApprove?.(bookingForApproval);
-  }
 
   return (
     <div
@@ -193,28 +125,14 @@ export default function BookingDetailsModal({
             secondary={formatReference("Owner ID", booking.po_id)}
           />
 
-          {canReassignSitter ? (
-            <SitterAssignmentField
-              booking={booking}
-              petSitters={petSitters}
-              selectedSitterId={selectedSitterId}
-              onSelect={(nextSitterId) => {
-                setSelectedSitterId(nextSitterId);
-                setAssignmentError("");
-              }}
-              updating={updating}
-              error={assignmentError}
-            />
-          ) : (
-            <DetailItem
-              label="Pet Sitter"
-              value={getSitterName(booking)}
-              secondary={getSitterAssignmentStatusText(
-                booking,
-                normalizedStatus
-              )}
-            />
-          )}
+          <DetailItem
+            label="Pet Sitter"
+            value={getSitterName(booking)}
+            secondary={getSitterAssignmentStatusText(
+              booking,
+              normalizedStatus
+            )}
+          />
 
           <DetailItem
             label="Pet"
@@ -309,17 +227,10 @@ export default function BookingDetailsModal({
                   style={{
                     ...styles.actionButton,
                     ...styles.confirmButton,
-                    ...(updating || !selectedSitterId
-                      ? styles.disabledButton
-                      : {}),
+                    ...(updating ? styles.disabledButton : {}),
                   }}
-                  disabled={updating || !selectedSitterId}
-                  onClick={handleApproveBooking}
-                  title={
-                    selectedSitterId
-                      ? "Save the selected sitter and approve the booking"
-                      : "Select a pet sitter before approving"
-                  }
+                  disabled={updating}
+                  onClick={() => onApprove?.(booking)}
                 >
                   {updating ? "Updating..." : "Approve"}
                 </button>
@@ -346,81 +257,6 @@ export default function BookingDetailsModal({
     </div>
   );
 }
-
-function SitterAssignmentField({
-  booking,
-  petSitters,
-  selectedSitterId,
-  onSelect,
-  updating,
-  error,
-}) {
-  const currentSitterId =
-    booking.ps_id === null ||
-    booking.ps_id === undefined ||
-    booking.ps_id === ""
-      ? ""
-      : String(booking.ps_id);
-
-  const sortedSitters = [...petSitters].sort((first, second) =>
-    getSitterDisplayName(first).localeCompare(
-      getSitterDisplayName(second)
-    )
-  );
-
-  const currentSitterIncluded =
-    !currentSitterId ||
-    sortedSitters.some(
-      (sitter) =>
-        String(getSitterRecordId(sitter)) === currentSitterId
-    );
-
-  return (
-    <div style={styles.detailItem}>
-      <p style={styles.detailLabel}>Pet Sitter</p>
-
-      <select
-        value={selectedSitterId}
-        onChange={(event) => onSelect(event.target.value)}
-        disabled={updating}
-        style={{
-          ...styles.sitterSelect,
-          ...(error ? styles.sitterSelectError : {}),
-          ...(updating ? styles.disabledControl : {}),
-        }}
-      >
-        <option value="">Select a pet sitter</option>
-
-        {!currentSitterIncluded && currentSitterId && (
-          <option value={currentSitterId}>
-            {getSitterName(booking)} — Current assignment
-          </option>
-        )}
-
-        {sortedSitters.map((sitter) => {
-          const sitterId = getSitterRecordId(sitter);
-
-          return (
-            <option key={sitterId} value={String(sitterId)}>
-              {getSitterDisplayName(sitter)} —{" "}
-              {formatSitterId(sitterId)}
-            </option>
-          );
-        })}
-      </select>
-
-      <p style={styles.assignmentHelper}>
-        The selected pet sitter will be saved when you approve the
-        booking.
-      </p>
-
-      {error && (
-        <p style={styles.assignmentError}>{error}</p>
-      )}
-    </div>
-  );
-}
-
 
 function DetailItem({
   label,
@@ -732,37 +568,6 @@ function getSitterAssignmentStatusText(
     : "No sitter assigned";
 }
 
-function getSitterRecordId(sitter) {
-  return (
-    sitter?.petsitter_id ??
-    sitter?.ps_id ??
-    sitter?.pet_sitter_id ??
-    sitter?.id ??
-    ""
-  );
-}
-
-function getSitterDisplayName(sitter) {
-  const fullName = `${sitter?.ps_fname || ""} ${
-    sitter?.ps_lname || ""
-  }`.trim();
-
-  return (
-    fullName ||
-    sitter?.ps_username ||
-    sitter?.username ||
-    "Name not set"
-  );
-}
-
-function formatSitterId(id) {
-  if (id === null || id === undefined || id === "") {
-    return "ID not set";
-  }
-
-  return `PS-${String(id).padStart(4, "0")}`;
-}
-
 function formatReference(label, value) {
   if (value === null || value === undefined || value === "") {
     return `${label}: Not set`;
@@ -962,46 +767,6 @@ const styles = {
     color: BRAND.muted,
     fontSize: 11,
     fontWeight: 700,
-  },
-
-  sitterSelect: {
-    width: "100%",
-    height: 40,
-    border: "1px solid #E2D5D3",
-    borderRadius: 8,
-    padding: "0 10px",
-    background: "#FFFFFF",
-    color: BRAND.text,
-    fontFamily: "inherit",
-    fontSize: 13,
-    fontWeight: 800,
-    outline: "none",
-    boxSizing: "border-box",
-  },
-
-  assignmentHelper: {
-    margin: "7px 0 0",
-    color: BRAND.muted,
-    fontSize: 10,
-    lineHeight: 1.4,
-  },
-
-  sitterSelectError: {
-    borderColor: "#DF101D",
-    background: "#FFF7F7",
-  },
-
-  assignmentError: {
-    margin: "7px 0 0",
-    color: "#DF101D",
-    fontSize: 11,
-    fontWeight: 800,
-    lineHeight: 1.4,
-  },
-
-  disabledControl: {
-    opacity: 0.65,
-    cursor: "not-allowed",
   },
 
   proofLink: {
