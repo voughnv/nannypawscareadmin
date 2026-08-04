@@ -338,21 +338,32 @@ export default function Auth() {
     try {
       const email = loginEmail.trim().toLowerCase();
 
-      const { data, error } = await supabase
+      const { data: admin, error } = await supabase
         .from("ADMIN")
         .select("*")
         .eq("admin_email", email)
-        .eq("admin_password", loginPass)
         .maybeSingle();
 
       if (error) throw error;
 
-      if (!data) {
-        setMessage("Invalid admin email or password.");
+      if (!admin) {
+        setErrors({
+          email:
+            "No administrator account was found with this email.",
+          password: "",
+        });
         return;
       }
 
-      localStorage.setItem("admin", JSON.stringify(data));
+      if (admin.admin_password !== loginPass) {
+        setErrors({
+          email: "",
+          password: "Incorrect password.",
+        });
+        return;
+      }
+
+      localStorage.setItem("admin", JSON.stringify(admin));
       setSuccessText("Redirecting to bookings page...");
       setSubmitted(true);
 
@@ -495,9 +506,14 @@ export default function Auth() {
                   type="email"
                   placeholder="admin@nannypaws.com"
                   value={loginEmail}
-                  onChange={(event) =>
-                    setLoginEmail(event.target.value.toLowerCase())
-                  }
+                  onChange={(event) => {
+                    setLoginEmail(event.target.value.toLowerCase());
+                    setErrors((previous) => ({
+                      ...previous,
+                      email: "",
+                    }));
+                    setMessage("");
+                  }}
                   error={errors.email}
                 />
               </Field>
@@ -506,7 +522,14 @@ export default function Auth() {
                 <PasswordInput
                   placeholder="Enter your password"
                   value={loginPass}
-                  onChange={(event) => setLoginPass(event.target.value)}
+                  onChange={(event) => {
+                    setLoginPass(event.target.value);
+                    setErrors((previous) => ({
+                      ...previous,
+                      password: "",
+                    }));
+                    setMessage("");
+                  }}
                   error={errors.password}
                 />
               </Field>
