@@ -1461,7 +1461,7 @@ function AddSitterPanel({
 
             <CreateField
               label="Full Name"
-              placeholder="e.g. Michael Jordan"
+              placeholder="e.g. Tom Cruise"
               value={formValues.fullName}
               onChange={(value) =>
                 updateField("fullName", value)
@@ -1474,7 +1474,7 @@ function AddSitterPanel({
 
             <CreateField
               label="Username"
-              placeholder="e.g. michaeljordan321"
+              placeholder="e.g. tomcruise321"
               value={formValues.username}
               onChange={(value) =>
                 updateField("username", value)
@@ -1506,7 +1506,7 @@ function AddSitterPanel({
 
             <CreateField
               label="Email Address"
-              placeholder="e.g. michaeljordan@gmail.com"
+              placeholder="e.g. tomcruise@gmail.com"
               value={formValues.email}
               onChange={(value) =>
                 updateField("email", value)

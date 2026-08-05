@@ -504,7 +504,7 @@ export default function Auth() {
                 <TextInput
                   icon={MailIcon}
                   type="email"
-                  placeholder="admin@nannypaws.com"
+                  placeholder="Enter your email address"
                   value={loginEmail}
                   onChange={(event) => {
                     setLoginEmail(event.target.value.toLowerCase());
