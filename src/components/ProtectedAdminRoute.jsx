@@ -1,4 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Navigate,
   Outlet,
@@ -6,9 +11,14 @@ import {
 } from "react-router-dom";
 import {
   ADMIN_SESSION_HEARTBEAT_MS,
+  ADMIN_SESSION_TTL_MS,
   clearLocalAdminSession,
+  getAdminLastActivity,
   hasLocalAdminSession,
+  isAdminSessionInactive,
+  markAdminActivity,
   refreshAdminSession,
+  releaseAdminSession,
 } from "../utils/adminSession";
 
 export default function ProtectedAdminRoute() {
@@ -19,129 +29,212 @@ export default function ProtectedAdminRoute() {
 
   const mountedRef = useRef(true);
   const verificationPromiseRef = useRef(null);
+  const inactivityTimerRef = useRef(null);
+
+  const clearInactivityTimer =
+    useCallback(() => {
+      if (inactivityTimerRef.current) {
+        window.clearTimeout(
+          inactivityTimerRef.current
+        );
+
+        inactivityTimerRef.current =
+          null;
+      }
+    }, []);
+
+  const expireAdminSession =
+    useCallback(async () => {
+      clearInactivityTimer();
+
+      try {
+        await releaseAdminSession();
+      } catch (error) {
+        console.error(
+          "Unable to expire administrator session:",
+          error
+        );
+
+        clearLocalAdminSession();
+      }
+
+      if (mountedRef.current) {
+        setSessionState(
+          "unauthenticated"
+        );
+      }
+    }, [clearInactivityTimer]);
+
+  const scheduleInactivityLogout =
+    useCallback(() => {
+      clearInactivityTimer();
+
+      const lastActivity =
+        getAdminLastActivity();
+
+      if (!lastActivity) {
+        return;
+      }
+
+      const elapsed =
+        Date.now() - lastActivity;
+
+      const remaining =
+        ADMIN_SESSION_TTL_MS - elapsed;
+
+      if (remaining <= 0) {
+        expireAdminSession();
+        return;
+      }
+
+      inactivityTimerRef.current =
+        window.setTimeout(() => {
+          expireAdminSession();
+        }, remaining);
+    }, [
+      clearInactivityTimer,
+      expireAdminSession,
+    ]);
 
   const verifyAdminSession = useCallback(
     async ({ showChecking = false } = {}) => {
-      /*
-        If another verification is already running, reuse it instead
-        of starting another request.
-
-        This prevents overlapping focus / heartbeat / history checks
-        from leaving the page stuck in a loading state.
-      */
       if (verificationPromiseRef.current) {
-        if (showChecking && mountedRef.current) {
+        if (
+          showChecking &&
+          mountedRef.current
+        ) {
           setSessionState("checking");
         }
 
         return verificationPromiseRef.current;
       }
 
-      if (showChecking && mountedRef.current) {
+      if (
+        showChecking &&
+        mountedRef.current
+      ) {
         setSessionState("checking");
       }
 
-      const verificationPromise = (async () => {
-        try {
-          /*
-            No local Admin or no local session token means this
-            browser is not authenticated.
-          */
-          if (!hasLocalAdminSession()) {
-            clearLocalAdminSession();
+      const verificationPromise =
+        (async () => {
+          try {
+            if (!hasLocalAdminSession()) {
+              clearLocalAdminSession();
+              clearInactivityTimer();
+
+              if (mountedRef.current) {
+                setSessionState(
+                  "unauthenticated"
+                );
+              }
+
+              return false;
+            }
+
+            /*
+              Check inactivity BEFORE refreshing Supabase.
+              This prevents an idle browser from keeping
+              the session alive forever.
+            */
+            if (isAdminSessionInactive()) {
+              await expireAdminSession();
+              return false;
+            }
+
+            const validSession =
+              await refreshAdminSession();
+
+            if (!validSession) {
+              clearLocalAdminSession();
+              clearInactivityTimer();
+
+              if (mountedRef.current) {
+                setSessionState(
+                  "unauthenticated"
+                );
+              }
+
+              return false;
+            }
 
             if (mountedRef.current) {
-              setSessionState("unauthenticated");
+              setSessionState(
+                "authenticated"
+              );
+            }
+
+            scheduleInactivityLogout();
+
+            return true;
+          } catch (error) {
+            console.error(
+              "Unable to verify administrator session:",
+              error
+            );
+
+            clearLocalAdminSession();
+            clearInactivityTimer();
+
+            if (mountedRef.current) {
+              setSessionState(
+                "unauthenticated"
+              );
             }
 
             return false;
+          } finally {
+            verificationPromiseRef.current =
+              null;
           }
-
-          /*
-            Verify the local token against the active session stored
-            in the ADMIN table.
-          */
-          const validSession =
-            await refreshAdminSession();
-
-          if (!validSession) {
-            clearLocalAdminSession();
-
-            if (mountedRef.current) {
-              setSessionState("unauthenticated");
-            }
-
-            return false;
-          }
-
-          if (mountedRef.current) {
-            setSessionState("authenticated");
-          }
-
-          return true;
-        } catch (error) {
-          console.error(
-            "Unable to verify administrator session:",
-            error
-          );
-
-          /*
-            If Supabase explicitly fails while verifying the session,
-            treat the local session as invalid rather than leaving the
-            application on a blank page.
-          */
-          clearLocalAdminSession();
-
-          if (mountedRef.current) {
-            setSessionState("unauthenticated");
-          }
-
-          return false;
-        } finally {
-          verificationPromiseRef.current = null;
-        }
-      })();
+        })();
 
       verificationPromiseRef.current =
         verificationPromise;
 
       return verificationPromise;
     },
-    []
+    [
+      clearInactivityTimer,
+      expireAdminSession,
+      scheduleInactivityLogout,
+    ]
   );
 
   useEffect(() => {
     mountedRef.current = true;
 
     /*
-      Initial protected-page verification.
-      This is the only normal load where we intentionally show
-      the session-checking screen before protected content.
+      Verify once when a protected Admin page loads.
     */
     verifyAdminSession({
       showChecking: true,
     });
 
     /*
-      Heartbeat:
-      Refresh the database session in the background.
-
-      IMPORTANT:
-      It does NOT hide the page and does NOT switch the page back
-      to a blank "checking" state while the Admin is already using it.
+      Keep the server-side session synchronized while
+      the Admin remains active.
     */
-    const heartbeat = window.setInterval(() => {
-      verifyAdminSession({
-        showChecking: false,
-      });
-    }, ADMIN_SESSION_HEARTBEAT_MS);
+    const heartbeat =
+      window.setInterval(() => {
+        verifyAdminSession({
+          showChecking: false,
+        });
+      }, ADMIN_SESSION_HEARTBEAT_MS);
 
     /*
-      Browser Back / Forward can restore a cached protected page.
-
-      On history restoration we re-check the session before allowing
-      the page to continue.
+      Clicking, typing, touching, or scrolling counts
+      as activity and resets the 30-minute timer.
     */
+    function handleAdminActivity() {
+      if (!hasLocalAdminSession()) {
+        return;
+      }
+
+      markAdminActivity();
+      scheduleInactivityLogout();
+    }
+
     function handleHistoryCheck() {
       verifyAdminSession({
         showChecking: true,
@@ -149,24 +242,30 @@ export default function ProtectedAdminRoute() {
     }
 
     /*
-      When returning to this browser tab we verify silently in the
-      background. This avoids random white screens when switching tabs.
+      Returning to the tab first verifies whether the
+      old session already expired. Only a still-valid
+      session is marked active again.
     */
-    function handleFocusCheck() {
-      verifyAdminSession({
-        showChecking: false,
-      });
+    async function handleFocusCheck() {
+      const valid =
+        await verifyAdminSession({
+          showChecking: false,
+        });
+
+      if (valid) {
+        markAdminActivity();
+        scheduleInactivityLogout();
+      }
     }
 
-    /*
-      If another tab logs out or changes the stored session,
-      immediately re-check this protected page.
-    */
     function handleStorageChange(event) {
       if (
         !event ||
         event.key === "admin" ||
-        event.key === "adminSessionToken"
+        event.key ===
+          "adminSessionToken" ||
+        event.key ===
+          "adminLastActivity"
       ) {
         verifyAdminSession({
           showChecking: true,
@@ -174,16 +273,37 @@ export default function ProtectedAdminRoute() {
       }
     }
 
-    /*
-      releaseAdminSession() dispatches this event during Logout.
-    */
     function handleSessionEnded() {
+      clearInactivityTimer();
       clearLocalAdminSession();
 
       if (mountedRef.current) {
-        setSessionState("unauthenticated");
+        setSessionState(
+          "unauthenticated"
+        );
       }
     }
+
+    window.addEventListener(
+      "pointerdown",
+      handleAdminActivity
+    );
+
+    window.addEventListener(
+      "keydown",
+      handleAdminActivity
+    );
+
+    window.addEventListener(
+      "touchstart",
+      handleAdminActivity
+    );
+
+    window.addEventListener(
+      "scroll",
+      handleAdminActivity,
+      { passive: true }
+    );
 
     window.addEventListener(
       "pageshow",
@@ -213,7 +333,31 @@ export default function ProtectedAdminRoute() {
     return () => {
       mountedRef.current = false;
 
-      window.clearInterval(heartbeat);
+      window.clearInterval(
+        heartbeat
+      );
+
+      clearInactivityTimer();
+
+      window.removeEventListener(
+        "pointerdown",
+        handleAdminActivity
+      );
+
+      window.removeEventListener(
+        "keydown",
+        handleAdminActivity
+      );
+
+      window.removeEventListener(
+        "touchstart",
+        handleAdminActivity
+      );
+
+      window.removeEventListener(
+        "scroll",
+        handleAdminActivity
+      );
 
       window.removeEventListener(
         "pageshow",
@@ -240,26 +384,33 @@ export default function ProtectedAdminRoute() {
         handleSessionEnded
       );
     };
-  }, [verifyAdminSession]);
+  }, [
+    clearInactivityTimer,
+    scheduleInactivityLogout,
+    verifyAdminSession,
+  ]);
 
-  /*
-    Do not return a completely blank page while performing the
-    initial/history session check.
-  */
-  if (sessionState === "checking") {
+  if (
+    sessionState === "checking"
+  ) {
     return (
       <div style={styles.loadingPage}>
         <div style={styles.loadingCard}>
           <div style={styles.spinner} />
+
           <p style={styles.loadingText}>
-            Checking administrator session...
+            Checking administrator
+            session...
           </p>
         </div>
       </div>
     );
   }
 
-  if (sessionState === "unauthenticated") {
+  if (
+    sessionState ===
+    "unauthenticated"
+  ) {
     return (
       <Navigate
         to="/login"

@@ -3,19 +3,19 @@ import { supabase } from "../lib/supabase";
 const ADMIN_STORAGE_KEY = "admin";
 const SESSION_TOKEN_KEY = "adminSessionToken";
 const DEVICE_ID_KEY = "adminDeviceId";
+const LAST_ACTIVITY_KEY = "adminLastActivity";
 
-// Active Admin pages refresh the session every 60 seconds.
+// Check the active session once every minute.
 export const ADMIN_SESSION_HEARTBEAT_MS = 60 * 1000;
 
-// If the browser is closed without pressing Logout,
-// the session will automatically expire after 5 minutes.
-export const ADMIN_SESSION_TTL_MS = 5 * 60 * 1000;
+// Automatically log the Admin out after 30 minutes
+// without activity.
+export const ADMIN_SESSION_TTL_MS = 30 * 60 * 1000;
 
 /*
 |--------------------------------------------------------------------------
 | GET STORED ADMIN
 |--------------------------------------------------------------------------
-| Reads the currently logged-in administrator from localStorage.
 */
 export function getStoredAdmin() {
   const storedAdmin = localStorage.getItem(
@@ -49,7 +49,7 @@ export function getStoredAdmin() {
 
 /*
 |--------------------------------------------------------------------------
-| GET SESSION TOKEN
+| GET STORED SESSION TOKEN
 |--------------------------------------------------------------------------
 */
 export function getStoredSessionToken() {
@@ -62,12 +62,7 @@ export function getStoredSessionToken() {
 |--------------------------------------------------------------------------
 | DEVICE ID
 |--------------------------------------------------------------------------
-| Every browser/device receives its own permanent ID.
-|
-| Example:
-| Laptop Chrome = one device ID
-| Another laptop = another device ID
-| Another browser = another device ID
+| Each browser/device receives its own ID.
 */
 export function getOrCreateDeviceId() {
   let deviceId = localStorage.getItem(
@@ -90,15 +85,61 @@ export function getOrCreateDeviceId() {
 
 /*
 |--------------------------------------------------------------------------
-| CHECK LOCAL SESSION
+| ADMIN ACTIVITY
 |--------------------------------------------------------------------------
-| This only checks whether the browser contains the required local session
-| information.
-|
-| ProtectedAdminRoute will still verify the session against Supabase.
+| Saves the last time the administrator interacted with the website.
+*/
+export function markAdminActivity() {
+  localStorage.setItem(
+    LAST_ACTIVITY_KEY,
+    String(Date.now())
+  );
+}
+
+export function getAdminLastActivity() {
+  const storedValue =
+    localStorage.getItem(LAST_ACTIVITY_KEY);
+
+  const timestamp = Number(storedValue);
+
+  if (
+    !storedValue ||
+    Number.isNaN(timestamp)
+  ) {
+    return 0;
+  }
+
+  return timestamp;
+}
+
+/*
+|--------------------------------------------------------------------------
+| INACTIVITY CHECK
+|--------------------------------------------------------------------------
+| Returns true once 30 minutes have passed without Admin activity.
+*/
+export function isAdminSessionInactive() {
+  const lastActivity =
+    getAdminLastActivity();
+
+  if (!lastActivity) {
+    return true;
+  }
+
+  return (
+    Date.now() - lastActivity >=
+    ADMIN_SESSION_TTL_MS
+  );
+}
+
+/*
+|--------------------------------------------------------------------------
+| LOCAL SESSION CHECK
+|--------------------------------------------------------------------------
 */
 export function hasLocalAdminSession() {
   const admin = getStoredAdmin();
+
   const sessionToken =
     getStoredSessionToken();
 
@@ -121,15 +162,19 @@ export function clearLocalAdminSession() {
   localStorage.removeItem(
     SESSION_TOKEN_KEY
   );
+
+  localStorage.removeItem(
+    LAST_ACTIVITY_KEY
+  );
 }
 
 /*
 |--------------------------------------------------------------------------
 | CLAIM ADMIN SESSION
 |--------------------------------------------------------------------------
-| Called after the email and password are successfully validated.
+| Called after the Admin email/password is validated.
 |
-| Only one active browser/device should be able to claim the Admin account.
+| Only one active browser/device can own the Admin session.
 */
 export async function claimAdminSession(
   admin
@@ -146,7 +191,8 @@ export async function claimAdminSession(
   const deviceId =
     getOrCreateDeviceId();
 
-  const now = new Date();
+  const now =
+    new Date();
 
   const nowIso =
     now.toISOString();
@@ -157,15 +203,6 @@ export async function claimAdminSession(
         ADMIN_SESSION_TTL_MS
     ).toISOString();
 
-  /*
-    Login can continue only when:
-
-    1. There is currently no session.
-    2. The old session already expired.
-    3. The same browser/device is reclaiming its own session.
-
-    Another browser/device with an active session will not match this query.
-  */
   const {
     data,
     error,
@@ -208,9 +245,8 @@ export async function claimAdminSession(
 
   /*
     No row was updated.
-
-    This means another device/browser currently owns
-    the active session.
+    Another browser/device currently owns
+    the active Admin session.
   */
   if (!data) {
     return {
@@ -219,10 +255,6 @@ export async function claimAdminSession(
     };
   }
 
-  /*
-    Keep the original Admin information in localStorage
-    so Profile, Sidebar, Settings, etc. continue working.
-  */
   const storedAdmin = {
     ...admin,
 
@@ -246,6 +278,9 @@ export async function claimAdminSession(
     sessionToken
   );
 
+  // Logging in counts as activity.
+  markAdminActivity();
+
   return {
     success: true,
     sessionToken,
@@ -255,18 +290,10 @@ export async function claimAdminSession(
 
 /*
 |--------------------------------------------------------------------------
-| VERIFY / REFRESH SESSION
+| VERIFY / REFRESH ACTIVE SESSION
 |--------------------------------------------------------------------------
-| ProtectedAdminRoute calls this repeatedly.
-|
-| It verifies that:
-|
-| - Admin still exists
-| - Local session token exists
-| - Database contains the same token
-| - Session has not expired
-|
-| A valid session is then extended another 5 minutes.
+| Refreshes the database expiration only when the local session
+| has NOT exceeded the 30-minute inactivity limit.
 */
 export async function refreshAdminSession() {
   const admin =
@@ -279,6 +306,14 @@ export async function refreshAdminSession() {
     !admin?.admin_id ||
     !sessionToken
   ) {
+    return false;
+  }
+
+  /*
+    Do not refresh a session that has already
+    been inactive for 30 minutes.
+  */
+  if (isAdminSessionInactive()) {
     return false;
   }
 
@@ -340,9 +375,9 @@ export async function refreshAdminSession() {
 
     /*
       No matching row means:
-      - token was removed,
-      - another session replaced it,
-      - or session expired.
+      - session expired
+      - session was removed
+      - session token no longer matches
     */
     if (!data) {
       return false;
@@ -380,10 +415,7 @@ export async function refreshAdminSession() {
 |--------------------------------------------------------------------------
 | RELEASE ADMIN SESSION
 |--------------------------------------------------------------------------
-| Called when the administrator presses Logout.
-|
-| It clears the database session FIRST.
-| Then it clears localStorage.
+| Called during proper Logout or automatic inactivity logout.
 */
 export async function releaseAdminSession() {
   const admin =
@@ -439,10 +471,6 @@ export async function releaseAdminSession() {
       error
     );
   } finally {
-    /*
-      Local logout always happens even when there
-      is a network problem.
-    */
     clearLocalAdminSession();
 
     window.dispatchEvent(
@@ -459,9 +487,6 @@ export async function releaseAdminSession() {
 |--------------------------------------------------------------------------
 */
 function createSecureToken() {
-  /*
-    Modern browsers support crypto.randomUUID().
-  */
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID ===
@@ -470,9 +495,6 @@ function createSecureToken() {
     return crypto.randomUUID();
   }
 
-  /*
-    Fallback for browsers without randomUUID().
-  */
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.getRandomValues ===
@@ -494,9 +516,6 @@ function createSecureToken() {
       .join("-");
   }
 
-  /*
-    Last fallback.
-  */
   return `${Date.now()}-${Math.random()
     .toString(36)
     .slice(2)}-${Math.random()
