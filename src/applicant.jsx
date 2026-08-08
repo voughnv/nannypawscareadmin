@@ -2561,7 +2561,7 @@ function ApplicantModal({
                   }
                 >
                   {record.resume_file
-                    ? "Resume uploaded"
+                    ? getFileName(record.resume_file)
                     : "No resume uploaded"}
                 </h4>
 
