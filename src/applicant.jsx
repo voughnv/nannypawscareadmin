@@ -80,8 +80,8 @@ export default function ApplicantPage() {
 
   /*
     Keep this page synchronized with the Admin Settings page.
-    Text sizes use --admin-font-scale and all neutral colors below
-    use these page-level theme variables.
+    The entire Applicant workspace scales using the saved fontScale,
+    while all neutral colors below use these page-level theme variables.
   */
   const pageThemeStyle = useMemo(
     () => ({
@@ -103,6 +103,19 @@ export default function ApplicantPage() {
         : "0 8px 18px rgba(51,26,18,0.07)",
       width: "100%",
       minHeight: "100%",
+
+      /*
+        Reliable Admin font-size scaling.
+        The previous CSS calc(Npx * variable) syntax is not consistently
+        supported by browsers. Scaling the Applicant workspace here makes
+        every text element visibly respond to Settings > Font Size.
+
+        Default = 1, so the current clean layout is unchanged.
+        Large = 1.08, so the page can naturally become wider and use the
+        horizontal scrollbar instead of squeezing or clipping text.
+      */
+      zoom: Number(fontScale || 1),
+
       color: "var(--app-text)",
       background: "var(--app-page)",
       transition: "background 0.2s ease, color 0.2s ease",
@@ -3530,7 +3543,7 @@ const styles = {
   title: {
     margin: 0,
     color: "var(--app-strong)",
-    fontSize: "calc(34px * var(--admin-font-scale, 1))",
+    fontSize: 34,
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -3538,7 +3551,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "var(--app-muted)",
-    fontSize: "calc(15px * var(--admin-font-scale, 1))",
+    fontSize: 15,
   },
 
   breadcrumb: {
@@ -3546,14 +3559,14 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: "var(--app-strong)",
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "var(--app-muted)",
-    fontSize: "calc(22px * var(--admin-font-scale, 1))",
+    fontSize: 22,
   },
 
   statsGrid: {
@@ -3625,21 +3638,21 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     fontWeight: 800,
     color: "var(--app-text)",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: "calc(28px * var(--admin-font-scale, 1))",
+    fontSize: 28,
     fontWeight: 900,
     color: "var(--app-strong)",
   },
 
   statDesc: {
     margin: 0,
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     color: "var(--app-muted)",
   },
 
@@ -3658,7 +3671,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 700,
   },
 
@@ -3685,7 +3698,7 @@ const styles = {
 
   successText: {
     flex: 1,
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 700,
   },
 
@@ -3750,7 +3763,7 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     color: "var(--app-text)",
     background:
       "transparent",
@@ -3778,7 +3791,7 @@ const styles = {
     justifyContent: "center",
     gap: 9,
     padding: "0 14px",
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -3796,7 +3809,7 @@ const styles = {
     alignItems: "center",
     gap: 12,
     padding: "0 16px",
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
@@ -3813,7 +3826,7 @@ const styles = {
     gap: 9,
     padding: "0 12px",
     fontFamily: "inherit",
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -3876,7 +3889,7 @@ const styles = {
   },
 
   datePanelTitle: {
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     fontWeight: 900,
     color: BRAND.pink,
     textTransform:
@@ -3888,7 +3901,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 800,
     color: "var(--app-strong)",
   },
@@ -3912,7 +3925,7 @@ const styles = {
     background: "var(--app-card)",
     color: "var(--app-strong)",
     padding: "0 14px",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -3942,7 +3955,7 @@ const styles = {
     textAlign: "left",
     padding: "13px 10px",
     color: "var(--app-text)",
-    fontSize: "calc(12.5px * var(--admin-font-scale, 1))",
+    fontSize: 12.5,
     fontWeight: 900,
     whiteSpace: "normal",
     lineHeight: 1.25,
@@ -3956,7 +3969,7 @@ const styles = {
   numberCell: {
     padding: "13px 10px",
     color: "var(--app-muted)",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
@@ -3964,7 +3977,7 @@ const styles = {
 
   normalCell: {
     padding: "13px 10px",
-    fontSize: "calc(12.5px * var(--admin-font-scale, 1))",
+    fontSize: 12.5,
     color: "var(--app-text)",
     whiteSpace: "normal",
     lineHeight: 1.4,
@@ -3974,7 +3987,7 @@ const styles = {
 
   addressCell: {
     padding: "13px 10px",
-    fontSize: "calc(12.5px * var(--admin-font-scale, 1))",
+    fontSize: 12.5,
     color: "var(--app-text)",
     minWidth: 0,
     whiteSpace: "normal",
@@ -3985,7 +3998,7 @@ const styles = {
 
   scheduleCell: {
     padding: "13px 10px",
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     color: "var(--app-text)",
     minWidth: 0,
     whiteSpace: "normal",
@@ -3997,7 +4010,7 @@ const styles = {
 
   primaryText: {
     display: "block",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     color: "var(--app-text)",
     fontWeight: 800,
   },
@@ -4014,7 +4027,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: "calc(11.5px * var(--admin-font-scale, 1))",
+    fontSize: 11.5,
     fontWeight: 800,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -4049,7 +4062,7 @@ const styles = {
 
   mutedCell: {
     color: "var(--app-muted)",
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
   },
 
   badge: {
@@ -4059,7 +4072,7 @@ const styles = {
     minWidth: 76,
     height: 26,
     borderRadius: 7,
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     fontWeight: 800,
   },
 
@@ -4087,7 +4100,7 @@ const styles = {
     padding: 28,
     textAlign: "center",
     color: "var(--app-muted)",
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     fontWeight: 700,
   },
 
@@ -4110,7 +4123,7 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     color: "var(--app-text)",
   },
 
@@ -4128,7 +4141,7 @@ const styles = {
       "1px solid var(--app-border-strong)",
     background: "var(--app-card)",
     color: "var(--app-text)",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 700,
     cursor: "pointer",
     display:
@@ -4201,14 +4214,14 @@ const styles = {
   modalTitle: {
     margin: 0,
     color: "var(--app-strong)",
-    fontSize: "calc(24px * var(--admin-font-scale, 1))",
+    fontSize: 24,
     fontWeight: 900,
   },
 
   modalSubtitle: {
     margin: "4px 0 0",
     color: BRAND.pink,
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 800,
   },
 
@@ -4251,7 +4264,7 @@ const styles = {
   detailsName: {
     margin: 0,
     color: "var(--app-strong)",
-    fontSize: "calc(22px * var(--admin-font-scale, 1))",
+    fontSize: 22,
     fontWeight: 900,
   },
 
@@ -4259,7 +4272,7 @@ const styles = {
     margin:
       "5px 0 10px",
     color: "var(--app-muted)",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     display: "flex",
     alignItems: "center",
     gap: 5,
@@ -4317,14 +4330,14 @@ const styles = {
   detailLabel: {
     margin: "0 0 7px",
     color: "var(--app-muted)",
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     fontWeight: 900,
   },
 
   detailValue: {
     margin: 0,
     color: "var(--app-text)",
-    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    fontSize: 14,
     fontWeight: 900,
     overflowWrap:
       "anywhere",
@@ -4333,7 +4346,7 @@ const styles = {
   validationHint: {
     margin: "8px 0 0",
     color: "#B45309",
-    fontSize: "calc(11px * var(--admin-font-scale, 1))",
+    fontSize: 11,
     lineHeight: 1.45,
     fontWeight: 700,
   },
@@ -4392,7 +4405,7 @@ const styles = {
   mediaActionText: {
     marginTop: 8,
     color: BRAND.pink,
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     fontWeight: 800,
     display:
       "inline-flex",
@@ -4429,7 +4442,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    fontSize: 12,
     fontWeight: 900,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -4455,7 +4468,7 @@ const styles = {
     borderRadius: 9,
     padding: 12,
     fontFamily: "inherit",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     boxSizing: "border-box",
   },
 
@@ -4491,7 +4504,7 @@ const styles = {
       "1px solid var(--app-border-strong)",
     background: "var(--app-readonly)",
     color: "var(--app-muted)",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 800,
     textAlign: "center",
   },
@@ -4503,7 +4516,7 @@ const styles = {
     background: "#FCE2E8",
     color: "#E11D48",
     padding: "0 14px",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -4515,7 +4528,7 @@ const styles = {
     background: BRAND.pink,
     color: "#fff",
     padding: "0 16px",
-    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -4563,7 +4576,7 @@ const styles = {
   previewEyebrow: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: "calc(10px * var(--admin-font-scale, 1))",
+    fontSize: 10,
     fontWeight: 900,
     letterSpacing: "0.8px",
   },
@@ -4571,7 +4584,7 @@ const styles = {
   previewTitle: {
     margin: "3px 0 0",
     color: "var(--app-strong)",
-    fontSize: "calc(17px * var(--admin-font-scale, 1))",
+    fontSize: 17,
     fontWeight: 900,
   },
 
