@@ -9,7 +9,7 @@ import {
   clearLocalAdminSession,
   hasLocalAdminSession,
   refreshAdminSession,
-} from "../../utils/adminSession";
+} from "../utils/adminSession";
 
 export default function ProtectedAdminRoute() {
   const location = useLocation();
@@ -29,10 +29,8 @@ export default function ProtectedAdminRoute() {
       verificationRunning.current = true;
 
       try {
-        /*
-          Do not render a page restored from the browser's
-          back-forward cache until the session has been checked.
-        */
+        // Hide a protected page while its database
+        // session is being checked.
         document.documentElement.style.visibility =
           "hidden";
 
@@ -64,6 +62,17 @@ export default function ProtectedAdminRoute() {
         }
 
         document.documentElement.style.visibility = "";
+      } catch (error) {
+        console.error(
+          "Unable to verify administrator session:",
+          error
+        );
+
+        clearLocalAdminSession();
+
+        if (mounted.current) {
+          setSessionState("unauthenticated");
+        }
       } finally {
         verificationRunning.current = false;
       }
@@ -141,11 +150,10 @@ export default function ProtectedAdminRoute() {
   }, []);
 
   useEffect(() => {
-    if (sessionState === "authenticated") {
-      document.documentElement.style.visibility = "";
-    }
-
-    if (sessionState === "unauthenticated") {
+    if (
+      sessionState === "authenticated" ||
+      sessionState === "unauthenticated"
+    ) {
       document.documentElement.style.visibility = "";
     }
   }, [sessionState]);
