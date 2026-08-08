@@ -86,12 +86,18 @@ export default function ApplicantPage() {
     useState("All Status");
 
   /*
-    Approved applicants are hidden from the table by default.
+    Accepted applicants are hidden from the table by default.
     They can be shown using the toggle or by clicking the
-    Approved dashboard card.
+    Accepted dashboard card.
+
+    acceptedToggleSource tracks whether the toggle was enabled
+    automatically by the Accepted card or manually by the Admin.
   */
   const [showAcceptedApplicants, setShowAcceptedApplicants] =
     useState(false);
+
+  const [acceptedToggleSource, setAcceptedToggleSource] =
+    useState(null);
 
   const [showDateFilter, setShowDateFilter] =
     useState(false);
@@ -308,33 +314,42 @@ export default function ApplicantPage() {
     setCurrentPage(1);
 
     /*
-      Clicking Approved is an intentional request to view accepted
-      applicants, so the accepted-applicant toggle is enabled.
+      Clicking Accepted temporarily turns the accepted-applicant
+      toggle on so the filtered records are visible.
     */
-    if (nextStatus === "Approved") {
-      setShowAcceptedApplicants(true);
+    if (nextStatus === "Accepted") {
+      if (!showAcceptedApplicants) {
+        setShowAcceptedApplicants(true);
+        setAcceptedToggleSource("auto");
+      }
+
+      return;
+    }
+
+    /*
+      When the Admin leaves the Accepted card, turn the toggle back
+      off only when it was enabled automatically. A manually enabled
+      toggle stays on until the Admin switches it off.
+    */
+    if (acceptedToggleSource === "auto") {
+      setShowAcceptedApplicants(false);
+      setAcceptedToggleSource(null);
     }
   }
 
   function toggleAcceptedApplicants() {
-    setShowAcceptedApplicants(
-      (previous) => {
-        const nextValue = !previous;
+    const nextValue = !showAcceptedApplicants;
 
-        /*
-          If Approved is the active card and the Admin hides
-          accepted applicants, return to the unfiltered view.
-        */
-        if (
-          !nextValue &&
-          statusFilter === "Approved"
-        ) {
-          setStatusFilter("All Status");
-        }
+    setShowAcceptedApplicants(nextValue);
+    setAcceptedToggleSource(nextValue ? "manual" : null);
 
-        return nextValue;
-      }
-    );
+    /*
+      Hiding accepted applicants while the Accepted card is active
+      returns the table to the normal All Status view.
+    */
+    if (!nextValue && statusFilter === "Accepted") {
+      setStatusFilter("All Status");
+    }
 
     setCurrentPage(1);
   }
@@ -349,15 +364,15 @@ export default function ApplicantPage() {
     status,
     remarks
   ) {
-    const isApproving =
-      status === "Approved";
+    const isAccepting =
+      status === "Accepted";
 
     const isRejecting =
       status === "Rejected";
 
-    if (isApproving) {
+    if (isAccepting) {
       const validationError =
-        validateApplicantForApproval(
+        validateApplicantForAcceptance(
           record
         );
 
@@ -371,19 +386,19 @@ export default function ApplicantPage() {
       await requestConfirmation({
         title: isRejecting
           ? "Reject application?"
-          : "Approve application?",
+          : "Accept application?",
 
         message: isRejecting
           ? `Reject ${getFullName(
               record
             )}'s application? This review cannot be changed afterward.`
-          : `Approve ${getFullName(
+          : `Accept ${getFullName(
               record
             )}'s application? A Pet Sitter account will be created automatically and a verification email will be sent.`,
 
         confirmText: isRejecting
           ? "Reject Application"
-          : "Approve & Create Sitter",
+          : "Accept & Create Sitter",
 
         variant: isRejecting
           ? "danger"
@@ -401,13 +416,13 @@ export default function ApplicantPage() {
 
     try {
       /*
-        On approval, create/match the Pet Sitter account first.
+        On acceptance, create/match the Pet Sitter account first.
         This automatically moves the accepted applicant into
         the PET SITTER table.
       */
       let sitterAccountResult = null;
 
-      if (isApproving) {
+      if (isAccepting) {
         sitterAccountResult =
           await ensurePetSitterAccount(
             record
@@ -543,11 +558,11 @@ export default function ApplicantPage() {
       );
 
       /*
-        Approved applicants disappear from the normal Applicant
+        Accepted applicants disappear from the normal Applicant
         table immediately. They remain available through the
         Show Accepted Applicants toggle.
       */
-      if (isApproving) {
+      if (isAccepting) {
         setSelectedRecord(null);
 
         setSuccess(
@@ -555,10 +570,10 @@ export default function ApplicantPage() {
             ?.alreadyExisting
             ? `${getFullName(
                 record
-              )} was approved and is already listed as a Pet Sitter.`
+              )} was accepted and is already listed as a Pet Sitter.`
             : `${getFullName(
                 record
-              )} was approved, moved to Pet Sitters, and sent an email verification link.`
+              )} was accepted, moved to Pet Sitters, and sent an email verification link.`
         );
       } else {
         setSelectedRecord(updated);
@@ -697,7 +712,7 @@ export default function ApplicantPage() {
 
     if (!authUser?.id) {
       throw new Error(
-        "Supabase Auth did not return a user ID for the approved applicant."
+        "Supabase Auth did not return a user ID for the accepted applicant."
       );
     }
 
@@ -907,6 +922,7 @@ export default function ApplicantPage() {
     setSearch("");
     setStatusFilter("All Status");
     setShowAcceptedApplicants(false);
+    setAcceptedToggleSource(null);
     setDateFrom("");
     setDateTo("");
     setShowDateFilter(false);
@@ -937,11 +953,11 @@ export default function ApplicantPage() {
       return normalizedRecords.filter(
         (record) => {
           /*
-            Approved/accepted applicants are hidden by default.
+            Accepted applicants are hidden by default.
           */
           if (
             record.normalizedStatus ===
-              "Approved" &&
+              "Accepted" &&
             !showAcceptedApplicants
           ) {
             return false;
@@ -1057,11 +1073,11 @@ export default function ApplicantPage() {
             "Pending"
         ).length,
 
-      approved:
+      accepted:
         normalizedRecords.filter(
           (item) =>
             item.normalizedStatus ===
-            "Approved"
+            "Accepted"
         ).length,
 
       rejected:
@@ -1161,16 +1177,16 @@ export default function ApplicantPage() {
             />
           }
           iconStyle={styles.statGreen}
-          title="Approved"
-          value={stats.approved}
+          title="Accepted"
+          value={stats.accepted}
           desc="Accepted applications"
           active={
             statusFilter ===
-            "Approved"
+            "Accepted"
           }
           onClick={() =>
             applyCardFilter(
-              "Approved"
+              "Accepted"
             )
           }
         />
@@ -1493,6 +1509,18 @@ export default function ApplicantPage() {
           <table
             style={styles.table}
           >
+            <colgroup>
+              <col style={{ width: "4%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "17%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "8%" }} />
+              <col style={{ width: "10%" }} />
+            </colgroup>
+
             <thead>
               <tr
                 style={
@@ -2005,8 +2033,8 @@ function StatusBadge({ status }) {
     normalized === "Pending"
       ? styles.statusPending
       : normalized ===
-        "Approved"
-      ? styles.statusApproved
+        "Accepted"
+      ? styles.statusAccepted
       : normalized ===
         "Rejected"
       ? styles.statusRejected
@@ -2046,7 +2074,7 @@ function ApplicantModal({
 
   const reviewCompleted =
     normalizedStatus ===
-      "Approved" ||
+      "Accepted" ||
     normalizedStatus ===
       "Rejected";
 
@@ -2313,7 +2341,7 @@ function ApplicantModal({
                       styles.validationHint
                     }
                   >
-                    Preferred start/end dates and start/end times are required before approval.
+                    Preferred start/end dates and start/end times are required before acceptance.
                   </p>
                 )}
               </div>
@@ -2577,20 +2605,20 @@ function ApplicantModal({
             <button
               type="button"
               style={
-                styles.approveModalBtn
+                styles.acceptModalBtn
               }
               disabled={updating}
               onClick={() =>
                 onUpdate(
                   record,
-                  "Approved",
+                  "Accepted",
                   remarks
                 )
               }
             >
               {updating
                 ? "Processing..."
-                : "Approve"}
+                : "Accept"}
             </button>
           </div>
         )}
@@ -2738,11 +2766,16 @@ function normalizeStatus(status) {
     .trim()
     .toLowerCase();
 
+  /*
+    Keep backward compatibility with older records that were saved
+    using the previous "Approved" term, but display/use Accepted
+    everywhere in the Admin interface.
+  */
   if (
     value === "approved" ||
     value === "accepted"
   ) {
-    return "Approved";
+    return "Accepted";
   }
 
   if (
@@ -2864,7 +2897,7 @@ function buildSitterUsername(
   );
 }
 
-function validateApplicantForApproval(
+function validateApplicantForAcceptance(
   record
 ) {
   const email = String(
@@ -2874,7 +2907,7 @@ function validateApplicantForApproval(
     .toLowerCase();
 
   if (!email) {
-    return "The applicant must have an email address before approval so the Pet Sitter verification email can be sent.";
+    return "The applicant must have an email address before acceptance so the Pet Sitter verification email can be sent.";
   }
 
   if (
@@ -2890,7 +2923,7 @@ function validateApplicantForApproval(
       record.a_address
     )
   ) {
-    return "The applicant must provide a specific address before approval. Include details such as street/purok, barangay, and city/municipality or province.";
+    return "The applicant must provide a specific address before acceptance. Include details such as street/purok, barangay, and city/municipality or province.";
   }
 
   if (
@@ -2898,7 +2931,7 @@ function validateApplicantForApproval(
       record
     )
   ) {
-    return "The applicant must provide preferred start/end dates and preferred start/end times for pet sitting before approval.";
+    return "The applicant must provide preferred start/end dates and preferred start/end times for pet sitting before acceptance.";
   }
 
   return "";
@@ -3861,10 +3894,10 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1480,
+    minWidth: 1180,
     borderCollapse:
       "collapse",
-    tableLayout: "auto",
+    tableLayout: "fixed",
   },
 
   tableHeadRow: {
@@ -3877,11 +3910,12 @@ const styles = {
 
   th: {
     textAlign: "left",
-    padding: "14px 16px",
+    padding: "13px 10px",
     color: "#16100E",
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: 900,
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
+    lineHeight: 1.25,
   },
 
   tableRow: {
@@ -3890,7 +3924,7 @@ const styles = {
   },
 
   numberCell: {
-    padding: "14px 16px",
+    padding: "13px 10px",
     color: BRAND.muted,
     fontSize: 13,
     fontWeight: 800,
@@ -3899,31 +3933,36 @@ const styles = {
   },
 
   normalCell: {
-    padding: "14px 16px",
-    fontSize: 13,
+    padding: "13px 10px",
+    fontSize: 12.5,
     color: "#1F1714",
-    whiteSpace: "nowrap",
+    whiteSpace: "normal",
+    lineHeight: 1.4,
+    overflowWrap: "anywhere",
+    verticalAlign: "middle",
   },
 
   addressCell: {
-    padding: "14px 16px",
-    fontSize: 13,
+    padding: "13px 10px",
+    fontSize: 12.5,
     color: "#1F1714",
-    minWidth: 220,
-    maxWidth: 280,
+    minWidth: 0,
     whiteSpace: "normal",
-    lineHeight: 1.45,
+    lineHeight: 1.4,
+    overflowWrap: "anywhere",
+    verticalAlign: "middle",
   },
 
   scheduleCell: {
-    padding: "14px 16px",
+    padding: "13px 10px",
     fontSize: 12,
     color: "#1F1714",
-    minWidth: 215,
-    maxWidth: 260,
+    minWidth: 0,
     whiteSpace: "normal",
-    lineHeight: 1.45,
+    lineHeight: 1.4,
     fontWeight: 700,
+    overflowWrap: "anywhere",
+    verticalAlign: "middle",
   },
 
   primaryText: {
@@ -3934,6 +3973,8 @@ const styles = {
   },
 
   fileCellButton: {
+    width: "100%",
+    maxWidth: "100%",
     border: "none",
     background:
       "transparent",
@@ -3941,17 +3982,19 @@ const styles = {
     display:
       "inline-flex",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: 800,
     cursor: "pointer",
     fontFamily: "inherit",
+    overflow: "hidden",
+    textAlign: "left",
   },
 
   petPlaceThumbnail: {
-    width: 54,
-    height: 42,
+    width: 48,
+    height: 38,
     borderRadius: 8,
     objectFit: "cover",
     border:
@@ -3961,8 +4004,9 @@ const styles = {
 
   resumeFileName: {
     display:
-      "inline-block",
-    maxWidth: 150,
+      "block",
+    maxWidth: "100%",
+    minWidth: 0,
     overflow: "hidden",
     textOverflow:
       "ellipsis",
@@ -3991,7 +4035,7 @@ const styles = {
     color: "#F2650C",
   },
 
-  statusApproved: {
+  statusAccepted: {
     background: "#DDF4E7",
     color: "#0B8F45",
   },
@@ -4429,7 +4473,7 @@ const styles = {
     cursor: "pointer",
   },
 
-  approveModalBtn: {
+  acceptModalBtn: {
     height: 40,
     borderRadius: 9,
     border: "none",
