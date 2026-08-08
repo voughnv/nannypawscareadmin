@@ -35,6 +35,15 @@ export default function BookingDetailsModal({
   onReject,
   onComplete,
 }) {
+  const [reviewRemarks, setReviewRemarks] = useState(
+    booking?.admin_review_remarks || ""
+  );
+  const [remarksError, setRemarksError] = useState("");
+
+  useEffect(() => {
+    setReviewRemarks(booking?.admin_review_remarks || "");
+    setRemarksError("");
+  }, [booking]);
 
   if (!booking) return null;
 
@@ -180,6 +189,54 @@ export default function BookingDetailsModal({
           />
         </div>
 
+        {(isPending || isRejected) && (
+          <>
+            <h3 style={styles.sectionTitle}>Admin Review</h3>
+
+            <div style={styles.reviewRemarksCard}>
+              <div style={styles.reviewRemarksHeader}>
+                <div>
+                  <p style={styles.reviewRemarksLabel}>
+                    Review Remarks
+                  </p>
+                  <p style={styles.reviewRemarksHelp}>
+                    {isPending
+                      ? "Required only when rejecting this booking."
+                      : "Reason recorded by the administrator when the booking was rejected."}
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={reviewRemarks}
+                onChange={(event) => {
+                  setReviewRemarks(event.target.value);
+                  if (remarksError) {
+                    setRemarksError("");
+                  }
+                }}
+                readOnly={isRejected}
+                placeholder="Enter the reason for rejecting this booking..."
+                style={{
+                  ...styles.reviewRemarksInput,
+                  ...(isRejected
+                    ? styles.reviewRemarksReadOnly
+                    : {}),
+                  ...(remarksError
+                    ? styles.reviewRemarksInputError
+                    : {}),
+                }}
+              />
+
+              {remarksError && (
+                <p style={styles.reviewRemarksError}>
+                  {remarksError}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+
         </div>
 
         {(isCompleted || isRejected) && (
@@ -217,7 +274,24 @@ export default function BookingDetailsModal({
                     ...(updating ? styles.disabledButton : {}),
                   }}
                   disabled={updating}
-                  onClick={() => onReject(booking)}
+                  onClick={async () => {
+                    const cleanRemarks =
+                      reviewRemarks.trim();
+
+                    if (!cleanRemarks) {
+                      setRemarksError(
+                        "Please enter review remarks before rejecting this booking."
+                      );
+                      return;
+                    }
+
+                    setRemarksError("");
+
+                    await onReject(
+                      booking,
+                      cleanRemarks
+                    );
+                  }}
                 >
                   Reject
                 </button>
@@ -290,6 +364,7 @@ function PaymentProof({ value, bookingId }) {
   const [imageUrl, setImageUrl] = useState("");
   const [loadingImage, setLoadingImage] = useState(false);
   const [imageError, setImageError] = useState("");
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -375,27 +450,76 @@ function PaymentProof({ value, bookingId }) {
   }
 
   return (
-    <a
-      href={imageUrl}
-      target="_blank"
-      rel="noreferrer"
-      style={styles.proofLink}
-      title="Open proof of payment in full size"
-    >
-      <img
-        src={imageUrl}
-        alt={`Payment proof for ${formatBookingId(bookingId)}`}
-        style={styles.proofImage}
-        onError={() =>
-          setImageError(
-            "The image link was created, but the image could not be opened."
-          )
-        }
-      />
-      <span style={styles.proofActionText}>
-        Click the image to open full size
-      </span>
-    </a>
+    <>
+      <button
+        type="button"
+        style={styles.proofLink}
+        title="View proof of payment"
+        onClick={() => setPreviewOpen(true)}
+      >
+        <img
+          src={imageUrl}
+          alt={`Payment proof for ${formatBookingId(bookingId)}`}
+          style={styles.proofImage}
+          onError={() =>
+            setImageError(
+              "The image link was created, but the image could not be opened."
+            )
+          }
+        />
+        <span style={styles.proofActionText}>
+          Click to view full image
+        </span>
+      </button>
+
+      {previewOpen && (
+        <div
+          style={styles.proofPreviewOverlay}
+          onClick={(event) => {
+            event.stopPropagation();
+            setPreviewOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Proof of payment preview"
+            style={styles.proofPreviewModal}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={styles.proofPreviewHeader}>
+              <div>
+                <p style={styles.proofPreviewLabel}>
+                  Proof of Payment
+                </p>
+                <h3 style={styles.proofPreviewTitle}>
+                  {formatBookingId(bookingId)}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Close proof preview"
+                style={styles.proofPreviewCloseBtn}
+                onClick={() => setPreviewOpen(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={styles.proofPreviewBody}>
+              <img
+                src={imageUrl}
+                alt={`Full payment proof for ${formatBookingId(
+                  bookingId
+                )}`}
+                style={styles.proofPreviewImage}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -770,11 +894,17 @@ const styles = {
   },
 
   proofLink: {
+    width: "100%",
     display: "block",
+    border: "none",
+    background: "transparent",
+    padding: 0,
     color: BRAND.pink,
     fontSize: 12,
     fontWeight: 900,
     textDecoration: "none",
+    textAlign: "left",
+    cursor: "pointer",
   },
 
   proofImage: {
@@ -825,6 +955,151 @@ const styles = {
   proofFileName: {
     color: BRAND.muted,
     overflowWrap: "anywhere",
+  },
+
+  reviewRemarksCard: {
+    border: "1px solid #EEE2DF",
+    borderRadius: 12,
+    padding: 14,
+    background: "#FFFCFB",
+  },
+
+  reviewRemarksHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+
+  reviewRemarksLabel: {
+    margin: 0,
+    color: BRAND.text,
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  reviewRemarksHelp: {
+    margin: "4px 0 0",
+    color: BRAND.muted,
+    fontSize: 11,
+    lineHeight: 1.4,
+    fontWeight: 700,
+  },
+
+  reviewRemarksInput: {
+    width: "100%",
+    minHeight: 92,
+    resize: "vertical",
+    border: "1px solid #E2D5D3",
+    borderRadius: 9,
+    background: "#FFFFFF",
+    color: BRAND.text,
+    padding: 11,
+    fontFamily: "inherit",
+    fontSize: 13,
+    lineHeight: 1.45,
+    outline: "none",
+    boxSizing: "border-box",
+  },
+
+  reviewRemarksReadOnly: {
+    background: "#F8F5F4",
+    color: BRAND.muted,
+    cursor: "default",
+  },
+
+  reviewRemarksInputError: {
+    borderColor: "#D98E94",
+    background: "#FFF8F9",
+  },
+
+  reviewRemarksError: {
+    margin: "7px 0 0",
+    color: "#B42335",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+
+  proofPreviewOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 220,
+    background: "rgba(26, 16, 13, 0.62)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    boxSizing: "border-box",
+  },
+
+  proofPreviewModal: {
+    width: "min(760px, 100%)",
+    maxHeight: "90vh",
+    borderRadius: 18,
+    background: "#FFFFFF",
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 28px 65px rgba(33,18,14,0.30)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+
+  proofPreviewHeader: {
+    flexShrink: 0,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 16,
+    padding: "18px 20px",
+    borderBottom: "1px solid #EEE2DF",
+  },
+
+  proofPreviewLabel: {
+    margin: "0 0 4px",
+    color: BRAND.pink,
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+
+  proofPreviewTitle: {
+    margin: 0,
+    color: BRAND.brown,
+    fontSize: 21,
+    fontWeight: 900,
+  },
+
+  proofPreviewCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    border: "1px solid #E6D9D7",
+    background: "#FFFFFF",
+    color: BRAND.brown,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  },
+
+  proofPreviewBody: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "auto",
+    padding: 18,
+    background: "#FFF9F8",
+  },
+
+  proofPreviewImage: {
+    display: "block",
+    width: "100%",
+    maxHeight: "70vh",
+    objectFit: "contain",
+    borderRadius: 12,
+    background: "#FFFFFF",
+    border: "1px solid #E6D9D7",
   },
 
   badge: {

@@ -26,6 +26,21 @@ const BRAND = {
 
 const ROWS_PER_PAGE = 6;
 
+const PAYMENT_PROOF_BUCKET =
+  import.meta.env.VITE_PAYMENT_PROOF_BUCKET || "PAYMENT_PROOF";
+
+const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
+  new Set([
+    PAYMENT_PROOF_BUCKET,
+    "PAYMENT_PROOF",
+    "PAYMENT PROOF",
+    "payment-proof",
+    "payment_proof",
+    "paymentproof",
+    "proof-of-payment",
+  ])
+);
+
 const ALLOWED_STATUS_TRANSITIONS = {
   Pending: ["Confirmed", "Rejected"],
   Confirmed: ["Completed"],
@@ -49,6 +64,7 @@ export default function BookingsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [selectedProofBooking, setSelectedProofBooking] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
@@ -276,7 +292,7 @@ export default function BookingsPage() {
     }
   }
 
-  async function updateBookingStatus(booking, newStatus) {
+  async function updateBookingStatus(booking, newStatus, extraUpdates = {}) {
     const currentStatus = normalizeStatus(booking.booking_status);
     const allowedStatuses = ALLOWED_STATUS_TRANSITIONS[currentStatus] || [
       "Pending",
@@ -295,7 +311,10 @@ export default function BookingsPage() {
     try {
       const { data, error: updateError } = await supabase
         .from("BOOKING")
-        .update({ booking_status: newStatus })
+        .update({
+          booking_status: newStatus,
+          ...extraUpdates,
+        })
         .eq("booking_id", booking.booking_id)
         .select(BOOKING_FIELDS)
         .single();
@@ -345,18 +364,32 @@ export default function BookingsPage() {
     await updateBookingStatus(booking, "Confirmed");
   }
 
-  async function rejectBooking(booking) {
+  async function rejectBooking(booking, reviewRemarks) {
+    const cleanRemarks = String(reviewRemarks || "").trim();
+
+    if (!cleanRemarks) {
+      setError(
+        "Review remarks are required before rejecting a booking."
+      );
+      return false;
+    }
+
     const confirmed = await requestConfirmation({
       title: "Reject booking?",
       message: `Are you sure you want to reject booking ${formatBookingId(
         booking.booking_id
-      )}? This status cannot be changed afterward.`,
+      )}? The review remarks will be saved and this status cannot be changed afterward.`,
       confirmText: "Reject Booking",
       variant: "danger",
     });
 
-    if (!confirmed) return;
-    await updateBookingStatus(booking, "Rejected");
+    if (!confirmed) return false;
+
+    await updateBookingStatus(booking, "Rejected", {
+      admin_review_remarks: cleanRemarks,
+    });
+
+    return true;
   }
 
   async function completeBooking(booking) {
@@ -378,12 +411,16 @@ export default function BookingsPage() {
   }
 
   function openReportCard(statusValue, title) {
-    setStatus(statusValue);
-    setCurrentPage(1);
     setSelectedReport({
       status: statusValue,
       title,
     });
+  }
+
+  function applyReportFilter(statusValue) {
+    setStatus(statusValue);
+    setCurrentPage(1);
+    setSelectedReport(null);
   }
 
   function clearFilters() {
@@ -621,6 +658,15 @@ export default function BookingsPage() {
                 />
               </div>
 
+              <button
+                style={styles.dateBtn}
+                onClick={() => setShowDateFilter((previous) => !previous)}
+              >
+                <Calendar size={20} />
+                <span>
+                  {showDateFilter ? "Hide date range" : "Select date range"}
+                </span>
+              </button>
             </div>
 
             <div style={styles.filterActions}>
@@ -632,16 +678,6 @@ export default function BookingsPage() {
               >
                 <RefreshCw size={19} />
                 <span>{loading ? "Loading..." : "Refresh"}</span>
-              </button>
-
-              <button
-                style={styles.dateBtn}
-                onClick={() => setShowDateFilter((previous) => !previous)}
-              >
-                <Calendar size={20} />
-                <span>
-                  {showDateFilter ? "Hide date range" : "Select date range"}
-                </span>
               </button>
             </div>
           </div>
@@ -730,6 +766,8 @@ export default function BookingsPage() {
                   <Th>Start Time</Th>
                   <Th>End Time</Th>
                   <Th>Service Type</Th>
+                  <Th>Pet</Th>
+                  <Th>Proof of Payment</Th>
                   <Th>Status</Th>
                 </tr>
               </thead>
@@ -737,7 +775,7 @@ export default function BookingsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" style={styles.emptyCell}>
+                    <td colSpan="9" style={styles.emptyCell}>
                       <div style={styles.loadingContent}>
                         <RefreshCw size={22} />
                         <span>Loading booking records...</span>
@@ -780,13 +818,41 @@ export default function BookingsPage() {
                       </td>
 
                       <td style={styles.normalCell}>
+                        <strong style={styles.primaryText}>
+                          {booking.petName || "Not assigned"}
+                        </strong>
+                        <span style={styles.secondaryTableText}>
+                          {getPetType(booking)}
+                        </span>
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        {booking.payment_proof ? (
+                          <button
+                            type="button"
+                            style={styles.proofTableBtn}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedProofBooking(booking);
+                            }}
+                          >
+                            View Proof
+                          </button>
+                        ) : (
+                          <span style={styles.mutedTableText}>
+                            Not uploaded
+                          </span>
+                        )}
+                      </td>
+
+                      <td style={styles.normalCell}>
                         <StatusBadge status={booking.booking_status} />
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="7" style={styles.emptyCell}>
+                    <td colSpan="9" style={styles.emptyCell}>
                       No bookings found.
                     </td>
                   </tr>
@@ -857,6 +923,16 @@ export default function BookingsPage() {
           status={selectedReport.status}
           summary={selectedReportSummary}
           onClose={() => setSelectedReport(null)}
+          onApplyFilter={() =>
+            applyReportFilter(selectedReport.status)
+          }
+        />
+      )}
+
+      {selectedProofBooking && (
+        <PaymentProofPreviewModal
+          booking={selectedProofBooking}
+          onClose={() => setSelectedProofBooking(null)}
         />
       )}
 
@@ -925,13 +1001,14 @@ function BookingReportModal({
   status,
   summary,
   onClose,
+  onApplyFilter,
 }) {
-  const filterText =
+  const displayStatus =
     status === "All Status"
-      ? "All booking records are currently displayed."
-      : `The booking table is currently filtered to ${
+      ? "all booking records"
+      : `${
           status === "Confirmed" ? "Approved" : status
-        } bookings.`;
+        } bookings`;
 
   return (
     <div
@@ -968,7 +1045,8 @@ function BookingReportModal({
 
         <div style={styles.reportModalBody}>
           <p style={styles.reportDescription}>
-            {filterText}
+            This report contains {displayStatus}. The table will
+            not change until you click View Filtered Bookings.
           </p>
 
           <div style={styles.reportSummaryGrid}>
@@ -1005,6 +1083,14 @@ function BookingReportModal({
           <button
             type="button"
             onClick={onClose}
+            style={styles.reportCancelBtn}
+          >
+            Close
+          </button>
+
+          <button
+            type="button"
+            onClick={onApplyFilter}
             style={styles.reportDoneBtn}
           >
             View Filtered Bookings
@@ -1027,6 +1113,170 @@ function ReportCountCard({ label, value, style }) {
       <strong style={styles.reportCountValue}>{value}</strong>
     </div>
   );
+}
+
+function PaymentProofPreviewModal({
+  booking,
+  onClose,
+}) {
+  const [imageUrl, setImageUrl] = useState("");
+  const [loadingImage, setLoadingImage] = useState(true);
+  const [imageError, setImageError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProof() {
+      setImageUrl("");
+      setImageError("");
+      setLoadingImage(true);
+
+      const value = String(
+        booking?.payment_proof || ""
+      ).trim();
+
+      if (!value) {
+        setImageError("No proof of payment was uploaded.");
+        setLoadingImage(false);
+        return;
+      }
+
+      if (isHttpUrl(value)) {
+        if (!cancelled) {
+          setImageUrl(value);
+          setLoadingImage(false);
+        }
+        return;
+      }
+
+      for (const bucketName of PAYMENT_PROOF_BUCKET_CANDIDATES) {
+        const storagePath = getPaymentProofStoragePath(
+          value,
+          bucketName
+        );
+
+        if (!storagePath) continue;
+
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          if (!cancelled) {
+            setImageUrl(data.signedUrl);
+            setLoadingImage(false);
+          }
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setImageError(
+          "Unable to load the payment proof. Check the Storage bucket and read policy."
+        );
+        setLoadingImage(false);
+      }
+    }
+
+    loadProof();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [booking]);
+
+  return (
+    <div
+      style={styles.proofModalOverlay}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="payment-proof-title"
+        style={styles.proofModal}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div style={styles.proofModalHeader}>
+          <div>
+            <p style={styles.proofModalEyebrow}>
+              Proof of Payment
+            </p>
+            <h2
+              id="payment-proof-title"
+              style={styles.proofModalTitle}
+            >
+              {formatBookingId(booking?.booking_id)}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close proof of payment"
+            style={styles.proofModalCloseBtn}
+            onClick={onClose}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div style={styles.proofModalBody}>
+          {loadingImage ? (
+            <div style={styles.proofModalState}>
+              Loading proof of payment...
+            </div>
+          ) : imageError || !imageUrl ? (
+            <div
+              style={{
+                ...styles.proofModalState,
+                ...styles.proofModalError,
+              }}
+            >
+              {imageError || "Image could not be displayed."}
+            </div>
+          ) : (
+            <img
+              src={imageUrl}
+              alt={`Payment proof for ${formatBookingId(
+                booking?.booking_id
+              )}`}
+              style={styles.proofModalImage}
+              onError={() =>
+                setImageError(
+                  "The payment proof image could not be displayed."
+                )
+              }
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function isHttpUrl(value) {
+  const text = String(value || "").trim();
+
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://")
+  );
+}
+
+function getPaymentProofStoragePath(value, bucketName) {
+  const text = String(value || "")
+    .trim()
+    .replace(/^\/+/, "");
+
+  if (!text || isHttpUrl(text)) return "";
+
+  const bucketPrefix = `${bucketName}/`;
+
+  return text
+    .toLowerCase()
+    .startsWith(bucketPrefix.toLowerCase())
+    ? text.slice(bucketPrefix.length)
+    : text;
 }
 
 function Th({ children }) {
@@ -1600,6 +1850,19 @@ const styles = {
     borderTop: "1px solid #EEE2DF",
     display: "flex",
     justifyContent: "flex-end",
+    gap: 9,
+  },
+
+  reportCancelBtn: {
+    height: 40,
+    border: "1px solid #E6D9D7",
+    borderRadius: 9,
+    background: "#FFFFFF",
+    color: BRAND.brown,
+    padding: "0 16px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
 
   reportDoneBtn: {
@@ -1612,6 +1875,110 @@ const styles = {
     fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",
+  },
+
+  proofModalOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 180,
+    background: "rgba(26, 16, 13, 0.58)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    boxSizing: "border-box",
+  },
+
+  proofModal: {
+    width: "min(760px, 100%)",
+    maxHeight: "90vh",
+    background: "#FFFFFF",
+    borderRadius: 18,
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 28px 65px rgba(33,18,14,0.30)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+
+  proofModalHeader: {
+    flexShrink: 0,
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: "18px 20px",
+    borderBottom: "1px solid #EEE2DF",
+  },
+
+  proofModalEyebrow: {
+    margin: "0 0 4px",
+    color: BRAND.pink,
+    fontSize: 11,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+
+  proofModalTitle: {
+    margin: 0,
+    color: BRAND.brown,
+    fontSize: 21,
+    fontWeight: 900,
+  },
+
+  proofModalCloseBtn: {
+    width: 36,
+    height: 36,
+    border: "1px solid #E6D9D7",
+    borderRadius: 9,
+    background: "#FFFFFF",
+    color: BRAND.brown,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+
+  proofModalBody: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "auto",
+    padding: 18,
+    background: "#FFF9F8",
+  },
+
+  proofModalImage: {
+    display: "block",
+    width: "100%",
+    maxHeight: "70vh",
+    objectFit: "contain",
+    borderRadius: 12,
+    background: "#FFFFFF",
+    border: "1px solid #E6D9D7",
+  },
+
+  proofModalState: {
+    minHeight: 260,
+    border: "1px dashed #E6D9D7",
+    borderRadius: 12,
+    background: "#FFFFFF",
+    color: BRAND.muted,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: 800,
+    boxSizing: "border-box",
+  },
+
+  proofModalError: {
+    color: "#B42335",
+    background: "#FFF5F7",
+    borderColor: "#F1CBD5",
   },
 
   errorBox: {
@@ -1665,7 +2032,7 @@ const styles = {
     alignItems: "center",
     gap: 16,
     flex: 1,
-    minWidth: 430,
+    minWidth: 520,
   },
 
   searchBox: {
@@ -1709,7 +2076,9 @@ const styles = {
   filterActions: {
     display: "flex",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 10,
+    marginLeft: "auto",
   },
 
   refreshBtn: {
@@ -1794,8 +2163,9 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1020,
+    minWidth: 1260,
     borderCollapse: "collapse",
+    tableLayout: "auto",
   },
 
   tableHeadRow: {
@@ -1806,7 +2176,7 @@ const styles = {
 
   th: {
     textAlign: "left",
-    padding: "14px",
+    padding: "16px 18px",
     color: "#16100E",
     fontSize: 13,
     fontWeight: 900,
@@ -1818,7 +2188,7 @@ const styles = {
   },
 
   numberCell: {
-    padding: 14,
+    padding: "16px 18px",
     color: BRAND.muted,
     fontSize: 13,
     fontWeight: 800,
@@ -1827,7 +2197,7 @@ const styles = {
   },
 
   normalCell: {
-    padding: 14,
+    padding: "16px 18px",
     fontSize: 13,
     color: "#1F1714",
     whiteSpace: "nowrap",
@@ -1838,6 +2208,33 @@ const styles = {
     fontSize: 13,
     color: "#1B1412",
     fontWeight: 800,
+  },
+
+  secondaryTableText: {
+    display: "block",
+    marginTop: 4,
+    color: BRAND.muted,
+    fontSize: 11,
+    fontWeight: 700,
+  },
+
+  mutedTableText: {
+    color: BRAND.muted,
+    fontSize: 12,
+    fontWeight: 700,
+  },
+
+  proofTableBtn: {
+    height: 32,
+    border: "1px solid #F1C5D0",
+    borderRadius: 8,
+    background: "#FFF5F7",
+    color: BRAND.pink,
+    padding: "0 11px",
+    fontSize: 12,
+    fontWeight: 900,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
 
   badge: {
