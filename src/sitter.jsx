@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { createClient } from "@supabase/supabase-js";
 import {
   ChevronLeft,
   ChevronRight,
@@ -22,8 +21,6 @@ import {
   Pencil,
   Save,
   Trash2,
-  UserPlus,
-  KeyRound,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
@@ -43,33 +40,9 @@ const ROWS_PER_PAGE = 6;
 const SITTER_FIELDS =
   "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place";
 
-// These column names must match the PET SITTER table.
-const SITTER_PASSWORD_COLUMN = "ps_password";
-const SITTER_AUTH_ID_COLUMN = "ps_auth_id";
-
-// Supabase Auth requires a stronger password than the previous "1234".
-const DEFAULT_SITTER_PASSWORD = "NannyPaws@123";
-
-// Add VITE_SITTER_EMAIL_REDIRECT_URL to .env when you have a dedicated
-// verification-success page or mobile deep link. Otherwise, the current
-// website origin is used.
-const SITTER_EMAIL_REDIRECT_URL =
-  import.meta.env.VITE_SITTER_EMAIL_REDIRECT_URL ||
-  (typeof window !== "undefined" ? window.location.origin : undefined);
-
-// Use a separate non-persistent client so creating a sitter does not replace
-// any Auth session used elsewhere in the admin website.
-const sitterAuthClient = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-  }
-);
+// Approved applicants will be converted into pet sitter accounts
+// from the Applicants page. This page only displays and manages
+// the resulting PET SITTER records.
 
 export default function SittersPage() {
   const requestConfirmation = useConfirmation();
@@ -81,9 +54,8 @@ export default function SittersPage() {
   const [modalMode, setModalMode] = useState("view");
   const [openActionId, setOpenActionId] = useState(null);
   const [actionMenuPosition, setActionMenuPosition] = useState(null);
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [cardFilter, setCardFilter] = useState("all");
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
@@ -95,7 +67,7 @@ export default function SittersPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search]);
+  }, [search, cardFilter]);
 
   useEffect(() => {
     function closeActionMenu() {
@@ -149,253 +121,6 @@ export default function SittersPage() {
   function closeSitterModal() {
     setSelectedSitter(null);
     setModalMode("view");
-  }
-
-  async function createSitterAccount(formValues) {
-    const fullName = formValues.fullName
-      .trim()
-      .replace(/\s+/g, " ");
-
-    const username = formValues.username.trim();
-    const contactNumber = formValues.contactNumber.trim();
-    const email = formValues.email.trim().toLowerCase();
-
-    const { firstName, lastName } = splitFullName(fullName);
-
-    if (!firstName || !lastName) {
-      return {
-        success: false,
-        fieldErrors: {
-          fullName:
-            "Enter both the first name and last name.",
-        },
-      };
-    }
-
-    if (!username) {
-      return {
-        success: false,
-        fieldErrors: {
-          username: "Username is required.",
-        },
-      };
-    }
-
-    if (!/^[A-Za-z0-9_]{4,20}$/.test(username)) {
-      return {
-        success: false,
-        fieldErrors: {
-          username:
-            "Username must be 4 to 20 characters using only letters, numbers, and underscores.",
-        },
-      };
-    }
-
-    if (!/^\d{11}$/.test(contactNumber)) {
-      return {
-        success: false,
-        fieldErrors: {
-          contactNumber:
-            "Contact number must contain exactly 11 digits.",
-        },
-      };
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return {
-        success: false,
-        fieldErrors: {
-          email: "Enter a valid email address.",
-        },
-      };
-    }
-
-    const confirmed = await requestConfirmation({
-      title: "Create pet sitter account?",
-      message: `Create an account for ${fullName} and send a Supabase verification email to ${email}?`,
-      confirmText: "Create & Send Email",
-      variant: "success",
-    });
-
-    if (!confirmed) {
-      return {
-        success: false,
-        cancelled: true,
-      };
-    }
-
-    setCreating(true);
-    setError("");
-    setSuccess("");
-
-    try {
-      const { data: authData, error: authError } =
-        await sitterAuthClient.auth.signUp({
-          email,
-          password: DEFAULT_SITTER_PASSWORD,
-          options: {
-            emailRedirectTo: SITTER_EMAIL_REDIRECT_URL,
-            data: {
-              role: "pet_sitter",
-              first_name: firstName,
-              last_name: lastName,
-              username,
-            },
-          },
-        });
-
-      if (authError) throw authError;
-
-      const authUser = authData?.user;
-
-      if (!authUser?.id) {
-        throw new Error(
-          "Supabase Auth did not return a user ID. The sitter account was not created."
-        );
-      }
-
-      if (
-        Array.isArray(authUser.identities) &&
-        authUser.identities.length === 0
-      ) {
-        return {
-          success: false,
-          fieldErrors: {
-            email:
-              "This email address is already linked to an existing account.",
-          },
-        };
-      }
-
-      const payload = {
-        [SITTER_AUTH_ID_COLUMN]: authUser.id,
-        ps_fname: firstName,
-        ps_lname: lastName,
-        ps_username: username,
-        ps_contactno: contactNumber,
-        ps_email: email,
-        ps_place: null,
-        [SITTER_PASSWORD_COLUMN]: DEFAULT_SITTER_PASSWORD,
-      };
-
-      const { data, error: createError } = await supabase
-        .from("PET SITTER")
-        .insert(payload)
-        .select(SITTER_FIELDS)
-        .single();
-
-      if (createError) throw createError;
-
-      setSitters((previous) => [...previous, data]);
-
-      setCurrentPage(
-        Math.max(
-          1,
-          Math.ceil((sitters.length + 1) / ROWS_PER_PAGE)
-        )
-      );
-
-      setShowCreatePanel(false);
-
-      setSuccess(
-        `${getFullName(
-          data
-        )}'s account was created. A verification email was sent to ${email}. The sitter must confirm the email before signing in.`
-      );
-
-      return { success: true };
-    } catch (createError) {
-      console.error(
-        "Unable to create the pet sitter Auth/profile account:",
-        createError
-      );
-
-      const errorMessage = String(
-        createError?.message || ""
-      );
-
-      const lowerMessage = errorMessage.toLowerCase();
-
-      if (
-        lowerMessage.includes("already registered") ||
-        lowerMessage.includes("already exists")
-      ) {
-        return {
-          success: false,
-          fieldErrors: {
-            email:
-              "This email address is already linked to an existing account.",
-          },
-        };
-      }
-
-      if (
-        lowerMessage.includes("duplicate") ||
-        lowerMessage.includes("unique")
-      ) {
-        return {
-          success: false,
-          formError:
-            "One or more entered values are already registered. Review the highlighted fields.",
-        };
-      }
-
-      if (
-        lowerMessage.includes(
-          SITTER_AUTH_ID_COLUMN.toLowerCase()
-        )
-      ) {
-        return {
-          success: false,
-          formError:
-            `The "${SITTER_AUTH_ID_COLUMN}" column is missing or is not configured correctly in the PET SITTER table.`,
-        };
-      }
-
-      if (
-        lowerMessage.includes(
-          SITTER_PASSWORD_COLUMN.toLowerCase()
-        )
-      ) {
-        return {
-          success: false,
-          formError:
-            `The "${SITTER_PASSWORD_COLUMN}" column was not found in the PET SITTER table.`,
-        };
-      }
-
-      if (
-        lowerMessage.includes("password") &&
-        (lowerMessage.includes("characters") ||
-          lowerMessage.includes("weak"))
-      ) {
-        return {
-          success: false,
-          formError:
-            "Supabase rejected the temporary password because it does not meet the authentication password rules.",
-        };
-      }
-
-      if (
-        lowerMessage.includes("rate limit") ||
-        lowerMessage.includes("email rate")
-      ) {
-        return {
-          success: false,
-          formError:
-            "The verification email could not be sent because the email rate limit was reached. Please try again later.",
-        };
-      }
-
-      return {
-        success: false,
-        formError:
-          createError?.message ||
-          "Unable to create the pet sitter account. Check the database policies and authentication settings.",
-      };
-    } finally {
-      setCreating(false);
-    }
   }
 
   async function updateSitter(sitter, formValues) {
@@ -633,14 +358,28 @@ export default function SittersPage() {
   }
 
   const filteredSitters = useMemo(() => {
+    const now = new Date();
+
+    let records = sitters;
+
+    if (cardFilter === "month") {
+      records = records.filter((sitter) =>
+        isSameMonth(sitter.created_at, now)
+      );
+    } else if (cardFilter === "year") {
+      records = records.filter((sitter) =>
+        isSameYear(sitter.created_at, now)
+      );
+    }
+
     const keyword = search
       .trim()
       .replace(/\s+/g, " ")
       .toLowerCase();
 
-    if (!keyword) return sitters;
+    if (!keyword) return records;
 
-    return sitters.filter((sitter) => {
+    return records.filter((sitter) => {
       const fullName = `${sitter.ps_fname || ""} ${
         sitter.ps_lname || ""
       }`
@@ -662,7 +401,7 @@ export default function SittersPage() {
         formattedSitterId.includes(keyword)
       );
     });
-  }, [sitters, search]);
+  }, [sitters, search, cardFilter]);
 
   const totalPages = Math.max(
     1,
@@ -714,27 +453,10 @@ export default function SittersPage() {
             </p>
           </div>
 
-          <div style={styles.headerActions}>
-            <div style={styles.breadcrumb}>
-              <span>Dashboard</span>
-              <span style={styles.chevron}>›</span>
-              <span>Pet Sitters</span>
-            </div>
-
-            <button
-              type="button"
-              style={styles.addSitterBtn}
-              onClick={() => {
-                setOpenActionId(null);
-                setActionMenuPosition(null);
-                setShowCreatePanel(true);
-                setError("");
-                setSuccess("");
-              }}
-            >
-              <UserPlus size={18} />
-              Add Pet Sitter
-            </button>
+          <div style={styles.breadcrumb}>
+            <span>Dashboard</span>
+            <span style={styles.chevron}>›</span>
+            <span>Pet Sitters</span>
           </div>
         </header>
 
@@ -745,6 +467,8 @@ export default function SittersPage() {
             title="Total Pet Sitters"
             value={stats.total}
             desc="All registered sitters"
+            active={cardFilter === "all"}
+            onClick={() => setCardFilter("all")}
           />
 
           <StatCard
@@ -753,6 +477,8 @@ export default function SittersPage() {
             title="New This Month"
             value={stats.newThisMonth}
             desc="Recently added accounts"
+            active={cardFilter === "month"}
+            onClick={() => setCardFilter("month")}
           />
 
           <StatCard
@@ -761,9 +487,9 @@ export default function SittersPage() {
             title="Added This Year"
             value={stats.addedThisYear}
             desc="Accounts created this year"
+            active={cardFilter === "year"}
+            onClick={() => setCardFilter("year")}
           />
-
-
         </section>
 
         {error && (
@@ -1060,21 +786,6 @@ export default function SittersPage() {
           </div>
         </section>
 
-      {showCreatePanel &&
-        createPortal(
-          <AddSitterPanel
-            creating={creating}
-            defaultPassword={DEFAULT_SITTER_PASSWORD}
-            onClose={() => {
-              if (!creating) {
-                setShowCreatePanel(false);
-              }
-            }}
-            onCreate={createSitterAccount}
-          />,
-          document.body
-        )}
-
       {selectedSitter && (
         <SitterModal
           sitter={selectedSitter}
@@ -1097,12 +808,24 @@ function StatCard({
   value,
   desc,
   compactValue = false,
+  active = false,
+  onClick,
 }) {
   return (
-    <div style={styles.statCard}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        ...styles.statCard,
+        ...(active ? styles.statCardActive : {}),
+      }}
+    >
       <div style={{ ...styles.statIcon, ...iconStyle }}>{icon}</div>
+
       <div style={styles.statContent}>
         <p style={styles.statTitle}>{title}</p>
+
         <h2
           style={
             compactValue
@@ -1113,529 +836,15 @@ function StatCard({
         >
           {value}
         </h2>
+
         <p style={styles.statDesc}>{desc}</p>
       </div>
-    </div>
+    </button>
   );
 }
 
 function Th({ children }) {
   return <th style={styles.th}>{children}</th>;
-}
-
-function AddSitterPanel({
-  creating,
-  defaultPassword,
-  onClose,
-  onCreate,
-}) {
-  const [formValues, setFormValues] = useState({
-    fullName: "",
-    username: "",
-    contactNumber: "",
-    email: "",
-  });
-
-  const [fieldErrors, setFieldErrors] = useState({
-    fullName: "",
-    username: "",
-    contactNumber: "",
-    email: "",
-  });
-
-  const [formError, setFormError] = useState("");
-  const [checkingDuplicates, setCheckingDuplicates] =
-    useState(false);
-
-  const busy = creating || checkingDuplicates;
-
-  function updateField(field, value) {
-    let nextValue = value;
-
-    if (field === "contactNumber") {
-      nextValue = String(value || "")
-        .replace(/\D/g, "")
-        .slice(0, 11);
-    }
-
-    if (field === "email") {
-      nextValue = String(value || "").toLowerCase();
-    }
-
-    setFormValues((previous) => ({
-      ...previous,
-      [field]: nextValue,
-    }));
-
-    setFieldErrors((previous) => ({
-      ...previous,
-      [field]: "",
-    }));
-
-    setFormError("");
-  }
-
-  function validateForm() {
-    const nextErrors = {
-      fullName: "",
-      username: "",
-      contactNumber: "",
-      email: "",
-    };
-
-    const fullName = formValues.fullName
-      .trim()
-      .replace(/\s+/g, " ");
-
-    const username = formValues.username.trim();
-    const contactNumber =
-      formValues.contactNumber.trim();
-
-    const email = formValues.email
-      .trim()
-      .toLowerCase();
-
-    const nameParts = fullName
-      .split(" ")
-      .filter(Boolean);
-
-    if (!fullName) {
-      nextErrors.fullName =
-        "Full name is required.";
-    } else if (nameParts.length < 2) {
-      nextErrors.fullName =
-        "Enter both the first name and last name.";
-    } else if (
-      !/^[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+(?:\s+[A-Za-zÀ-ÖØ-öø-ÿ'’.-]+)+$/.test(
-        fullName
-      )
-    ) {
-      nextErrors.fullName =
-        "Enter a valid first name and last name.";
-    }
-
-    if (!username) {
-      nextErrors.username =
-        "Username is required.";
-    } else if (username.length < 4) {
-      nextErrors.username =
-        "Username must contain at least 4 characters.";
-    } else if (username.length > 20) {
-      nextErrors.username =
-        "Username cannot exceed 20 characters.";
-    } else if (!/^[A-Za-z0-9_]+$/.test(username)) {
-      nextErrors.username =
-        "Username may contain only letters, numbers, and underscores.";
-    }
-
-    if (!contactNumber) {
-      nextErrors.contactNumber =
-        "Contact number is required.";
-    } else if (contactNumber.length !== 11) {
-      nextErrors.contactNumber =
-        "Contact number must contain exactly 11 digits.";
-    }
-
-    if (!email) {
-      nextErrors.email =
-        "Email address is required.";
-    } else if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-    ) {
-      nextErrors.email =
-        "Enter a valid email address.";
-    }
-
-    setFieldErrors(nextErrors);
-
-    return !Object.values(nextErrors).some(Boolean);
-  }
-
-  async function checkForDuplicates() {
-    const normalizedFullName = formValues.fullName
-      .trim()
-      .replace(/\s+/g, " ");
-
-    const { firstName, lastName } =
-      splitFullName(normalizedFullName);
-
-    const username = formValues.username.trim();
-    const contactNumber =
-      formValues.contactNumber.trim();
-
-    const email = formValues.email
-      .trim()
-      .toLowerCase();
-
-    setCheckingDuplicates(true);
-    setFormError("");
-
-    try {
-      const [
-        fullNameResult,
-        usernameResult,
-        contactResult,
-        emailResult,
-      ] = await Promise.all([
-        supabase
-          .from("PET SITTER")
-          .select("petsitter_id")
-          .ilike("ps_fname", firstName)
-          .ilike("ps_lname", lastName)
-          .limit(1)
-          .maybeSingle(),
-
-        supabase
-          .from("PET SITTER")
-          .select("petsitter_id")
-          .ilike("ps_username", username)
-          .limit(1)
-          .maybeSingle(),
-
-        supabase
-          .from("PET SITTER")
-          .select("petsitter_id")
-          .eq("ps_contactno", contactNumber)
-          .limit(1)
-          .maybeSingle(),
-
-        supabase
-          .from("PET SITTER")
-          .select("petsitter_id")
-          .ilike("ps_email", email)
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
-      const duplicateCheckError =
-        fullNameResult.error ||
-        usernameResult.error ||
-        contactResult.error ||
-        emailResult.error;
-
-      if (duplicateCheckError) {
-        throw duplicateCheckError;
-      }
-
-      const duplicateErrors = {
-        fullName: fullNameResult.data
-          ? "A pet sitter with this full name already exists."
-          : "",
-
-        username: usernameResult.data
-          ? "This username is already in use."
-          : "",
-
-        contactNumber: contactResult.data
-          ? "This contact number is already registered."
-          : "",
-
-        email: emailResult.data
-          ? "This email address is already registered."
-          : "",
-      };
-
-      setFieldErrors((previous) => ({
-        ...previous,
-        ...duplicateErrors,
-      }));
-
-      return !Object.values(
-        duplicateErrors
-      ).some(Boolean);
-    } catch (duplicateError) {
-      console.error(
-        "Unable to check duplicate sitter information:",
-        duplicateError
-      );
-
-      setFormError(
-        duplicateError?.message ||
-          "Unable to check whether the entered information is already registered."
-      );
-
-      return false;
-    } finally {
-      setCheckingDuplicates(false);
-    }
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setFormError("");
-
-    if (!validateForm()) return;
-
-    const hasNoDuplicates =
-      await checkForDuplicates();
-
-    if (!hasNoDuplicates) return;
-
-    const result = await onCreate({
-      fullName: formValues.fullName
-        .trim()
-        .replace(/\s+/g, " "),
-
-      username: formValues.username.trim(),
-
-      contactNumber:
-        formValues.contactNumber.trim(),
-
-      email: formValues.email
-        .trim()
-        .toLowerCase(),
-    });
-
-    if (result?.fieldErrors) {
-      setFieldErrors((previous) => ({
-        ...previous,
-        ...result.fieldErrors,
-      }));
-    }
-
-    if (result?.formError) {
-      setFormError(result.formError);
-    }
-  }
-
-  return (
-    <div
-      style={styles.createPanelOverlay}
-      onClick={busy ? undefined : onClose}
-    >
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="create-sitter-title"
-        style={styles.createPanel}
-        onClick={(event) =>
-          event.stopPropagation()
-        }
-      >
-        <div style={styles.createPanelHeader}>
-          <div>
-            <p style={styles.createPanelEyebrow}>
-              ACCOUNT CREATION
-            </p>
-
-            <h2
-              id="create-sitter-title"
-              style={styles.createPanelTitle}
-            >
-              Add Pet Sitter
-            </h2>
-
-            <p style={styles.createPanelSubtitle}>
-              Create a verified account for an approved pet sitter and send an email confirmation link.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            aria-label="Close account creation form"
-            style={{
-              ...styles.closeBtn,
-              ...(busy
-                ? styles.disabledAction
-                : {}),
-            }}
-            disabled={busy}
-            onClick={onClose}
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <form
-          onSubmit={handleSubmit}
-          style={styles.createForm}
-          noValidate
-        >
-          <div style={styles.createFormBody}>
-            {formError && (
-              <div style={styles.createFormError}>
-                <AlertCircle size={18} />
-                <span>{formError}</span>
-              </div>
-            )}
-
-            <CreateField
-              label="Full Name"
-              placeholder="e.g. Tom Cruise"
-              value={formValues.fullName}
-              onChange={(value) =>
-                updateField("fullName", value)
-              }
-              icon={<UserRound size={18} />}
-              autoComplete="name"
-              required
-              error={fieldErrors.fullName}
-            />
-
-            <CreateField
-              label="Username"
-              placeholder="e.g. tomcruise321"
-              value={formValues.username}
-              onChange={(value) =>
-                updateField("username", value)
-              }
-              icon={<AtSign size={18} />}
-              autoComplete="username"
-              required
-              maxLength={20}
-              error={fieldErrors.username}
-            />
-
-            <CreateField
-              label="Contact Number"
-              placeholder="e.g. 09171234567"
-              value={formValues.contactNumber}
-              onChange={(value) =>
-                updateField(
-                  "contactNumber",
-                  value
-                )
-              }
-              icon={<Phone size={18} />}
-              inputMode="numeric"
-              autoComplete="tel"
-              required
-              maxLength={11}
-              error={fieldErrors.contactNumber}
-            />
-
-            <CreateField
-              label="Email Address"
-              placeholder="e.g. tomcruise@gmail.com"
-              value={formValues.email}
-              onChange={(value) =>
-                updateField("email", value)
-              }
-              icon={<Mail size={18} />}
-              type="email"
-              autoComplete="email"
-              required
-              error={fieldErrors.email}
-            />
-
-            <label style={styles.createField}>
-              <span style={styles.createFieldLabel}>
-                Default Password
-              </span>
-
-              <div style={styles.createInputWrap}>
-                <KeyRound size={18} />
-
-                <input
-                  type="text"
-                  value={defaultPassword}
-                  readOnly
-                  style={{
-                    ...styles.createInput,
-                    ...styles.readOnlyInput,
-                  }}
-                />
-              </div>
-
-              <span style={styles.createFieldNote}>
-                This temporary password will be used after email verification.
-              </span>
-            </label>
-          </div>
-
-          <div style={styles.createPanelFooter}>
-            <button
-              type="button"
-              style={{
-                ...styles.createCancelBtn,
-                ...(busy
-                  ? styles.disabledAction
-                  : {}),
-              }}
-              disabled={busy}
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              style={{
-                ...styles.createSubmitBtn,
-                ...(busy
-                  ? styles.disabledAction
-                  : {}),
-              }}
-              disabled={busy}
-            >
-              <UserPlus size={17} />
-
-              {checkingDuplicates
-                ? "Checking..."
-                : creating
-                ? "Creating..."
-                : "Create & Send Verification"}
-            </button>
-          </div>
-        </form>
-      </aside>
-    </div>
-  );
-}
-
-function CreateField({
-  label,
-  icon,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  inputMode,
-  autoComplete,
-  required = false,
-  maxLength,
-  error = "",
-}) {
-  return (
-    <label style={styles.createField}>
-      <span style={styles.createFieldLabel}>
-        {label}
-        {required ? " *" : ""}
-      </span>
-
-      <div
-        style={{
-          ...styles.createInputWrap,
-          ...(error
-            ? styles.createInputWrapError
-            : {}),
-        }}
-      >
-        {icon}
-
-        <input
-          type={type}
-          inputMode={inputMode}
-          autoComplete={autoComplete}
-          value={value}
-          placeholder={placeholder}
-          required={required}
-          maxLength={maxLength}
-          aria-invalid={Boolean(error)}
-          onChange={(event) =>
-            onChange(event.target.value)
-          }
-          style={styles.createInput}
-        />
-      </div>
-
-      {error && (
-        <span style={styles.createFieldError}>
-          {error}
-        </span>
-      )}
-    </label>
-  );
 }
 
 function SitterModal({
@@ -2727,31 +1936,6 @@ const styles = {
     marginBottom: 24,
   },
 
-  headerActions: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-end",
-    gap: 12,
-  },
-
-  addSitterBtn: {
-    height: 44,
-    border: "none",
-    borderRadius: 9,
-    background: BRAND.pink,
-    color: "#FFFFFF",
-    padding: "0 17px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-    fontSize: 14,
-    fontWeight: 900,
-    cursor: "pointer",
-    boxShadow: "0 8px 16px rgba(217, 67, 104, 0.20)",
-    whiteSpace: "nowrap",
-  },
-
   title: {
     margin: 0,
     color: BRAND.brown,
@@ -2789,6 +1973,7 @@ const styles = {
   },
 
   statCard: {
+    width: "100%",
     height: 118,
     background: "#fff",
     borderRadius: 16,
@@ -2800,6 +1985,18 @@ const styles = {
     gap: 16,
     minWidth: 0,
     boxSizing: "border-box",
+    fontFamily: "inherit",
+    textAlign: "left",
+    cursor: "pointer",
+    transition:
+      "transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease",
+  },
+
+  statCardActive: {
+    borderColor: BRAND.pink,
+    boxShadow:
+      "0 8px 18px rgba(217,67,104,0.12), 0 0 0 2px rgba(217,67,104,0.08)",
+    transform: "translateY(-1px)",
   },
 
   statIcon: {
@@ -3173,197 +2370,6 @@ const styles = {
     textAlign: "center",
     color: BRAND.muted,
     fontWeight: 800,
-  },
-
-  createPanelOverlay: {
-    position: "fixed",
-    inset: 0,
-    zIndex: 900,
-    padding: 20,
-    background: "rgba(35, 20, 16, 0.38)",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  createPanel: {
-    width: "min(480px, 100%)",
-    maxHeight: "calc(100vh - 40px)",
-    borderRadius: 18,
-    border: "1px solid #EEE2DF",
-    background: "#FFFFFF",
-    boxShadow: "0 24px 60px rgba(51, 26, 18, 0.28)",
-    boxSizing: "border-box",
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-
-  createPanelHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 16,
-    padding: "22px 22px 17px",
-    borderBottom: "1px solid #EEE2DF",
-    flexShrink: 0,
-  },
-
-  createPanelEyebrow: {
-    margin: "0 0 5px",
-    color: BRAND.pink,
-    fontSize: 11,
-    fontWeight: 900,
-    letterSpacing: "0.8px",
-  },
-
-  createPanelTitle: {
-    margin: 0,
-    color: BRAND.brown,
-    fontSize: 24,
-    fontWeight: 900,
-  },
-
-  createPanelSubtitle: {
-    margin: "6px 0 0",
-    color: BRAND.muted,
-    fontSize: 13,
-    lineHeight: 1.45,
-  },
-
-  createForm: {
-    display: "flex",
-    flexDirection: "column",
-    flex: 1,
-    minHeight: 0,
-    overflow: "hidden",
-  },
-
-  createFormBody: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    padding: "18px 22px 0",
-    display: "flex",
-    flexDirection: "column",
-    gap: 15,
-  },
-
-  createField: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 8,
-  },
-
-  createFieldLabel: {
-    color: BRAND.brown,
-    fontSize: 13,
-    fontWeight: 900,
-  },
-
-  createInputWrap: {
-    height: 46,
-    border: "1px solid #E2D5D3",
-    borderRadius: 9,
-    background: "#FFFFFF",
-    color: "#6C5B56",
-    padding: "0 13px",
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    boxSizing: "border-box",
-  },
-
-  createInput: {
-    flex: 1,
-    minWidth: 0,
-    border: "none",
-    outline: "none",
-    background: "transparent",
-    color: BRAND.text,
-    fontFamily: "inherit",
-    fontSize: 14,
-  },
-
-  createFormError: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: 9,
-    padding: "11px 12px",
-    borderRadius: 9,
-    border: "1px solid #F1BFC5",
-    background: "#FFF0F2",
-    color: "#B42335",
-    fontSize: 12,
-    fontWeight: 700,
-    lineHeight: 1.45,
-  },
-
-  createInputWrapError: {
-    borderColor: "#D98E94",
-    background: "#FFF7F7",
-    color: "#B3404A",
-  },
-
-  createFieldError: {
-    color: "#B3404A",
-    fontSize: 11,
-    fontWeight: 700,
-    lineHeight: 1.4,
-  },
-
-  readOnlyInput: {
-    fontWeight: 900,
-    color: BRAND.pink,
-  },
-
-  createFieldNote: {
-    color: BRAND.muted,
-    fontSize: 11,
-    lineHeight: 1.45,
-  },
-
-  createPanelFooter: {
-    minHeight: 72,
-    padding: "14px 22px",
-    borderTop: "1px solid #EEE2DF",
-    background: "#FFFFFF",
-    display: "flex",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: 9,
-    flexShrink: 0,
-    boxSizing: "border-box",
-    boxShadow: "0 -8px 18px rgba(51, 26, 18, 0.06)",
-    zIndex: 5,
-  },
-
-  createCancelBtn: {
-    height: 42,
-    borderRadius: 9,
-    border: "1px solid #E6D9D7",
-    background: "#FFFFFF",
-    color: BRAND.brown,
-    padding: "0 16px",
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-
-  createSubmitBtn: {
-    height: 42,
-    borderRadius: 9,
-    border: "none",
-    background: BRAND.pink,
-    color: "#FFFFFF",
-    padding: "0 17px",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    fontSize: 13,
-    fontWeight: 900,
-    cursor: "pointer",
   },
 
   modalOverlay: {
