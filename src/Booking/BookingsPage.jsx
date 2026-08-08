@@ -48,6 +48,7 @@ export default function BookingsPage() {
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedBooking, setSelectedBooking] = useState(null);
+  const [selectedReport, setSelectedReport] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
@@ -82,7 +83,7 @@ export default function BookingsPage() {
         petIds.length > 0
           ? supabase
               .from("PET")
-              .select("pet_id, pet_name, pet_breed, pet_dob, pet_notes")
+              .select("pet_id, pet_name, pet_breed, pet_dob, pet_notes, pet_type")
               .in("pet_id", petIds)
           : Promise.resolve({ data: [], error: null }),
 
@@ -376,6 +377,15 @@ export default function BookingsPage() {
     await updateBookingStatus(booking, "Pending");
   }
 
+  function openReportCard(statusValue, title) {
+    setStatus(statusValue);
+    setCurrentPage(1);
+    setSelectedReport({
+      status: statusValue,
+      title,
+    });
+  }
+
   function clearFilters() {
     setSearch("");
     setStatus("All Status");
@@ -471,6 +481,38 @@ export default function BookingsPage() {
     };
   }, [bookings, normalizedBookings]);
 
+  const selectedReportSummary = useMemo(() => {
+    if (!selectedReport) return null;
+
+    const reportBookings =
+      selectedReport.status === "All Status"
+        ? normalizedBookings
+        : normalizedBookings.filter(
+            (booking) =>
+              booking.normalizedStatus === selectedReport.status
+          );
+
+    const cats = reportBookings.filter(
+      (booking) => getPetType(booking) === "Cat"
+    ).length;
+
+    const dogs = reportBookings.filter(
+      (booking) => getPetType(booking) === "Dog"
+    ).length;
+
+    const other = Math.max(
+      0,
+      reportBookings.length - cats - dogs
+    );
+
+    return {
+      total: reportBookings.length,
+      cats,
+      dogs,
+      other,
+    };
+  }, [normalizedBookings, selectedReport]);
+
   const firstVisible =
     filteredBookings.length === 0
       ? 0
@@ -505,6 +547,10 @@ export default function BookingsPage() {
             title="Total Bookings"
             value={stats.total}
             desc="All booking records"
+            active={status === "All Status"}
+            onClick={() =>
+              openReportCard("All Status", "Total Bookings")
+            }
           />
           <StatCard
             icon={<Clock3 size={30} />}
@@ -512,6 +558,10 @@ export default function BookingsPage() {
             title="Pending"
             value={stats.pending}
             desc="Awaiting confirmation"
+            active={status === "Pending"}
+            onClick={() =>
+              openReportCard("Pending", "Pending Bookings")
+            }
           />
           <StatCard
             icon={<CheckCircle2 size={32} />}
@@ -519,6 +569,10 @@ export default function BookingsPage() {
             title="Approved"
             value={stats.confirmed}
             desc="Approved bookings"
+            active={status === "Confirmed"}
+            onClick={() =>
+              openReportCard("Confirmed", "Approved Bookings")
+            }
           />
           <StatCard
             icon={<ClipboardCheck size={30} />}
@@ -526,6 +580,10 @@ export default function BookingsPage() {
             title="Completed"
             value={stats.completed}
             desc="Completed bookings"
+            active={status === "Completed"}
+            onClick={() =>
+              openReportCard("Completed", "Completed Bookings")
+            }
           />
           <StatCard
             icon={<XCircle size={30} />}
@@ -533,6 +591,10 @@ export default function BookingsPage() {
             title="Rejected"
             value={stats.rejected}
             desc="Rejected bookings"
+            active={status === "Rejected"}
+            onClick={() =>
+              openReportCard("Rejected", "Rejected Bookings")
+            }
           />
         </section>
 
@@ -559,17 +621,6 @@ export default function BookingsPage() {
                 />
               </div>
 
-              <select
-                value={status}
-                onChange={(event) => setStatus(event.target.value)}
-                style={styles.select}
-              >
-                <option>All Status</option>
-                <option>Pending</option>
-                <option value="Confirmed">Approved</option>
-                <option>Completed</option>
-                <option>Rejected</option>
-              </select>
             </div>
 
             <div style={styles.filterActions}>
@@ -800,6 +851,15 @@ export default function BookingsPage() {
           </div>
         </section>
 
+      {selectedReport && selectedReportSummary && (
+        <BookingReportModal
+          title={selectedReport.title}
+          status={selectedReport.status}
+          summary={selectedReportSummary}
+          onClose={() => setSelectedReport(null)}
+        />
+      )}
+
       {selectedBooking && (
         <BookingDetailsModal
           key={`${selectedBooking.booking_id}-${normalizeStatus(
@@ -831,15 +891,140 @@ export default function BookingsPage() {
   );
 }
 
-function StatCard({ icon, iconStyle, title, value, desc }) {
+function StatCard({
+  icon,
+  iconStyle,
+  title,
+  value,
+  desc,
+  active,
+  onClick,
+}) {
   return (
-    <div style={styles.statCard}>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      style={{
+        ...styles.statCard,
+        ...(active ? styles.statCardActive : {}),
+      }}
+    >
       <div style={{ ...styles.statIcon, ...iconStyle }}>{icon}</div>
-      <div>
+      <div style={styles.statContent}>
         <p style={styles.statTitle}>{title}</p>
         <h2 style={styles.statValue}>{value}</h2>
         <p style={styles.statDesc}>{desc}</p>
       </div>
+    </button>
+  );
+}
+
+function BookingReportModal({
+  title,
+  status,
+  summary,
+  onClose,
+}) {
+  const filterText =
+    status === "All Status"
+      ? "All booking records are currently displayed."
+      : `The booking table is currently filtered to ${
+          status === "Confirmed" ? "Approved" : status
+        } bookings.`;
+
+  return (
+    <div
+      style={styles.reportModalOverlay}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="booking-report-title"
+        style={styles.reportModal}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div style={styles.reportModalHeader}>
+          <div>
+            <p style={styles.reportEyebrow}>Booking Report</p>
+            <h2
+              id="booking-report-title"
+              style={styles.reportModalTitle}
+            >
+              {title}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close booking report"
+            style={styles.reportCloseBtn}
+            onClick={onClose}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div style={styles.reportModalBody}>
+          <p style={styles.reportDescription}>
+            {filterText}
+          </p>
+
+          <div style={styles.reportSummaryGrid}>
+            <ReportCountCard
+              label="Total Bookings"
+              value={summary.total}
+              style={styles.reportTotalCard}
+            />
+
+            <ReportCountCard
+              label="Cats"
+              value={summary.cats}
+              style={styles.reportCatCard}
+            />
+
+            <ReportCountCard
+              label="Dogs"
+              value={summary.dogs}
+              style={styles.reportDogCard}
+            />
+          </div>
+
+          {summary.other > 0 && (
+            <p style={styles.reportOtherText}>
+              {summary.other} booking
+              {summary.other === 1 ? "" : "s"} currently
+              {summary.other === 1 ? " has" : " have"} no
+              recognized Cat/Dog pet type.
+            </p>
+          )}
+        </div>
+
+        <div style={styles.reportModalFooter}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={styles.reportDoneBtn}
+          >
+            View Filtered Bookings
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReportCountCard({ label, value, style }) {
+  return (
+    <div
+      style={{
+        ...styles.reportCountCard,
+        ...style,
+      }}
+    >
+      <span style={styles.reportCountLabel}>{label}</span>
+      <strong style={styles.reportCountValue}>{value}</strong>
     </div>
   );
 }
@@ -972,6 +1157,25 @@ function getPetName(pet, fallbackId) {
     pet.petName ||
     (fallbackId ? `Pet ${fallbackId}` : "Name not set")
   );
+}
+
+function getPetType(booking) {
+  const rawType =
+    booking?.petRecord?.pet_type ||
+    booking?.pet_type ||
+    "";
+
+  const cleaned = String(rawType).trim().toLowerCase();
+
+  if (cleaned === "cat" || cleaned === "feline") {
+    return "Cat";
+  }
+
+  if (cleaned === "dog" || cleaned === "canine") {
+    return "Dog";
+  }
+
+  return "Other";
 }
 
 function getOwnerName(owner, fallbackId) {
@@ -1186,6 +1390,7 @@ const styles = {
   },
 
   statCard: {
+    width: "100%",
     height: 118,
     background: "#fff",
     borderRadius: 16,
@@ -1197,6 +1402,22 @@ const styles = {
     gap: 16,
     minWidth: 0,
     boxSizing: "border-box",
+    fontFamily: "inherit",
+    textAlign: "left",
+    cursor: "pointer",
+    transition:
+      "transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease",
+  },
+
+  statCardActive: {
+    borderColor: BRAND.pink,
+    boxShadow:
+      "0 8px 18px rgba(217,67,104,0.12), 0 0 0 2px rgba(217,67,104,0.08)",
+    transform: "translateY(-1px)",
+  },
+
+  statContent: {
+    minWidth: 0,
   },
 
   statIcon: {
@@ -1252,6 +1473,145 @@ const styles = {
     margin: 0,
     fontSize: 12,
     color: "#6D5F5B",
+  },
+
+  reportModalOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 140,
+    background: "rgba(35, 20, 16, 0.35)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    boxSizing: "border-box",
+  },
+
+  reportModal: {
+    width: "min(620px, 100%)",
+    background: "#FFFFFF",
+    borderRadius: 18,
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 24px 55px rgba(51,26,18,0.22)",
+    overflow: "hidden",
+  },
+
+  reportModalHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    padding: "20px 22px 16px",
+    borderBottom: "1px solid #EEE2DF",
+  },
+
+  reportEyebrow: {
+    margin: "0 0 4px",
+    color: BRAND.pink,
+    fontSize: 12,
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.5px",
+  },
+
+  reportModalTitle: {
+    margin: 0,
+    color: BRAND.brown,
+    fontSize: 23,
+    fontWeight: 900,
+  },
+
+  reportCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    border: "1px solid #E6D9D7",
+    background: "#FFFFFF",
+    color: BRAND.brown,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+
+  reportModalBody: {
+    padding: 22,
+  },
+
+  reportDescription: {
+    margin: "0 0 18px",
+    color: BRAND.muted,
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+
+  reportSummaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 12,
+  },
+
+  reportCountCard: {
+    minHeight: 104,
+    borderRadius: 13,
+    padding: 16,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    boxSizing: "border-box",
+    border: "1px solid #EEE2DF",
+  },
+
+  reportTotalCard: {
+    background: "#FFF8FA",
+  },
+
+  reportCatCard: {
+    background: "#FFF6F8",
+  },
+
+  reportDogCard: {
+    background: "#F7F9FF",
+  },
+
+  reportCountLabel: {
+    color: BRAND.muted,
+    fontSize: 12,
+    fontWeight: 900,
+  },
+
+  reportCountValue: {
+    color: BRAND.brown,
+    fontSize: 30,
+    lineHeight: 1,
+    fontWeight: 900,
+  },
+
+  reportOtherText: {
+    margin: "14px 0 0",
+    color: BRAND.muted,
+    fontSize: 12,
+    lineHeight: 1.45,
+  },
+
+  reportModalFooter: {
+    padding: "14px 22px",
+    borderTop: "1px solid #EEE2DF",
+    display: "flex",
+    justifyContent: "flex-end",
+  },
+
+  reportDoneBtn: {
+    height: 40,
+    border: "none",
+    borderRadius: 9,
+    background: BRAND.pink,
+    color: "#FFFFFF",
+    padding: "0 16px",
+    fontSize: 13,
+    fontWeight: 900,
+    cursor: "pointer",
   },
 
   errorBox: {
