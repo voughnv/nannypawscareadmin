@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
+import { useAdminSettings } from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -74,6 +75,40 @@ const sitterAuthClient = createClient(
 
 export default function ApplicantPage() {
   const requestConfirmation = useConfirmation();
+  const { settings, fontScale } = useAdminSettings();
+  const darkMode = Boolean(settings?.darkMode);
+
+  /*
+    Keep this page synchronized with the Admin Settings page.
+    Text sizes use --admin-font-scale and all neutral colors below
+    use these page-level theme variables.
+  */
+  const pageThemeStyle = useMemo(
+    () => ({
+      "--admin-font-scale": String(fontScale || 1),
+      "--app-page": darkMode ? "#171311" : "#FFF9F8",
+      "--app-card": darkMode ? "#241D1A" : "#FFFFFF",
+      "--app-card-soft": darkMode ? "#2B2320" : "#FFFCFB",
+      "--app-table-head": darkMode ? "#2B2320" : "#FFFBFA",
+      "--app-input": darkMode ? "#2B2320" : "#FFFFFF",
+      "--app-readonly": darkMode ? "#312824" : "#F8F3F2",
+      "--app-soft": darkMode ? "#302622" : "#FFF8F8",
+      "--app-text": darkMode ? "#FFF7F4" : "#1F1714",
+      "--app-strong": darkMode ? "#FFF7F4" : "#3A1E14",
+      "--app-muted": darkMode ? "#CFC2BE" : "#6D5F5B",
+      "--app-border": darkMode ? "#443934" : "#EEE2DF",
+      "--app-border-strong": darkMode ? "#5A4B45" : "#E2D5D3",
+      "--app-shadow": darkMode
+        ? "0 8px 18px rgba(0,0,0,0.24)"
+        : "0 8px 18px rgba(51,26,18,0.07)",
+      width: "100%",
+      minHeight: "100%",
+      color: "var(--app-text)",
+      background: "var(--app-page)",
+      transition: "background 0.2s ease, color 0.2s ease",
+    }),
+    [darkMode, fontScale]
+  );
 
   const [records, setRecords] = useState([]);
   const [search, setSearch] = useState("");
@@ -1106,7 +1141,7 @@ export default function ApplicantPage() {
   );
 
   return (
-    <>
+    <div style={pageThemeStyle}>
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>
@@ -1763,9 +1798,7 @@ export default function ApplicantPage() {
                               {openingResumeId ===
                               record.applicant_id
                                 ? "Opening..."
-                                : getFileName(
-                                    record.resume_file
-                                  )}
+                                : "View Resume"}
                             </span>
                           </button>
                         ) : (
@@ -1954,7 +1987,7 @@ export default function ApplicantPage() {
           }
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -2515,9 +2548,7 @@ function ApplicantModal({
                   }
                 >
                   {record.resume_file
-                    ? getFileName(
-                        record.resume_file
-                      )
+                    ? "Resume uploaded"
                     : "No resume uploaded"}
                 </h4>
 
@@ -3498,31 +3529,31 @@ const styles = {
 
   title: {
     margin: 0,
-    color: BRAND.brown,
-    fontSize: 34,
+    color: "var(--app-strong)",
+    fontSize: "calc(34px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     letterSpacing: "-1px",
   },
 
   subtitle: {
     margin: "8px 0 0",
-    color: "#5D5351",
-    fontSize: 15,
+    color: "var(--app-muted)",
+    fontSize: "calc(15px * var(--admin-font-scale, 1))",
   },
 
   breadcrumb: {
     display: "flex",
     alignItems: "center",
     gap: 14,
-    color: BRAND.brown,
-    fontSize: 14,
+    color: "var(--app-strong)",
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
-    color: "#9A8C89",
-    fontSize: 22,
+    color: "var(--app-muted)",
+    fontSize: "calc(22px * var(--admin-font-scale, 1))",
   },
 
   statsGrid: {
@@ -3536,12 +3567,11 @@ const styles = {
   statCard: {
     width: "100%",
     height: 118,
-    background: "#fff",
+    background: "var(--app-card)",
     borderRadius: 16,
     border:
-      "1px solid #EEE2DF",
-    boxShadow:
-      "0 8px 16px rgba(51,26,18,0.07)",
+      "1px solid var(--app-border)",
+    boxShadow: "var(--app-shadow)",
     padding: 18,
     display: "flex",
     alignItems: "center",
@@ -3595,22 +3625,22 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
     fontWeight: 800,
-    color: "#1F1714",
+    color: "var(--app-text)",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: 28,
+    fontSize: "calc(28px * var(--admin-font-scale, 1))",
     fontWeight: 900,
-    color: BRAND.brown,
+    color: "var(--app-strong)",
   },
 
   statDesc: {
     margin: 0,
-    fontSize: 12,
-    color: "#6D5F5B",
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    color: "var(--app-muted)",
   },
 
   errorBox: {
@@ -3628,7 +3658,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 700,
   },
 
@@ -3655,7 +3685,7 @@ const styles = {
 
   successText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 700,
   },
 
@@ -3671,12 +3701,11 @@ const styles = {
 
   tableCard: {
     width: "100%",
-    background: "#fff",
+    background: "var(--app-card)",
     borderRadius: 16,
     border:
-      "1px solid #EEE2DF",
-    boxShadow:
-      "0 8px 18px rgba(51,26,18,0.07)",
+      "1px solid var(--app-border)",
+    boxShadow: "var(--app-shadow)",
     padding:
       "22px 14px 16px",
     boxSizing: "border-box",
@@ -3707,12 +3736,12 @@ const styles = {
     minWidth: 260,
     height: 48,
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 7,
     display: "flex",
     alignItems: "center",
     padding: "0 14px",
-    background: "#fff",
+    background: "var(--app-card)",
     boxSizing: "border-box",
   },
 
@@ -3721,8 +3750,8 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: 14,
-    color: BRAND.text,
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
+    color: "var(--app-text)",
     background:
       "transparent",
     minWidth: 0,
@@ -3740,16 +3769,16 @@ const styles = {
   refreshBtn: {
     height: 48,
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 7,
-    background: "#fff",
-    color: BRAND.brown,
+    background: "var(--app-card)",
+    color: "var(--app-strong)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
     padding: "0 14px",
-    fontSize: 14,
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -3759,15 +3788,15 @@ const styles = {
     width: 210,
     height: 48,
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 7,
-    background: "#fff",
-    color: "#6C5B56",
+    background: "var(--app-card)",
+    color: "var(--app-muted)",
     display: "flex",
     alignItems: "center",
     gap: 12,
     padding: "0 16px",
-    fontSize: 14,
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
@@ -3775,16 +3804,16 @@ const styles = {
   toggleButton: {
     height: 48,
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 7,
-    background: "#fff",
-    color: BRAND.brown,
+    background: "var(--app-card)",
+    color: "var(--app-strong)",
     display: "inline-flex",
     alignItems: "center",
     gap: 9,
     padding: "0 12px",
     fontFamily: "inherit",
-    fontSize: 12,
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -3818,7 +3847,7 @@ const styles = {
     width: 16,
     height: 16,
     borderRadius: "50%",
-    background: "#fff",
+    background: "#FFFFFF",
     transform:
       "translateX(0)",
     transition:
@@ -3837,9 +3866,9 @@ const styles = {
       "0 12px 18px",
     padding: 14,
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderRadius: 10,
-    background: "#FFFBFA",
+    background: "var(--app-table-head)",
     display: "flex",
     alignItems: "center",
     gap: 12,
@@ -3847,7 +3876,7 @@ const styles = {
   },
 
   datePanelTitle: {
-    fontSize: 12,
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     color: BRAND.pink,
     textTransform:
@@ -3859,30 +3888,31 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 800,
-    color: BRAND.brown,
+    color: "var(--app-strong)",
   },
 
   dateInput: {
     height: 38,
+    background: "var(--app-input)",
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 7,
     padding: "0 10px",
-    color: BRAND.text,
+    color: "var(--app-text)",
     outline: "none",
   },
 
   clearBtn: {
     height: 38,
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 7,
-    background: "#fff",
-    color: BRAND.brown,
+    background: "var(--app-card)",
+    color: "var(--app-strong)",
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -3901,18 +3931,18 @@ const styles = {
   },
 
   tableHeadRow: {
-    background: "#FFFBFA",
+    background: "var(--app-table-head)",
     borderTop:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderBottom:
-      "1px solid #E7DAD7",
+      "1px solid var(--app-border)",
   },
 
   th: {
     textAlign: "left",
     padding: "13px 10px",
-    color: "#16100E",
-    fontSize: 12.5,
+    color: "var(--app-text)",
+    fontSize: "calc(12.5px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     whiteSpace: "normal",
     lineHeight: 1.25,
@@ -3920,13 +3950,13 @@ const styles = {
 
   tableRow: {
     borderBottom:
-      "1px solid #E7DAD7",
+      "1px solid var(--app-border)",
   },
 
   numberCell: {
     padding: "13px 10px",
-    color: BRAND.muted,
-    fontSize: 13,
+    color: "var(--app-muted)",
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
@@ -3934,8 +3964,8 @@ const styles = {
 
   normalCell: {
     padding: "13px 10px",
-    fontSize: 12.5,
-    color: "#1F1714",
+    fontSize: "calc(12.5px * var(--admin-font-scale, 1))",
+    color: "var(--app-text)",
     whiteSpace: "normal",
     lineHeight: 1.4,
     overflowWrap: "anywhere",
@@ -3944,8 +3974,8 @@ const styles = {
 
   addressCell: {
     padding: "13px 10px",
-    fontSize: 12.5,
-    color: "#1F1714",
+    fontSize: "calc(12.5px * var(--admin-font-scale, 1))",
+    color: "var(--app-text)",
     minWidth: 0,
     whiteSpace: "normal",
     lineHeight: 1.4,
@@ -3955,8 +3985,8 @@ const styles = {
 
   scheduleCell: {
     padding: "13px 10px",
-    fontSize: 12,
-    color: "#1F1714",
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
+    color: "var(--app-text)",
     minWidth: 0,
     whiteSpace: "normal",
     lineHeight: 1.4,
@@ -3967,8 +3997,8 @@ const styles = {
 
   primaryText: {
     display: "block",
-    fontSize: 13,
-    color: "#1B1412",
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    color: "var(--app-text)",
     fontWeight: 800,
   },
 
@@ -3984,7 +4014,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: 11.5,
+    fontSize: "calc(11.5px * var(--admin-font-scale, 1))",
     fontWeight: 800,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -3994,29 +4024,32 @@ const styles = {
 
   petPlaceThumbnail: {
     width: 48,
+    minWidth: 48,
+    maxWidth: 48,
     height: 38,
+    minHeight: 38,
+    maxHeight: 38,
+    flex: "0 0 48px",
+    display: "block",
     borderRadius: 8,
     objectFit: "cover",
+    objectPosition: "center",
     border:
-      "1px solid #E6D9D7",
-    background: "#FFF8F8",
+      "1px solid var(--app-border-strong)",
+    background: "var(--app-soft)",
+    boxSizing: "border-box",
   },
 
   resumeFileName: {
-    display:
-      "block",
-    maxWidth: "100%",
+    display: "block",
     minWidth: 0,
-    overflow: "hidden",
-    textOverflow:
-      "ellipsis",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
   },
 
   mutedCell: {
-    color: BRAND.muted,
-    fontSize: 12,
+    color: "var(--app-muted)",
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
   },
 
   badge: {
@@ -4026,7 +4059,7 @@ const styles = {
     minWidth: 76,
     height: 26,
     borderRadius: 7,
-    fontSize: 12,
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
     fontWeight: 800,
   },
 
@@ -4047,14 +4080,14 @@ const styles = {
 
   statusDefault: {
     background: "#EEE9E7",
-    color: "#645854",
+    color: "var(--app-muted)",
   },
 
   emptyCell: {
     padding: 28,
     textAlign: "center",
-    color: BRAND.muted,
-    fontSize: 14,
+    color: "var(--app-muted)",
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
     fontWeight: 700,
   },
 
@@ -4077,8 +4110,8 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: 13,
-    color: "#1F1714",
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
+    color: "var(--app-text)",
   },
 
   pages: {
@@ -4092,10 +4125,10 @@ const styles = {
     height: 34,
     borderRadius: 7,
     border:
-      "1px solid #E6D9D7",
-    background: "#fff",
-    color: "#1F1714",
-    fontSize: 13,
+      "1px solid var(--app-border-strong)",
+    background: "var(--app-card)",
+    color: "var(--app-text)",
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 700,
     cursor: "pointer",
     display:
@@ -4131,10 +4164,10 @@ const styles = {
     width:
       "min(820px, 100%)",
     maxHeight: "90vh",
-    background: "#fff",
+    background: "var(--app-card)",
     borderRadius: 18,
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     boxShadow:
       "0 22px 50px rgba(51,26,18,0.22)",
     boxSizing: "border-box",
@@ -4151,7 +4184,7 @@ const styles = {
       "space-between",
     gap: 16,
     borderBottom:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     padding:
       "22px 22px 16px",
     flexShrink: 0,
@@ -4167,15 +4200,15 @@ const styles = {
 
   modalTitle: {
     margin: 0,
-    color: BRAND.brown,
-    fontSize: 24,
+    color: "var(--app-strong)",
+    fontSize: "calc(24px * var(--admin-font-scale, 1))",
     fontWeight: 900,
   },
 
   modalSubtitle: {
     margin: "4px 0 0",
     color: BRAND.pink,
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 800,
   },
 
@@ -4184,9 +4217,9 @@ const styles = {
     height: 36,
     borderRadius: 9,
     border:
-      "1px solid #E6D9D7",
-    background: "#fff",
-    color: BRAND.brown,
+      "1px solid var(--app-border-strong)",
+    background: "var(--app-card)",
+    color: "var(--app-strong)",
     cursor: "pointer",
     display:
       "inline-flex",
@@ -4200,7 +4233,7 @@ const styles = {
     gap: 16,
     paddingBottom: 18,
     borderBottom:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     marginBottom: 18,
   },
 
@@ -4217,16 +4250,16 @@ const styles = {
 
   detailsName: {
     margin: 0,
-    color: BRAND.brown,
-    fontSize: 22,
+    color: "var(--app-strong)",
+    fontSize: "calc(22px * var(--admin-font-scale, 1))",
     fontWeight: 900,
   },
 
   detailsLocation: {
     margin:
       "5px 0 10px",
-    color: "#6D5F5B",
-    fontSize: 13,
+    color: "var(--app-muted)",
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     display: "flex",
     alignItems: "center",
     gap: 5,
@@ -4241,10 +4274,10 @@ const styles = {
 
   detailItem: {
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderRadius: 12,
     padding: 14,
-    background: "#FFFCFB",
+    background: "var(--app-card-soft)",
     display: "flex",
     gap: 10,
     alignItems:
@@ -4256,10 +4289,10 @@ const styles = {
   wideDetailItem: {
     gridColumn: "span 2",
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderRadius: 12,
     padding: 14,
-    background: "#FFFCFB",
+    background: "var(--app-card-soft)",
     display: "flex",
     gap: 10,
     alignItems:
@@ -4283,15 +4316,15 @@ const styles = {
 
   detailLabel: {
     margin: "0 0 7px",
-    color: "#6D5F5B",
-    fontSize: 12,
+    color: "var(--app-muted)",
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
     fontWeight: 900,
   },
 
   detailValue: {
     margin: 0,
-    color: BRAND.text,
-    fontSize: 14,
+    color: "var(--app-text)",
+    fontSize: "calc(14px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     overflowWrap:
       "anywhere",
@@ -4300,7 +4333,7 @@ const styles = {
   validationHint: {
     margin: "8px 0 0",
     color: "#B45309",
-    fontSize: 11,
+    fontSize: "calc(11px * var(--admin-font-scale, 1))",
     lineHeight: 1.45,
     fontWeight: 700,
   },
@@ -4308,10 +4341,10 @@ const styles = {
   mediaCard: {
     gridColumn: "span 2",
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderRadius: 12,
     padding: 14,
-    background: "#FFFCFB",
+    background: "var(--app-card-soft)",
     boxSizing: "border-box",
   },
 
@@ -4340,16 +4373,16 @@ const styles = {
     objectFit: "cover",
     borderRadius: 10,
     border:
-      "1px solid #E6D9D7",
-    background: "#FFF8F8",
+      "1px solid var(--app-border-strong)",
+    background: "var(--app-soft)",
   },
 
   filePreviewPlaceholder: {
     height: 120,
     borderRadius: 10,
     border:
-      "1px dashed #E2D5D3",
-    background: "#FFF8F8",
+      "1px dashed var(--app-border-strong)",
+    background: "var(--app-soft)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -4359,7 +4392,7 @@ const styles = {
   mediaActionText: {
     marginTop: 8,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
     fontWeight: 800,
     display:
       "inline-flex",
@@ -4369,10 +4402,10 @@ const styles = {
 
   resumeCard: {
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderRadius: 12,
     padding: 14,
-    background: "#FFFCFB",
+    background: "var(--app-card-soft)",
     display: "flex",
     gap: 10,
     alignItems:
@@ -4396,7 +4429,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: "calc(12px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -4405,28 +4438,30 @@ const styles = {
   remarksBox: {
     marginTop: 14,
     border:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     borderRadius: 12,
     padding: 14,
-    background: "#FFFCFB",
+    background: "var(--app-card-soft)",
   },
 
   remarksInput: {
     width: "100%",
+    background: "var(--app-input)",
+    color: "var(--app-text)",
     minHeight: 100,
     resize: "vertical",
     border:
-      "1px solid #E2D5D3",
+      "1px solid var(--app-border-strong)",
     borderRadius: 9,
     padding: 12,
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     boxSizing: "border-box",
   },
 
   readOnlyRemarks: {
-    background: "#F8F3F2",
-    color: BRAND.muted,
+    background: "var(--app-readonly)",
+    color: "var(--app-muted)",
     cursor: "not-allowed",
   },
 
@@ -4434,8 +4469,8 @@ const styles = {
     minHeight: 72,
     padding: "14px 22px",
     borderTop:
-      "1px solid #EEE2DF",
-    background: "#FFFFFF",
+      "1px solid var(--app-border)",
+    background: "var(--app-card)",
     display: "flex",
     justifyContent:
       "flex-end",
@@ -4453,10 +4488,10 @@ const styles = {
     flexShrink: 0,
     padding: "15px 22px",
     borderTop:
-      "1px solid #D8CDC9",
-    background: "#F8F3F2",
-    color: BRAND.muted,
-    fontSize: 13,
+      "1px solid var(--app-border-strong)",
+    background: "var(--app-readonly)",
+    color: "var(--app-muted)",
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 800,
     textAlign: "center",
   },
@@ -4468,7 +4503,7 @@ const styles = {
     background: "#FCE2E8",
     color: "#E11D48",
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -4480,7 +4515,7 @@ const styles = {
     background: BRAND.pink,
     color: "#fff",
     padding: "0 16px",
-    fontSize: 13,
+    fontSize: "calc(13px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -4503,7 +4538,7 @@ const styles = {
       "min(1000px, 100%)",
     height:
       "min(88vh, 820px)",
-    background: "#fff",
+    background: "var(--app-card)",
     borderRadius: 16,
     overflow: "hidden",
     display: "flex",
@@ -4521,22 +4556,22 @@ const styles = {
       "space-between",
     gap: 14,
     borderBottom:
-      "1px solid #EEE2DF",
+      "1px solid var(--app-border)",
     boxSizing: "border-box",
   },
 
   previewEyebrow: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: 10,
+    fontSize: "calc(10px * var(--admin-font-scale, 1))",
     fontWeight: 900,
     letterSpacing: "0.8px",
   },
 
   previewTitle: {
     margin: "3px 0 0",
-    color: BRAND.brown,
-    fontSize: 17,
+    color: "var(--app-strong)",
+    fontSize: "calc(17px * var(--admin-font-scale, 1))",
     fontWeight: 900,
   },
 
@@ -4545,9 +4580,9 @@ const styles = {
     height: 38,
     borderRadius: 9,
     border:
-      "1px solid #E6D9D7",
-    background: "#fff",
-    color: BRAND.brown,
+      "1px solid var(--app-border-strong)",
+    background: "var(--app-card)",
+    color: "var(--app-strong)",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -4558,7 +4593,7 @@ const styles = {
     flex: 1,
     minHeight: 0,
     padding: 14,
-    background: "#F7F3F2",
+    background: "var(--app-readonly)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -4570,7 +4605,7 @@ const styles = {
     height: "100%",
     border: "none",
     borderRadius: 8,
-    background: "#fff",
+    background: "#FFFFFF",
   },
 
   fullPreviewImage: {
