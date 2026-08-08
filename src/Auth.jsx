@@ -1,6 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabase";
+import {
+  claimAdminSession,
+  clearLocalAdminSession,
+  hasLocalAdminSession,
+  refreshAdminSession,
+} from "./utils/adminSession";
 
 const BRAND = {
   maroon: "#7A1F3D",
@@ -304,6 +310,34 @@ export default function Auth() {
   const [errors, setErrors] = useState({});
   const [message, setMessage] = useState("");
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function redirectAuthenticatedAdmin() {
+      if (!hasLocalAdminSession()) return;
+
+      const validSession =
+        await refreshAdminSession();
+
+      if (cancelled) return;
+
+      if (validSession) {
+        navigate("/bookings", {
+          replace: true,
+        });
+      } else {
+        clearLocalAdminSession();
+      }
+    }
+
+    redirectAuthenticatedAdmin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+
   function validateEmail(email) {
     if (!email.trim()) return "Email is required.";
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -363,13 +397,31 @@ export default function Auth() {
         return;
       }
 
-      localStorage.setItem("admin", JSON.stringify(admin));
+      const sessionResult =
+        await claimAdminSession(admin);
+
+      if (!sessionResult.success) {
+        setErrors({
+          email: "",
+          password: "",
+        });
+
+        setMessage(
+          "This administrator account is already logged in on another device. Log out from the active device before trying again."
+        );
+        return;
+      }
+
       setSuccessText("Redirecting to bookings page...");
       setSubmitted(true);
 
       window.setTimeout(() => {
-        navigate("/bookings");
-      }, 1000);
+        // Replace /login in browser history so pressing Back
+        // cannot return to the login form after authentication.
+        navigate("/bookings", {
+          replace: true,
+        });
+      }, 600);
     } catch (error) {
       setMessage(error?.message || "Unable to log in.");
     } finally {

@@ -1,67 +1,160 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Navigate,
   Outlet,
   useLocation,
 } from "react-router-dom";
+import {
+  ADMIN_SESSION_HEARTBEAT_MS,
+  clearLocalAdminSession,
+  hasLocalAdminSession,
+  refreshAdminSession,
+} from "../../utils/adminSession";
 
 export default function ProtectedAdminRoute() {
   const location = useLocation();
 
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => Boolean(getStoredAdmin())
-  );
+  const [sessionState, setSessionState] =
+    useState("checking");
+
+  const verificationRunning = useRef(false);
+  const mounted = useRef(true);
 
   useEffect(() => {
-    function verifyAdminSession() {
-      const hasValidAdmin = Boolean(getStoredAdmin());
+    mounted.current = true;
 
-      setIsAuthenticated(hasValidAdmin);
+    async function verifyAdminSession() {
+      if (verificationRunning.current) return;
 
-      if (!hasValidAdmin) {
-        // Hide a page restored from the browser back-forward cache
-        // before redirecting to the login page.
-        document.documentElement.style.visibility = "hidden";
-        window.location.replace("/login");
-        return;
+      verificationRunning.current = true;
+
+      try {
+        /*
+          Do not render a page restored from the browser's
+          back-forward cache until the session has been checked.
+        */
+        document.documentElement.style.visibility =
+          "hidden";
+
+        if (!hasLocalAdminSession()) {
+          clearLocalAdminSession();
+
+          if (mounted.current) {
+            setSessionState("unauthenticated");
+          }
+
+          return;
+        }
+
+        const validSession =
+          await refreshAdminSession();
+
+        if (!validSession) {
+          clearLocalAdminSession();
+
+          if (mounted.current) {
+            setSessionState("unauthenticated");
+          }
+
+          return;
+        }
+
+        if (mounted.current) {
+          setSessionState("authenticated");
+        }
+
+        document.documentElement.style.visibility = "";
+      } finally {
+        verificationRunning.current = false;
       }
+    }
 
-      document.documentElement.style.visibility = "";
+    function verifyAfterHistoryChange() {
+      setSessionState("checking");
+      verifyAdminSession();
     }
 
     verifyAdminSession();
 
-    window.addEventListener("pageshow", verifyAdminSession);
-    window.addEventListener("popstate", verifyAdminSession);
-    window.addEventListener("storage", verifyAdminSession);
+    const heartbeat = window.setInterval(
+      verifyAdminSession,
+      ADMIN_SESSION_HEARTBEAT_MS
+    );
+
     window.addEventListener(
-      "admin-session-ended",
+      "pageshow",
+      verifyAfterHistoryChange
+    );
+
+    window.addEventListener(
+      "popstate",
+      verifyAfterHistoryChange
+    );
+
+    window.addEventListener(
+      "focus",
       verifyAdminSession
     );
 
+    window.addEventListener(
+      "storage",
+      verifyAfterHistoryChange
+    );
+
+    window.addEventListener(
+      "admin-session-ended",
+      verifyAfterHistoryChange
+    );
+
     return () => {
+      mounted.current = false;
+
+      window.clearInterval(heartbeat);
+
       window.removeEventListener(
         "pageshow",
-        verifyAdminSession
+        verifyAfterHistoryChange
       );
+
       window.removeEventListener(
         "popstate",
+        verifyAfterHistoryChange
+      );
+
+      window.removeEventListener(
+        "focus",
         verifyAdminSession
       );
+
       window.removeEventListener(
         "storage",
-        verifyAdminSession
+        verifyAfterHistoryChange
       );
+
       window.removeEventListener(
         "admin-session-ended",
-        verifyAdminSession
+        verifyAfterHistoryChange
       );
 
       document.documentElement.style.visibility = "";
     };
   }, []);
 
-  if (!isAuthenticated) {
+  useEffect(() => {
+    if (sessionState === "authenticated") {
+      document.documentElement.style.visibility = "";
+    }
+
+    if (sessionState === "unauthenticated") {
+      document.documentElement.style.visibility = "";
+    }
+  }, [sessionState]);
+
+  if (sessionState === "checking") {
+    return null;
+  }
+
+  if (sessionState === "unauthenticated") {
     return (
       <Navigate
         to="/login"
@@ -72,30 +165,4 @@ export default function ProtectedAdminRoute() {
   }
 
   return <Outlet />;
-}
-
-function getStoredAdmin() {
-  const storedAdmin = localStorage.getItem("admin");
-
-  if (!storedAdmin) return null;
-
-  try {
-    const admin = JSON.parse(storedAdmin);
-
-    const hasAdminIdentity =
-      admin &&
-      (admin.admin_id ||
-        admin.admin_email ||
-        admin.admin_username);
-
-    if (!hasAdminIdentity) {
-      localStorage.removeItem("admin");
-      return null;
-    }
-
-    return admin;
-  } catch {
-    localStorage.removeItem("admin");
-    return null;
-  }
 }

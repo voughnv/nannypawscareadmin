@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAdminSettings } from "../../context/AdminSettingsContext";
+import { releaseAdminSession } from "../../utils/adminSession";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -29,6 +30,7 @@ export default function AdminSidebar() {
   const darkMode = settings.darkMode;
 
   const [admin, setAdmin] = useState(() => getStoredAdmin());
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     function refreshAdmin() {
@@ -48,22 +50,29 @@ export default function AdminSidebar() {
         refreshAdmin
       );
 
-      window.removeEventListener("storage", refreshAdmin);
+      window.removeEventListener(
+        "storage",
+        refreshAdmin
+      );
     };
   }, []);
 
-  function handleLogout() {
-    // Remove the local administrator session first.
-    localStorage.removeItem("admin");
-    setAdmin(null);
+  async function handleLogout() {
+    if (loggingOut) return;
 
-    // Notify every protected component before leaving the page.
-    window.dispatchEvent(new Event("admin-session-ended"));
+    setLoggingOut(true);
 
-    // Replace the current protected history entry with Login.
-    // A full-page replacement also prevents stale React content
-    // from remaining visible after logout.
-    window.location.replace("/login");
+    try {
+      await releaseAdminSession();
+      setAdmin(null);
+    } catch (error) {
+      console.error(
+        "Unable to logout administrator:",
+        error
+      );
+    } finally {
+      window.location.replace("/login");
+    }
   }
 
   const normalText = darkMode
@@ -187,14 +196,23 @@ export default function AdminSidebar() {
         <button
           type="button"
           onClick={handleLogout}
+          disabled={loggingOut}
           style={{
             ...styles.logoutBtn,
             color: normalText,
             fontSize: 16 * fontScale,
+            opacity: loggingOut ? 0.55 : 1,
+            cursor: loggingOut
+              ? "not-allowed"
+              : "pointer",
           }}
         >
           <LogOut size={20} />
-          <span>Logout</span>
+          <span>
+            {loggingOut
+              ? "Logging out..."
+              : "Logout"}
+          </span>
         </button>
       </div>
     </aside>
@@ -233,12 +251,14 @@ function SidebarItem({
 }
 
 function getStoredAdmin() {
-  const storedAdmin = localStorage.getItem("admin");
+  const storedAdmin =
+    localStorage.getItem("admin");
 
   if (!storedAdmin) return null;
 
   try {
-    const admin = JSON.parse(storedAdmin);
+    const admin =
+      JSON.parse(storedAdmin);
 
     return admin &&
       (admin.admin_id ||
@@ -386,6 +406,5 @@ const styles = {
     gap: 14,
     padding: "0 18px",
     fontWeight: 700,
-    cursor: "pointer",
   },
 };
