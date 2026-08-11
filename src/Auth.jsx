@@ -441,7 +441,7 @@ export default function Auth() {
         });
 
         setMessage(
-          "This administrator account is already active in another browser or device. Log out there first. If that browser was closed unexpectedly, wait a few minutes and try again."
+          "This administrator account is currently active on another device or browser. Please sign out from the active session or wait a few minutes before trying again."
         );
         return;
       }
