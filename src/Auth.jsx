@@ -5,7 +5,7 @@ import {
   claimAdminSession,
   clearLocalAdminSession,
   hasLocalAdminSession,
-  refreshAdminSession,
+  releaseAdminSession,
 } from "./utils/adminSession";
 
 const BRAND = {
@@ -313,29 +313,51 @@ export default function Auth() {
   useEffect(() => {
     let cancelled = false;
 
-    async function redirectAuthenticatedAdmin() {
-      if (!hasLocalAdminSession()) return;
+    async function handleLoginPageEntry() {
+      /*
+        SECURITY RULE:
+        /login acts as a logout boundary.
 
-      const validSession =
-        await refreshAdminSession();
+        If an authenticated Admin returns to the login page through
+        browser Back/Forward history (or manually opens /login), the
+        current Admin session is released instead of silently sending
+        the Admin back into the protected area.
+
+        Result:
+        Admin page -> browser Back -> /login -> automatic logout.
+        Browser Forward can no longer restore an authenticated page.
+      */
+      if (!hasLocalAdminSession()) {
+        return;
+      }
+
+      try {
+        await releaseAdminSession();
+      } catch (error) {
+        console.error(
+          "Unable to release administrator session after returning to login:",
+          error
+        );
+
+        clearLocalAdminSession();
+      }
 
       if (cancelled) return;
 
-      if (validSession) {
-        navigate("/bookings", {
-          replace: true,
-        });
-      } else {
-        clearLocalAdminSession();
-      }
+      setSubmitted(false);
+      setSuccessText("");
+      setLoginPass("");
+      setMessage(
+        "Your administrator session was logged out after returning to the login page."
+      );
     }
 
-    redirectAuthenticatedAdmin();
+    handleLoginPageEntry();
 
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, []);
 
 
   function validateEmail(email) {
@@ -407,7 +429,7 @@ export default function Auth() {
         });
 
         setMessage(
-          "This administrator account is already logged in on another device. Log out from the active device before trying again."
+          "This administrator account is already active in another browser or device. Log out there first. If that browser was closed unexpectedly, wait a few minutes and try again."
         );
         return;
       }

@@ -259,16 +259,58 @@ export default function ProtectedAdminRoute() {
     }
 
     function handleStorageChange(event) {
+      if (!event) {
+        return;
+      }
+
+      /*
+        Activity from another Nanny Paws tab should only update this
+        tab's inactivity timer. It should NOT display the full-page
+        "Checking administrator session..." screen.
+      */
       if (
-        !event ||
-        event.key === "admin" ||
         event.key ===
-          "adminSessionToken" ||
+        "adminLastActivity"
+      ) {
+        scheduleInactivityLogout();
+        return;
+      }
+
+      /*
+        Logout in another tab removes the Admin/session values.
+        End this tab immediately as well.
+      */
+      if (
+        (event.key === "admin" ||
+          event.key ===
+            "adminSessionToken") &&
+        event.newValue === null
+      ) {
+        clearInactivityTimer();
+        clearLocalAdminSession();
+
+        if (mountedRef.current) {
+          setSessionState(
+            "unauthenticated"
+          );
+        }
+
+        return;
+      }
+
+      /*
+        If the session token itself is replaced, verify silently.
+        Normal Admin-object heartbeat/profile storage updates are
+        intentionally ignored to prevent cross-tab verification loops.
+      */
+      if (
         event.key ===
-          "adminLastActivity"
+          "adminSessionToken" &&
+        event.oldValue !==
+          event.newValue
       ) {
         verifyAdminSession({
-          showChecking: true,
+          showChecking: false,
         });
       }
     }

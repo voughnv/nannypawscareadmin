@@ -9,8 +9,14 @@ const LAST_ACTIVITY_KEY = "adminLastActivity";
 export const ADMIN_SESSION_HEARTBEAT_MS = 60 * 1000;
 
 // Automatically log the Admin out after 30 minutes
-// without activity.
+// without activity while the Admin site is still open.
 export const ADMIN_SESSION_TTL_MS = 30 * 60 * 1000;
+
+// Separate server-side lock timeout.
+// Active Admin pages refresh this every minute.
+// If the browser/tab closes without Logout, the stale lock expires
+// after 5 minutes instead of keeping the account blocked for 30 minutes.
+const ADMIN_SERVER_LOCK_TTL_MS = 5 * 60 * 1000;
 
 /*
 |--------------------------------------------------------------------------
@@ -200,7 +206,7 @@ export async function claimAdminSession(
   const expiresAt =
     new Date(
       now.getTime() +
-        ADMIN_SESSION_TTL_MS
+        ADMIN_SERVER_LOCK_TTL_MS
     ).toISOString();
 
   const {
@@ -243,11 +249,6 @@ export async function claimAdminSession(
     throw error;
   }
 
-  /*
-    No row was updated.
-    Another browser/device currently owns
-    the active Admin session.
-  */
   if (!data) {
     return {
       success: false,
@@ -278,7 +279,7 @@ export async function claimAdminSession(
     sessionToken
   );
 
-  // Logging in counts as activity.
+  // Login itself counts as activity.
   markAdminActivity();
 
   return {
@@ -292,8 +293,8 @@ export async function claimAdminSession(
 |--------------------------------------------------------------------------
 | VERIFY / REFRESH ACTIVE SESSION
 |--------------------------------------------------------------------------
-| Refreshes the database expiration only when the local session
-| has NOT exceeded the 30-minute inactivity limit.
+| Refreshes the short server-side device lock only when the local
+| Admin session has NOT exceeded the 30-minute inactivity limit.
 */
 export async function refreshAdminSession() {
   const admin =
@@ -310,8 +311,8 @@ export async function refreshAdminSession() {
   }
 
   /*
-    Do not refresh a session that has already
-    been inactive for 30 minutes.
+    Do not refresh an Admin session that has already been
+    inactive for 30 minutes.
   */
   if (isAdminSessionInactive()) {
     return false;
@@ -326,7 +327,7 @@ export async function refreshAdminSession() {
   const nextExpiry =
     new Date(
       now.getTime() +
-        ADMIN_SESSION_TTL_MS
+        ADMIN_SERVER_LOCK_TTL_MS
     ).toISOString();
 
   try {
@@ -373,33 +374,23 @@ export async function refreshAdminSession() {
       return false;
     }
 
-    /*
-      No matching row means:
-      - session expired
-      - session was removed
-      - session token no longer matches
-    */
     if (!data) {
       return false;
     }
 
-    const refreshedAdmin = {
-      ...admin,
+    /*
+      The database session is valid.
 
-      admin_session_last_seen_at:
-        data.admin_session_last_seen_at,
+      IMPORTANT:
+      Do not rewrite the ADMIN localStorage object on every heartbeat.
+      Writing it here triggers a "storage" event in every other open
+      Nanny Paws tab, which can cause the tabs to repeatedly verify
+      each other and get stuck on "Checking administrator session...".
 
-      admin_session_expires_at:
-        data.admin_session_expires_at,
-    };
-
-    localStorage.setItem(
-      ADMIN_STORAGE_KEY,
-      JSON.stringify(
-        refreshedAdmin
-      )
-    );
-
+      The Admin record in localStorage is only needed for the existing
+      Profile / Sidebar compatibility and does not need the heartbeat
+      timestamps copied into it every minute.
+    */
     return true;
   } catch (error) {
     console.error(
@@ -415,7 +406,6 @@ export async function refreshAdminSession() {
 |--------------------------------------------------------------------------
 | RELEASE ADMIN SESSION
 |--------------------------------------------------------------------------
-| Called during proper Logout or automatic inactivity logout.
 */
 export async function releaseAdminSession() {
   const admin =
@@ -483,7 +473,7 @@ export async function releaseAdminSession() {
 
 /*
 |--------------------------------------------------------------------------
-| CREATE SECURE SESSION TOKEN
+| SECURE SESSION TOKEN
 |--------------------------------------------------------------------------
 */
 function createSecureToken() {
