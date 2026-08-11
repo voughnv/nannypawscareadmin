@@ -195,12 +195,9 @@ export default function ApplicantPage() {
 
   useEffect(() => {
     return () => {
-      if (
-        mediaPreview?.revokeOnClose &&
-        mediaPreview?.url
-      ) {
-        URL.revokeObjectURL(mediaPreview.url);
-      }
+      revokePreviewObjectUrls(
+        mediaPreview
+      );
     };
   }, [mediaPreview]);
 
@@ -216,42 +213,14 @@ export default function ApplicantPage() {
       ] = await Promise.all([
         supabase
           .from("APPLICANT")
-          .select(
-            `
-              applicant_id,
-              created_at,
-              a_fname,
-              a_lname,
-              a_address,
-              a_contactno,
-              a_email,
-              resume_file,
-              pet_place,
-              a_auth_id,
-              a_dob,
-              u_id
-            `
-          )
+          .select("*")
           .order("created_at", {
             ascending: true,
           }),
 
         supabase
           .from("APPLICATION")
-          .select(
-            `
-              application_id,
-              created_at,
-              review_remarks,
-              review_date,
-              application_status,
-              preferred_start_date,
-              preferred_end_date,
-              preferred_start_time,
-              preferred_end_time,
-              a_id
-            `
-          )
+          .select("*")
           .order("created_at", {
             ascending: false,
           }),
@@ -807,7 +776,9 @@ export default function ApplicantPage() {
         the Pet Sitter profile instead of discarding it.
       */
       ps_place:
-        record.pet_place || null,
+        getPetPlaceImages(
+          record
+        )[0] || null,
 
       ps_password:
         DEFAULT_SITTER_PASSWORD,
@@ -850,11 +821,15 @@ export default function ApplicantPage() {
   |--------------------------------------------------------------------------
   */
   async function openPetPlacePreview(
-    record
+    record,
+    initialIndex = 0
   ) {
-    if (!record?.pet_place) {
+    const petPlaceImages =
+      getPetPlaceImages(record);
+
+    if (!petPlaceImages.length) {
       setError(
-        "No pet place image is stored for this applicant."
+        "No pet place images are stored for this applicant."
       );
       return;
     }
@@ -866,33 +841,62 @@ export default function ApplicantPage() {
     setError("");
 
     try {
-      const resolved =
-        await resolvePreviewFile(
-          record.pet_place,
-          PLACE_BUCKET_CANDIDATES,
-          "image"
+      const resolvedImages =
+        await Promise.all(
+          petPlaceImages.map(
+            (imageValue) =>
+              resolvePreviewFile(
+                imageValue,
+                PLACE_BUCKET_CANDIDATES,
+                "image"
+              )
+          )
         );
 
       closeMediaPreview();
 
       setMediaPreview({
-        type: "image",
+        type: "image-carousel",
         title: `${getFullName(
           record
         )} - Pet Place`,
-        url: resolved.url,
-        revokeOnClose:
-          resolved.revokeOnClose,
+        urls: resolvedImages.map(
+          (item) => item.url
+        ),
+        filenames:
+          petPlaceImages.map(
+            (item) =>
+              getFileName(item)
+          ),
+        revokeUrls:
+          resolvedImages
+            .filter(
+              (item) =>
+                item.revokeOnClose
+            )
+            .map(
+              (item) => item.url
+            ),
+        initialIndex: Math.min(
+          Math.max(
+            Number(initialIndex) || 0,
+            0
+          ),
+          Math.max(
+            resolvedImages.length - 1,
+            0
+          )
+        ),
       });
     } catch (previewError) {
       console.error(
-        "Unable to preview image:",
+        "Unable to preview pet place images:",
         previewError
       );
 
       setError(
         previewError?.message ||
-          "Unable to open the pet place image."
+          "Unable to open the pet place images."
       );
     } finally {
       setOpeningImageId(null);
@@ -952,15 +956,9 @@ export default function ApplicantPage() {
   function closeMediaPreview() {
     setMediaPreview(
       (previous) => {
-        if (
-          previous?.revokeOnClose &&
-          previous?.url
-        ) {
-          URL.revokeObjectURL(
-            previous.url
-          );
-        }
-
+        revokePreviewObjectUrls(
+          previous
+        );
         return null;
       }
     );
@@ -1687,9 +1685,21 @@ export default function ApplicantPage() {
                           styles.scheduleCell
                         }
                       >
-                        {formatPreferredSchedule(
-                          record
-                        )}
+                        <div>
+                          {formatPreferredSchedule(
+                            record
+                          )}
+
+                          <span
+                            style={
+                              styles.scheduleDaysText
+                            }
+                          >
+                            {formatPreferredDays(
+                              record
+                            )}
+                          </span>
+                        </div>
                       </td>
 
                       <td
@@ -1697,7 +1707,9 @@ export default function ApplicantPage() {
                           styles.normalCell
                         }
                       >
-                        {record.pet_place ? (
+                        {getPetPlaceImages(
+                          record
+                        ).length ? (
                           <button
                             type="button"
                             style={
@@ -1716,14 +1728,18 @@ export default function ApplicantPage() {
                                 record
                               );
                             }}
-                            title="View pet place image"
+                            title="View pet place photos"
                           >
                             {isHttpUrl(
-                              record.pet_place
-                            ) && (
+                              getPetPlaceImages(
+                                record
+                              )[0]
+                            ) ? (
                               <img
                                 src={
-                                  record.pet_place
+                                  getPetPlaceImages(
+                                    record
+                                  )[0]
                                 }
                                 alt={`${getFullName(
                                   record
@@ -1738,11 +1754,7 @@ export default function ApplicantPage() {
                                     "none";
                                 }}
                               />
-                            )}
-
-                            {!isHttpUrl(
-                              record.pet_place
-                            ) && (
+                            ) : (
                               <ImageIcon
                                 size={16}
                               />
@@ -1752,7 +1764,17 @@ export default function ApplicantPage() {
                               {openingImageId ===
                               record.applicant_id
                                 ? "Opening..."
-                                : "View Image"}
+                                : `View ${
+                                    getPetPlaceImages(
+                                      record
+                                    ).length
+                                  } ${
+                                    getPetPlaceImages(
+                                      record
+                                    ).length === 1
+                                      ? "Photo"
+                                      : "Photos"
+                                  }`}
                             </span>
                           </button>
                         ) : (
@@ -2093,6 +2115,74 @@ function StatusBadge({ status }) {
   );
 }
 
+function PreferredDaysDisplay({
+  record,
+}) {
+  const selectedDays =
+    getPreferredDays(record);
+
+  const selectedSet =
+    new Set(selectedDays);
+
+  return (
+    <div
+      style={
+        styles.preferredDaysWrap
+      }
+    >
+      <div
+        style={
+          styles.preferredDaysRow
+        }
+      >
+        {PREFERRED_DAY_OPTIONS.map(
+          (day) => {
+            const isSelected =
+              selectedSet.has(
+                day.name
+              );
+
+            return (
+              <div
+                key={day.name}
+                title={day.name}
+                style={{
+                  ...styles.preferredDayCircle,
+                  ...(isSelected
+                    ? styles.preferredDayCircleSelected
+                    : {}),
+                }}
+              >
+                {day.letter}
+              </div>
+            );
+          }
+        )}
+      </div>
+
+      <p
+        style={
+          styles.selectedDaysText
+        }
+      >
+        {selectedDays.length
+          ? `Selected Days: ${selectedDays
+              .map(
+                (dayName) =>
+                  PREFERRED_DAY_OPTIONS.find(
+                    (day) =>
+                      day.name ===
+                      dayName
+                  )?.short ||
+                  dayName
+              )
+              .join(", ")}`
+          : "No preferred days selected"}
+      </p>
+    </div>
+  );
+}
+
 function ApplicantModal({
   record,
   updating,
@@ -2374,6 +2464,10 @@ function ApplicantModal({
                   )}
                 </h4>
 
+                <PreferredDaysDisplay
+                  record={record}
+                />
+
                 {!hasCompletePreferredSchedule(
                   record
                 ) && (
@@ -2420,14 +2514,26 @@ function ApplicantModal({
                       styles.detailValue
                     }
                   >
-                    {record.pet_place
-                      ? "Uploaded image"
-                      : "No image uploaded"}
+                    {getPetPlaceImages(
+                      record
+                    ).length
+                      ? `${getPetPlaceImages(
+                          record
+                        ).length} ${
+                          getPetPlaceImages(
+                            record
+                          ).length === 1
+                            ? "photo"
+                            : "photos"
+                        } uploaded`
+                      : "No images uploaded"}
                   </h4>
                 </div>
               </div>
 
-              {record.pet_place && (
+              {getPetPlaceImages(
+                record
+              ).length > 0 && (
                 <button
                   type="button"
                   style={
@@ -2443,11 +2549,15 @@ function ApplicantModal({
                   }
                 >
                   {isHttpUrl(
-                    record.pet_place
-                  ) && (
+                    getPetPlaceImages(
+                      record
+                    )[0]
+                  ) ? (
                     <img
                       src={
-                        record.pet_place
+                        getPetPlaceImages(
+                          record
+                        )[0]
                       }
                       alt={`${getFullName(
                         record
@@ -2456,11 +2566,7 @@ function ApplicantModal({
                         styles.petPlaceImage
                       }
                     />
-                  )}
-
-                  {!isHttpUrl(
-                    record.pet_place
-                  ) && (
+                  ) : (
                     <div
                       style={
                         styles.filePreviewPlaceholder
@@ -2481,7 +2587,13 @@ function ApplicantModal({
 
                     {openingImage
                       ? "Opening..."
-                      : "View full image"}
+                      : getPetPlaceImages(
+                          record
+                        ).length === 1
+                      ? "View full image"
+                      : `View photo carousel (${getPetPlaceImages(
+                          record
+                        ).length})`}
                   </span>
                 </button>
               )}
@@ -2680,6 +2792,50 @@ function MediaPreviewModal({
   preview,
   onClose,
 }) {
+  const imageUrls =
+    preview.type === "image-carousel"
+      ? preview.urls || []
+      : [];
+
+  const [currentIndex, setCurrentIndex] =
+    useState(
+      preview.initialIndex || 0
+    );
+
+  useEffect(() => {
+    setCurrentIndex(
+      preview.initialIndex || 0
+    );
+  }, [preview]);
+
+  const hasMultipleImages =
+    imageUrls.length > 1;
+
+  const currentImage =
+    imageUrls[currentIndex] || "";
+
+  function showPreviousImage() {
+    if (!imageUrls.length) return;
+
+    setCurrentIndex(
+      (previous) =>
+        (previous -
+          1 +
+          imageUrls.length) %
+        imageUrls.length
+    );
+  }
+
+  function showNextImage() {
+    if (!imageUrls.length) return;
+
+    setCurrentIndex(
+      (previous) =>
+        (previous + 1) %
+        imageUrls.length
+    );
+  }
+
   return (
     <div
       style={
@@ -2708,7 +2864,7 @@ function MediaPreviewModal({
             >
               {preview.type === "pdf"
                 ? "RESUME PREVIEW"
-                : "IMAGE PREVIEW"}
+                : "PET PLACE PHOTOS"}
             </p>
 
             <h3
@@ -2718,6 +2874,20 @@ function MediaPreviewModal({
             >
               {preview.title}
             </h3>
+
+            {preview.type ===
+              "image-carousel" &&
+              imageUrls.length > 0 && (
+                <p
+                  style={
+                    styles.carouselCounter
+                  }
+                >
+                  Photo{" "}
+                  {currentIndex + 1} of{" "}
+                  {imageUrls.length}
+                </p>
+              )}
           </div>
 
           <button
@@ -2747,13 +2917,89 @@ function MediaPreviewModal({
               }
             />
           ) : (
-            <img
-              src={preview.url}
-              alt={preview.title}
+            <div
               style={
-                styles.fullPreviewImage
+                styles.carouselStage
               }
-            />
+            >
+              {hasMultipleImages && (
+                <button
+                  type="button"
+                  aria-label="Previous photo"
+                  style={{
+                    ...styles.carouselArrow,
+                    ...styles.carouselArrowLeft,
+                  }}
+                  onClick={
+                    showPreviousImage
+                  }
+                >
+                  <ChevronLeft
+                    size={26}
+                  />
+                </button>
+              )}
+
+              <img
+                src={currentImage}
+                alt={`${preview.title} photo ${
+                  currentIndex + 1
+                }`}
+                style={
+                  styles.fullPreviewImage
+                }
+              />
+
+              {hasMultipleImages && (
+                <button
+                  type="button"
+                  aria-label="Next photo"
+                  style={{
+                    ...styles.carouselArrow,
+                    ...styles.carouselArrowRight,
+                  }}
+                  onClick={
+                    showNextImage
+                  }
+                >
+                  <ChevronRight
+                    size={26}
+                  />
+                </button>
+              )}
+
+              {hasMultipleImages && (
+                <div
+                  style={
+                    styles.carouselDots
+                  }
+                >
+                  {imageUrls.map(
+                    (_, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        aria-label={`View photo ${
+                          index + 1
+                        }`}
+                        onClick={() =>
+                          setCurrentIndex(
+                            index
+                          )
+                        }
+                        style={{
+                          ...styles.carouselDot,
+                          ...(index ===
+                          currentIndex
+                            ? styles.carouselDotActive
+                            : {}),
+                        }}
+                      />
+                    )
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -2798,6 +3044,384 @@ function DetailItem({
 | HELPERS
 |--------------------------------------------------------------------------
 */
+const PREFERRED_DAY_OPTIONS = [
+  {
+    name: "Monday",
+    short: "Mon",
+    letter: "M",
+  },
+  {
+    name: "Tuesday",
+    short: "Tue",
+    letter: "T",
+  },
+  {
+    name: "Wednesday",
+    short: "Wed",
+    letter: "W",
+  },
+  {
+    name: "Thursday",
+    short: "Thu",
+    letter: "T",
+  },
+  {
+    name: "Friday",
+    short: "Fri",
+    letter: "F",
+  },
+  {
+    name: "Saturday",
+    short: "Sat",
+    letter: "S",
+  },
+  {
+    name: "Sunday",
+    short: "Sun",
+    letter: "S",
+  },
+];
+
+function flattenFlexibleValues(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(
+      flattenFlexibleValues
+    );
+  }
+
+  if (typeof value === "object") {
+    if (Array.isArray(value.urls)) {
+      return value.urls.flatMap(
+        flattenFlexibleValues
+      );
+    }
+
+    if (Array.isArray(value.images)) {
+      return value.images.flatMap(
+        flattenFlexibleValues
+      );
+    }
+
+    if (Array.isArray(value.photos)) {
+      return value.photos.flatMap(
+        flattenFlexibleValues
+      );
+    }
+
+    if (Array.isArray(value.days)) {
+      return value.days.flatMap(
+        flattenFlexibleValues
+      );
+    }
+
+    return Object.entries(value)
+      .filter(
+        ([, enabled]) =>
+          Boolean(enabled)
+      )
+      .map(([key]) => key);
+  }
+
+  const text = String(value).trim();
+
+  if (!text) {
+    return [];
+  }
+
+  if (
+    (text.startsWith("[") &&
+      text.endsWith("]")) ||
+    (text.startsWith("{") &&
+      text.endsWith("}"))
+  ) {
+    try {
+      return flattenFlexibleValues(
+        JSON.parse(text)
+      );
+    } catch {
+      // Fall back to delimiter parsing below.
+    }
+  }
+
+  if (
+    text.includes("|") ||
+    text.includes(";") ||
+    text.includes(",")
+  ) {
+    return text
+      .split(/[|;,]/)
+      .map(
+        (item) => item.trim()
+      )
+      .filter(Boolean);
+  }
+
+  return [text];
+}
+
+function parsePetPlaceImageValues(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(
+      parsePetPlaceImageValues
+    );
+  }
+
+  if (typeof value === "object") {
+    if (
+      value.url ||
+      value.path ||
+      value.uri ||
+      value.file
+    ) {
+      return [
+        value.url ||
+          value.path ||
+          value.uri ||
+          value.file,
+      ];
+    }
+
+    for (const key of [
+      "urls",
+      "images",
+      "photos",
+      "files",
+    ]) {
+      if (value[key]) {
+        return parsePetPlaceImageValues(
+          value[key]
+        );
+      }
+    }
+
+    return [];
+  }
+
+  const text = String(value).trim();
+
+  if (!text) {
+    return [];
+  }
+
+  if (
+    (text.startsWith("[") &&
+      text.endsWith("]")) ||
+    (text.startsWith("{") &&
+      text.endsWith("}"))
+  ) {
+    try {
+      return parsePetPlaceImageValues(
+        JSON.parse(text)
+      );
+    } catch {
+      // Fall through to plain string handling.
+    }
+  }
+
+  /*
+    Multiple mobile uploads are expected to arrive as an array/JSON
+    value. "|" and ";" are also supported for older text payloads.
+    Do not split plain URLs on commas because commas may legally
+    appear inside a URL.
+  */
+  if (
+    text.includes("|") ||
+    text.includes(";") ||
+    (text.includes(",") &&
+      !isHttpUrl(text))
+  ) {
+    return text
+      .split(/[|;,]/)
+      .map(
+        (item) => item.trim()
+      )
+      .filter(Boolean);
+  }
+
+  return [text];
+}
+
+function getPetPlaceImages(record) {
+  const candidates = [
+    record?.pet_place_photos,
+    record?.pet_place_images,
+    record?.pet_place_urls,
+    record?.place_photos,
+    record?.place_images,
+    record?.pet_place_files,
+    record?.pet_place,
+  ];
+
+  const firstPopulated =
+    candidates.find(
+      (value) =>
+        parsePetPlaceImageValues(
+          value
+        ).length
+    );
+
+  return Array.from(
+    new Set(
+      parsePetPlaceImageValues(
+        firstPopulated
+      )
+        .map(
+          (item) =>
+            String(
+              item || ""
+            ).trim()
+        )
+        .filter(Boolean)
+    )
+  );
+}
+
+function normalizePreferredDay(
+  value
+) {
+  const text = String(
+    value || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const aliases = {
+    m: "Monday",
+    mon: "Monday",
+    monday: "Monday",
+    t: "Tuesday",
+    tue: "Tuesday",
+    tues: "Tuesday",
+    tuesday: "Tuesday",
+    w: "Wednesday",
+    wed: "Wednesday",
+    wednesday: "Wednesday",
+    th: "Thursday",
+    thu: "Thursday",
+    thur: "Thursday",
+    thurs: "Thursday",
+    thursday: "Thursday",
+    f: "Friday",
+    fri: "Friday",
+    friday: "Friday",
+    sa: "Saturday",
+    sat: "Saturday",
+    saturday: "Saturday",
+    su: "Sunday",
+    sun: "Sunday",
+    sunday: "Sunday",
+  };
+
+  return aliases[text] || "";
+}
+
+function getPreferredDays(record) {
+  const candidates = [
+    record?.preferred_days,
+    record?.preferred_pet_sitting_days,
+    record?.preferred_weekdays,
+    record?.preferred_day,
+    record?.selected_days,
+    record?.availability_days,
+    record?.available_days,
+  ];
+
+  const firstPopulated =
+    candidates.find((value) =>
+      flattenFlexibleValues(
+        value
+      ).length
+    );
+
+  const normalized =
+    flattenFlexibleValues(
+      firstPopulated
+    )
+      .map(normalizePreferredDay)
+      .filter(Boolean);
+
+  const selectedSet =
+    new Set(normalized);
+
+  return PREFERRED_DAY_OPTIONS
+    .map((day) => day.name)
+    .filter((dayName) =>
+      selectedSet.has(dayName)
+    );
+}
+
+function formatPreferredDays(
+  record
+) {
+  const days =
+    getPreferredDays(record);
+
+  if (!days.length) {
+    return "Days: Not set";
+  }
+
+  return `Days: ${days
+    .map(
+      (dayName) =>
+        PREFERRED_DAY_OPTIONS.find(
+          (day) =>
+            day.name === dayName
+        )?.short || dayName
+    )
+    .join(", ")}`;
+}
+
+function revokePreviewObjectUrls(
+  preview
+) {
+  if (!preview) return;
+
+  const urlsToRevoke = [
+    ...(Array.isArray(
+      preview.revokeUrls
+    )
+      ? preview.revokeUrls
+      : []),
+  ];
+
+  if (
+    preview.revokeOnClose &&
+    preview.url
+  ) {
+    urlsToRevoke.push(
+      preview.url
+    );
+  }
+
+  Array.from(
+    new Set(urlsToRevoke)
+  ).forEach((url) => {
+    try {
+      URL.revokeObjectURL(url);
+    } catch {
+      // Ignore cleanup failures.
+    }
+  });
+}
+
 function normalizeStatus(status) {
   const value = String(
     status || "Pending"
@@ -4003,6 +4627,15 @@ const styles = {
     verticalAlign: "middle",
   },
 
+  scheduleDaysText: {
+    display: "block",
+    marginTop: 5,
+    color: BRAND.pink,
+    fontSize: 11,
+    fontWeight: 800,
+    lineHeight: 1.35,
+  },
+
   primaryText: {
     display: "block",
     fontSize: 13,
@@ -4346,6 +4979,47 @@ const styles = {
     fontWeight: 700,
   },
 
+  preferredDaysWrap: {
+    marginTop: 14,
+  },
+
+  preferredDaysRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+
+  preferredDayCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: "50%",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--app-readonly)",
+    color: "var(--app-muted)",
+    border: "1px solid var(--app-border)",
+    fontSize: 12,
+    fontWeight: 900,
+    boxSizing: "border-box",
+  },
+
+  preferredDayCircleSelected: {
+    background: BRAND.pink,
+    color: "#FFFFFF",
+    borderColor: BRAND.pink,
+    boxShadow:
+      "0 4px 10px rgba(217,67,104,0.18)",
+  },
+
+  selectedDaysText: {
+    margin: "9px 0 0",
+    color: "var(--app-muted)",
+    fontSize: 11.5,
+    fontWeight: 700,
+  },
+
   mediaCard: {
     gridColumn: "span 2",
     border:
@@ -4606,6 +5280,84 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     boxSizing: "border-box",
+  },
+
+  carouselCounter: {
+    margin: "5px 0 0",
+    color: "var(--app-muted)",
+    fontSize: 11,
+    fontWeight: 800,
+  },
+
+  carouselStage: {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  carouselArrow: {
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: "50%",
+    border:
+      "1px solid var(--app-border-strong)",
+    background:
+      "rgba(255,255,255,0.92)",
+    color: BRAND.brown,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxShadow:
+      "0 6px 18px rgba(0,0,0,0.16)",
+  },
+
+  carouselArrowLeft: {
+    left: 14,
+  },
+
+  carouselArrowRight: {
+    right: 14,
+  },
+
+  carouselDots: {
+    position: "absolute",
+    left: "50%",
+    bottom: 12,
+    transform: "translateX(-50%)",
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    padding: "7px 10px",
+    borderRadius: 999,
+    background:
+      "rgba(35,20,16,0.52)",
+    zIndex: 2,
+  },
+
+  carouselDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    border: "none",
+    padding: 0,
+    background:
+      "rgba(255,255,255,0.55)",
+    cursor: "pointer",
+  },
+
+  carouselDotActive: {
+    width: 10,
+    height: 10,
+    background: "#FFFFFF",
   },
 
   pdfFrame: {
