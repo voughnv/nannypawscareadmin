@@ -1764,17 +1764,7 @@ export default function ApplicantPage() {
                               {openingImageId ===
                               record.applicant_id
                                 ? "Opening..."
-                                : `View ${
-                                    getPetPlaceImages(
-                                      record
-                                    ).length
-                                  } ${
-                                    getPetPlaceImages(
-                                      record
-                                    ).length === 1
-                                      ? "Photo"
-                                      : "Photos"
-                                  }`}
+                                : "View Photos"}
                             </span>
                           </button>
                         ) : (
@@ -2424,7 +2414,7 @@ function ApplicantModal({
                       styles.validationHint
                     }
                   >
-                    Address should include detailed location information such as street/purok, barangay, and city/municipality or province.
+                    Please provide enough location details to identify the applicant's residence.
                   </p>
                 )}
               </div>
@@ -2517,16 +2507,10 @@ function ApplicantModal({
                     {getPetPlaceImages(
                       record
                     ).length
-                      ? `${getPetPlaceImages(
+                      ? `Pet Place Photos (${getPetPlaceImages(
                           record
-                        ).length} ${
-                          getPetPlaceImages(
-                            record
-                          ).length === 1
-                            ? "photo"
-                            : "photos"
-                        } uploaded`
-                      : "No images uploaded"}
+                        ).length})`
+                      : "No photos available"}
                   </h4>
                 </div>
               </div>
@@ -2587,13 +2571,7 @@ function ApplicantModal({
 
                     {openingImage
                       ? "Opening..."
-                      : getPetPlaceImages(
-                          record
-                        ).length === 1
-                      ? "View full image"
-                      : `View photo carousel (${getPetPlaceImages(
-                          record
-                        ).length})`}
+                      : "View Pet Place Photos"}
                   </span>
                 </button>
               )}
@@ -3586,7 +3564,7 @@ function validateApplicantForAcceptance(
       record.a_address
     )
   ) {
-    return "The applicant must provide a specific address before acceptance. Include details such as street/purok, barangay, and city/municipality or province.";
+    return "The applicant must provide a complete address before acceptance.";
   }
 
   if (
@@ -3607,20 +3585,21 @@ function isSpecificAddress(value) {
     .trim()
     .replace(/\s+/g, " ");
 
-  if (text.length < 15) {
+  /*
+    The address no longer requires a strict comma-separated format.
+    A reasonably descriptive residence/address is enough, such as:
+    "Aldea Homes Block 5 Lot 3 Cangmating Sibulan".
+  */
+  if (text.length < 12) {
     return false;
   }
 
-  const addressParts = text
-    .split(",")
-    .map((part) => part.trim())
+  const words = text
+    .split(" ")
+    .map((word) => word.trim())
     .filter(Boolean);
 
-  /*
-    A specific application address should contain multiple
-    location levels instead of only a city or barangay name.
-  */
-  return addressParts.length >= 3;
+  return words.length >= 3;
 }
 
 function hasCompletePreferredSchedule(
