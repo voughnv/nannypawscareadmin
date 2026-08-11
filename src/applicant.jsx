@@ -1046,23 +1046,26 @@ export default function ApplicantPage() {
               statusFilter;
 
           /*
-            Preserve the previous Admin requirement:
-            Applicant date filtering uses Reviewed On.
+            Filter applicants by Submitted On.
+
+            Using the applicant's created_at date allows Pending,
+            Accepted, and Rejected applicants to all be filtered,
+            even when a review_date does not exist yet.
           */
-          const reviewedDate =
+          const submittedDate =
             getDateOnlyValue(
-              record.review_date
+              record.created_at
             );
 
           const matchesDateFrom =
             !dateFrom ||
-            (reviewedDate &&
-              reviewedDate >= dateFrom);
+            (submittedDate &&
+              submittedDate >= dateFrom);
 
           const matchesDateTo =
             !dateTo ||
-            (reviewedDate &&
-              reviewedDate <= dateTo);
+            (submittedDate &&
+              submittedDate <= dateTo);
 
           return (
             matchesSearch &&
@@ -1432,14 +1435,6 @@ export default function ApplicantPage() {
           <div
             style={styles.datePanel}
           >
-            <span
-              style={
-                styles.datePanelTitle
-              }
-            >
-              Reviewed On
-            </span>
-
             <label
               style={styles.dateLabel}
             >
