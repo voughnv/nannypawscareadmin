@@ -332,7 +332,19 @@ export default function Auth() {
       }
 
       try {
-        await releaseAdminSession();
+        /*
+          releaseAdminSession() captures the current Admin/token before
+          its first database await. Clear the local session immediately
+          after starting it so pressing Forward very quickly cannot
+          restore a protected page while the Supabase logout request is
+          still finishing.
+        */
+        const releasePromise =
+          releaseAdminSession();
+
+        clearLocalAdminSession();
+
+        await releasePromise;
       } catch (error) {
         console.error(
           "Unable to release administrator session after returning to login:",
@@ -438,11 +450,17 @@ export default function Auth() {
       setSubmitted(true);
 
       window.setTimeout(() => {
-        // Replace /login in browser history so pressing Back
-        // cannot return to the login form after authentication.
-        navigate("/bookings", {
-          replace: true,
-        });
+        /*
+          Keep /login in browser history.
+
+          This is intentional:
+          Login -> Bookings -> browser Back -> /login.
+
+          Once /login is reached, the effect above automatically
+          releases the Admin session. Browser Forward can then no
+          longer restore authenticated Admin access.
+        */
+        navigate("/bookings");
       }, 600);
     } catch (error) {
       setMessage(error?.message || "Unable to log in.");
