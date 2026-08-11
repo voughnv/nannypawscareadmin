@@ -360,7 +360,7 @@ export default function Auth() {
       setSuccessText("");
       setLoginPass("");
       setMessage(
-        "Your administrator session was logged out after returning to the login page."
+        "Your administrator session has ended. Please sign in again to continue."
       );
     }
 
