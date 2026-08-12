@@ -71,8 +71,8 @@ export default function SittersPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [photoPreview, setPhotoPreview] = useState(null);
-  const [openingPhotoId, setOpeningPhotoId] = useState(null);
+  const [placePreview, setPlacePreview] = useState(null);
+  const [openingPlaceId, setOpeningPlaceId] = useState(null);
 
   useEffect(() => {
     fetchSitters();
@@ -84,9 +84,9 @@ export default function SittersPage() {
 
   useEffect(() => {
     return () => {
-      revokePreviewObjectUrls(photoPreview);
+      revokePlacePreviewUrls(placePreview);
     };
-  }, [photoPreview]);
+  }, [placePreview]);
 
   useEffect(() => {
     function closeActionMenu() {
@@ -111,97 +111,99 @@ export default function SittersPage() {
     setSuccess("");
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("PET SITTER")
-        .select(SITTER_FIELDS)
-        .order("created_at", { ascending: true });
+      const [
+        sitterResult,
+        applicantResult,
+      ] = await Promise.all([
+        supabase
+          .from("PET SITTER")
+          .select(SITTER_FIELDS)
+          .order("created_at", {
+            ascending: true,
+          }),
 
-      if (fetchError) throw fetchError;
-
-      const sitterRows = data || [];
-
-      /*
-        The current PET SITTER table stores ps_place as text. Older
-        accepted applicants may therefore contain only the first photo
-        in ps_place even though their APPLICANT record contains several.
-
-        Read APPLICANT as a fallback and match by email so the Admin can
-        still view the complete Pet Place photo set.
-      */
-      let applicantPhotoMap = new Map();
-
-      try {
-        const {
-          data: applicantRows,
-          error: applicantFetchError,
-        } = await supabase
+        /*
+          APPLICANT is read as a photo fallback because the current
+          acceptance flow may store only the first image in ps_place.
+          The applicant record still contains the original submitted
+          Pet Place value, including multiple images when stored as JSON.
+        */
+        supabase
           .from("APPLICANT")
-          .select("*");
+          .select("*"),
+      ]);
 
-        if (!applicantFetchError) {
-          applicantPhotoMap = new Map(
-            (applicantRows || [])
-              .map((applicant) => {
-                const email = normalizeEmail(
-                  applicant.a_email
-                );
+      if (sitterResult.error) {
+        throw sitterResult.error;
+      }
 
-                return [
-                  email,
-                  getRecordPlaceImages(applicant),
-                ];
-              })
-              .filter(
-                ([email, images]) =>
-                  email && images.length
-              )
-          );
-        } else {
-          console.warn(
-            "Unable to load applicant photo fallback:",
-            applicantFetchError
-          );
-        }
-      } catch (applicantError) {
+      if (applicantResult.error) {
         console.warn(
-          "Applicant photo fallback failed:",
-          applicantError
+          "Unable to load applicant Pet Place photo fallback:",
+          applicantResult.error
         );
       }
 
-      const enrichedSitters = sitterRows.map(
-        (sitter) => {
-          const sitterImages =
-            getRecordPlaceImages({
-              ps_place: sitter.ps_place,
-            });
+      const applicants =
+        applicantResult.data || [];
 
-          const applicantImages =
-            applicantPhotoMap.get(
-              normalizeEmail(sitter.ps_email)
-            ) || [];
-
-          /*
-            Prefer whichever source has the larger complete set.
-            This preserves old one-photo records while supporting
-            newer multi-photo applicant submissions.
-          */
-          const placeImages =
-            applicantImages.length >
-            sitterImages.length
-              ? applicantImages
-              : sitterImages;
-
-          return {
-            ...sitter,
-            _placeImages: placeImages,
-          };
-        }
+      const applicantByEmail = new Map(
+        applicants
+          .map((applicant) => [
+            normalizeEmail(
+              applicant.a_email
+            ),
+            applicant,
+          ])
+          .filter(([email]) =>
+            Boolean(email)
+          )
       );
 
-      setSitters(enrichedSitters);
+      const mergedSitters = (
+        sitterResult.data || []
+      ).map((sitter) => {
+        const applicant =
+          applicantByEmail.get(
+            normalizeEmail(
+              sitter.ps_email
+            )
+          );
+
+        const sitterImages =
+          parsePlaceImages(
+            sitter.ps_place
+          );
+
+        const applicantImages =
+          getApplicantPlaceImages(
+            applicant
+          );
+
+        /*
+          Use the Applicant photo set when it contains more photos.
+          This fixes already-accepted sitters where ps_place only
+          contains the first image.
+        */
+        const placeImages =
+          applicantImages.length >
+          sitterImages.length
+            ? applicantImages
+            : sitterImages;
+
+        return {
+          ...sitter,
+          place_images: placeImages,
+        };
+      });
+
+      setSitters(mergedSitters);
     } catch (fetchError) {
-      console.error("Unable to load pet sitters:", fetchError);
+      console.error(
+        "Unable to load pet sitters:",
+        fetchError
+      );
+
       setError(
         fetchError?.message ||
           "Unable to load pet sitters. Please check your Supabase connection and table policies."
@@ -457,45 +459,73 @@ export default function SittersPage() {
     }
   }
 
-  async function openPlacePhotos(sitter, initialIndex = 0) {
-    const imageValues = getSitterPlaceImages(sitter);
+  async function openPlacePreview(
+    sitter,
+    initialIndex = 0
+  ) {
+    const images =
+      getSitterPlaceImages(sitter);
 
-    if (!imageValues.length) {
+    if (!images.length) {
       setError(
         "No Pet Place photos are available for this pet sitter."
       );
       return;
     }
 
-    setOpeningPhotoId(sitter.petsitter_id);
+    setOpeningPlaceId(
+      sitter.petsitter_id
+    );
     setError("");
 
     try {
-      const resolvedImages = await Promise.all(
-        imageValues.map((imageValue) =>
-          resolvePlaceImage(imageValue)
-        )
-      );
+      const resolved =
+        await Promise.all(
+          images.map((imageValue) =>
+            resolvePlaceImage(
+              imageValue
+            )
+          )
+        );
 
-      closePhotoPreview();
+      closePlacePreview();
 
-      setPhotoPreview({
-        title: `${getFullName(sitter)} - Pet Place Photos`,
-        urls: resolvedImages.map((item) => item.url),
-        filenames: imageValues.map((item) =>
-          getFileName(item)
+      setPlacePreview({
+        title: `${getFullName(
+          sitter
+        )} - Pet Place Photos`,
+
+        urls: resolved.map(
+          (item) => item.url
         ),
-        revokeUrls: resolvedImages
-          .filter((item) => item.revokeOnClose)
-          .map((item) => item.url),
+
+        filenames: images.map(
+          getPlaceFileName
+        ),
+
+        revokeUrls: resolved
+          .filter(
+            (item) =>
+              item.revokeOnClose
+          )
+          .map(
+            (item) => item.url
+          ),
+
         initialIndex: Math.min(
-          Math.max(Number(initialIndex) || 0, 0),
-          Math.max(resolvedImages.length - 1, 0)
+          Math.max(
+            Number(initialIndex) || 0,
+            0
+          ),
+          Math.max(
+            resolved.length - 1,
+            0
+          )
         ),
       });
     } catch (previewError) {
       console.error(
-        "Unable to preview Pet Place photos:",
+        "Unable to open Pet Place photos:",
         previewError
       );
 
@@ -504,15 +534,20 @@ export default function SittersPage() {
           "Unable to open the Pet Place photos."
       );
     } finally {
-      setOpeningPhotoId(null);
+      setOpeningPlaceId(null);
     }
   }
 
-  function closePhotoPreview() {
-    setPhotoPreview((previous) => {
-      revokePreviewObjectUrls(previous);
-      return null;
-    });
+  function closePlacePreview() {
+    setPlacePreview(
+      (previous) => {
+        revokePlacePreviewUrls(
+          previous
+        );
+
+        return null;
+      }
+    );
   }
 
   const filteredSitters = useMemo(() => {
@@ -748,16 +783,20 @@ export default function SittersPage() {
 
                       <td style={styles.normalCell}>
                         <PlacePhotoPreview
-                          imageValues={getSitterPlaceImages(
+                          images={getSitterPlaceImages(
                             sitter
                           )}
-                          sitterName={getFullName(sitter)}
+                          sitterName={
+                            getFullName(sitter)
+                          }
                           opening={
-                            openingPhotoId ===
+                            openingPlaceId ===
                             sitter.petsitter_id
                           }
                           onOpen={() =>
-                            openPlacePhotos(sitter)
+                            openPlacePreview(
+                              sitter
+                            )
                           }
                         />
                       </td>
@@ -962,18 +1001,22 @@ export default function SittersPage() {
           onClose={closeSitterModal}
           onUpdate={updateSitter}
           onDelete={deleteSitter}
-          onPreviewPhotos={openPlacePhotos}
-          openingPhotos={
-            openingPhotoId ===
+          onOpenPlacePhotos={
+            openPlacePreview
+          }
+          openingPlacePhotos={
+            openingPlaceId ===
             selectedSitter.petsitter_id
           }
         />
       )}
 
-      {photoPreview && (
-        <PhotoCarouselModal
-          preview={photoPreview}
-          onClose={closePhotoPreview}
+      {placePreview && (
+        <PlacePhotoCarouselModal
+          preview={placePreview}
+          onClose={
+            closePlacePreview
+          }
         />
       )}
     </>
@@ -1034,8 +1077,8 @@ function SitterModal({
   onClose,
   onUpdate,
   onDelete,
-  onPreviewPhotos,
-  openingPhotos,
+  onOpenPlacePhotos,
+  openingPlacePhotos,
 }) {
   const [isEditing, setIsEditing] =
     useState(initialEditing);
@@ -1643,15 +1686,21 @@ function SitterModal({
               </div>
 
               <PlacePhotoCard
-                imageValues={getSitterPlaceImages(
-                  sitter
-                )}
+                images={
+                  getSitterPlaceImages(
+                    sitter
+                  )
+                }
                 sitterName={
                   getFullName(sitter)
                 }
-                opening={openingPhotos}
+                opening={
+                  openingPlacePhotos
+                }
                 onOpen={() =>
-                  onPreviewPhotos(sitter)
+                  onOpenPlacePhotos(
+                    sitter
+                  )
                 }
                 note="Pet Place photos are managed from the pet sitter account and cannot be changed from the Admin website."
               />
@@ -1713,15 +1762,21 @@ function SitterModal({
               />
 
               <PlacePhotoCard
-                imageValues={getSitterPlaceImages(
-                  sitter
-                )}
+                images={
+                  getSitterPlaceImages(
+                    sitter
+                  )
+                }
                 sitterName={
                   getFullName(sitter)
                 }
-                opening={openingPhotos}
+                opening={
+                  openingPlacePhotos
+                }
                 onOpen={() =>
-                  onPreviewPhotos(sitter)
+                  onOpenPlacePhotos(
+                    sitter
+                  )
                 }
               />
 
@@ -1915,16 +1970,17 @@ function EditField({
 }
 
 function PlacePhotoPreview({
-  imageValues,
+  images,
   sitterName,
   opening,
   onOpen,
 }) {
-  const images = Array.isArray(imageValues)
-    ? imageValues
-    : [];
+  const photoList =
+    Array.isArray(images)
+      ? images
+      : [];
 
-  if (!images.length) {
+  if (!photoList.length) {
     return (
       <span style={styles.mutedCell}>
         No photos
@@ -1932,27 +1988,29 @@ function PlacePhotoPreview({
     );
   }
 
-  const firstImageUrl =
-    isHttpUrl(images[0])
-      ? images[0]
-      : "";
+  const firstPhoto =
+    photoList[0];
 
   return (
     <button
       type="button"
-      style={styles.placePreviewButton}
+      style={
+        styles.placePreviewButton
+      }
+      disabled={opening}
       onClick={(event) => {
         event.stopPropagation();
         onOpen();
       }}
-      disabled={opening}
       title="View Pet Place photos"
     >
-      {firstImageUrl ? (
+      {isHttpUrl(firstPhoto) ? (
         <img
-          src={firstImageUrl}
+          src={firstPhoto}
           alt={`${sitterName} Pet Place`}
-          style={styles.placeThumbnail}
+          style={
+            styles.placeThumbnail
+          }
           onError={(event) => {
             event.currentTarget.style.display =
               "none";
@@ -1972,54 +2030,82 @@ function PlacePhotoPreview({
 }
 
 function PlacePhotoCard({
-  imageValues,
+  images,
   sitterName,
   opening,
   onOpen,
   note,
 }) {
-  const images = Array.isArray(imageValues)
-    ? imageValues
-    : [];
+  const photoList =
+    Array.isArray(images)
+      ? images
+      : [];
 
-  const firstImageUrl =
-    images.length &&
-    isHttpUrl(images[0])
-      ? images[0]
-      : "";
+  const firstPhoto =
+    photoList[0] || "";
 
   return (
-    <div style={styles.placePhotoCard}>
-      <div style={styles.placePhotoHeader}>
-        <div style={styles.detailIcon}>
+    <div
+      style={
+        styles.placePhotoCard
+      }
+    >
+      <div
+        style={
+          styles.placePhotoHeader
+        }
+      >
+        <div
+          style={
+            styles.detailIcon
+          }
+        >
           <ImageIcon size={18} />
         </div>
 
-        <div style={styles.detailText}>
-          <p style={styles.detailLabel}>
+        <div
+          style={
+            styles.detailText
+          }
+        >
+          <p
+            style={
+              styles.detailLabel
+            }
+          >
             Pet Place Photos
           </p>
 
-          <h4 style={styles.detailValue}>
-            {images.length
-              ? `Photos available (${images.length})`
+          <h4
+            style={
+              styles.detailValue
+            }
+          >
+            {photoList.length
+              ? "Photos available"
               : "No photos available"}
           </h4>
         </div>
       </div>
 
-      {images.length > 0 && (
+      {photoList.length > 0 && (
         <button
           type="button"
-          style={styles.placePhotoButton}
-          onClick={onOpen}
+          style={
+            styles.placePhotoButton
+          }
           disabled={opening}
+          onClick={onOpen}
         >
-          {firstImageUrl ? (
+          {isHttpUrl(
+            firstPhoto
+          ) ? (
             <img
-              src={firstImageUrl}
+              src={firstPhoto}
               alt={`${sitterName} Pet Place`}
-              style={styles.placePhotoImage}
+              style={
+                styles.placePhotoImage
+              }
             />
           ) : (
             <div
@@ -2027,7 +2113,9 @@ function PlacePhotoCard({
                 styles.placePhotoPlaceholder
               }
             >
-              <ImageIcon size={34} />
+              <ImageIcon
+                size={32}
+              />
             </div>
           )}
 
@@ -2037,6 +2125,7 @@ function PlacePhotoCard({
             }
           >
             <Eye size={14} />
+
             {opening
               ? "Opening..."
               : "View Pet Place Photos"}
@@ -2045,7 +2134,11 @@ function PlacePhotoCard({
       )}
 
       {note && (
-        <p style={styles.placePhotoNote}>
+        <p
+          style={
+            styles.placePhotoNote
+          }
+        >
           {note}
         </p>
       )}
@@ -2053,77 +2146,107 @@ function PlacePhotoCard({
   );
 }
 
-function PhotoCarouselModal({
+function PlacePhotoCarouselModal({
   preview,
   onClose,
 }) {
-  const [activeIndex, setActiveIndex] =
-    useState(
-      Math.max(
-        0,
-        Number(preview?.initialIndex) || 0
-      )
-    );
+  const urls =
+    Array.isArray(
+      preview?.urls
+    )
+      ? preview.urls
+      : [];
 
-  const urls = Array.isArray(preview?.urls)
-    ? preview.urls
-    : [];
+  const [
+    activeIndex,
+    setActiveIndex,
+  ] = useState(
+    Math.min(
+      Math.max(
+        Number(
+          preview?.initialIndex
+        ) || 0,
+        0
+      ),
+      Math.max(
+        urls.length - 1,
+        0
+      )
+    )
+  );
 
   useEffect(() => {
     setActiveIndex(
       Math.min(
         Math.max(
-          0,
-          Number(preview?.initialIndex) || 0
+          Number(
+            preview?.initialIndex
+          ) || 0,
+          0
         ),
-        Math.max(urls.length - 1, 0)
+        Math.max(
+          urls.length - 1,
+          0
+        )
       )
     );
-  }, [preview, urls.length]);
+  }, [
+    preview,
+    urls.length,
+  ]);
 
   if (!urls.length) {
     return null;
   }
 
-  const goPrevious = () => {
-    setActiveIndex((current) =>
-      current <= 0
-        ? urls.length - 1
-        : current - 1
+  function previousPhoto() {
+    setActiveIndex(
+      (current) =>
+        current <= 0
+          ? urls.length - 1
+          : current - 1
     );
-  };
+  }
 
-  const goNext = () => {
-    setActiveIndex((current) =>
-      current >= urls.length - 1
-        ? 0
-        : current + 1
+  function nextPhoto() {
+    setActiveIndex(
+      (current) =>
+        current >=
+        urls.length - 1
+          ? 0
+          : current + 1
     );
-  };
+  }
 
   return createPortal(
     <div
-      style={styles.photoCarouselOverlay}
+      style={
+        styles.placeCarouselOverlay
+      }
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={preview.title}
-        style={styles.photoCarouselModal}
+        aria-label={
+          preview.title
+        }
+        style={
+          styles.placeCarouselModal
+        }
         onClick={(event) =>
           event.stopPropagation()
         }
       >
         <div
           style={
-            styles.photoCarouselHeader
+            styles.placeCarouselHeader
           }
         >
           <div>
             <h3
               style={
-                styles.photoCarouselTitle
+                styles.placeCarouselTitle
               }
             >
               {preview.title}
@@ -2131,19 +2254,20 @@ function PhotoCarouselModal({
 
             <p
               style={
-                styles.photoCarouselCounter
+                styles.placeCarouselCounter
               }
             >
-              Photo {activeIndex + 1} of{" "}
+              Photo{" "}
+              {activeIndex + 1} of{" "}
               {urls.length}
             </p>
           </div>
 
           <button
             type="button"
-            aria-label="Close photo preview"
+            aria-label="Close photo viewer"
             style={
-              styles.photoCarouselClose
+              styles.placeCarouselClose
             }
             onClick={onClose}
           >
@@ -2153,7 +2277,7 @@ function PhotoCarouselModal({
 
         <div
           style={
-            styles.photoCarouselStage
+            styles.placeCarouselStage
           }
         >
           {urls.length > 1 && (
@@ -2161,17 +2285,23 @@ function PhotoCarouselModal({
               type="button"
               aria-label="Previous photo"
               style={{
-                ...styles.photoCarouselArrow,
-                left: 14,
+                ...styles.placeCarouselArrow,
+                left: 16,
               }}
-              onClick={goPrevious}
+              onClick={
+                previousPhoto
+              }
             >
-              <ChevronLeft size={24} />
+              <ChevronLeft
+                size={26}
+              />
             </button>
           )}
 
           <img
-            src={urls[activeIndex]}
+            src={
+              urls[activeIndex]
+            }
             alt={
               preview.filenames?.[
                 activeIndex
@@ -2181,7 +2311,7 @@ function PhotoCarouselModal({
               }`
             }
             style={
-              styles.photoCarouselImage
+              styles.placeCarouselImage
             }
           />
 
@@ -2190,12 +2320,16 @@ function PhotoCarouselModal({
               type="button"
               aria-label="Next photo"
               style={{
-                ...styles.photoCarouselArrow,
-                right: 14,
+                ...styles.placeCarouselArrow,
+                right: 16,
               }}
-              onClick={goNext}
+              onClick={
+                nextPhoto
+              }
             >
-              <ChevronRight size={24} />
+              <ChevronRight
+                size={26}
+              />
             </button>
           )}
         </div>
@@ -2205,7 +2339,7 @@ function PhotoCarouselModal({
         ] && (
           <p
             style={
-              styles.photoCarouselFilename
+              styles.placeCarouselFilename
             }
           >
             {
@@ -2219,28 +2353,32 @@ function PhotoCarouselModal({
         {urls.length > 1 && (
           <div
             style={
-              styles.photoCarouselDots
+              styles.placeCarouselDots
             }
           >
-            {urls.map((_, index) => (
-              <button
-                type="button"
-                key={index}
-                aria-label={`View photo ${
-                  index + 1
-                }`}
-                onClick={() =>
-                  setActiveIndex(index)
-                }
-                style={{
-                  ...styles.photoCarouselDot,
-                  ...(index ===
-                  activeIndex
-                    ? styles.photoCarouselDotActive
-                    : {}),
-                }}
-              />
-            ))}
+            {urls.map(
+              (_, index) => (
+                <button
+                  type="button"
+                  key={index}
+                  aria-label={`View photo ${
+                    index + 1
+                  }`}
+                  style={{
+                    ...styles.placeCarouselDot,
+                    ...(activeIndex ===
+                    index
+                      ? styles.placeCarouselDotActive
+                      : {}),
+                  }}
+                  onClick={() =>
+                    setActiveIndex(
+                      index
+                    )
+                  }
+                />
+              )
+            )}
           </div>
         )}
       </div>
@@ -2272,21 +2410,29 @@ function getSitterFormValues(sitter) {
 }
 
 function normalizeEmail(value) {
-  return String(value || "")
+  return String(
+    value || ""
+  )
     .trim()
     .toLowerCase();
 }
 
 function isHttpUrl(value) {
-  const text = String(value || "").trim();
+  const text = String(
+    value || ""
+  ).trim();
 
   return (
-    text.startsWith("http://") ||
-    text.startsWith("https://")
+    text.startsWith(
+      "http://"
+    ) ||
+    text.startsWith(
+      "https://"
+    )
   );
 }
 
-function parsePlaceImageValues(value) {
+function parsePlaceImages(value) {
   if (
     value === null ||
     value === undefined ||
@@ -2297,11 +2443,14 @@ function parsePlaceImageValues(value) {
 
   if (Array.isArray(value)) {
     return value.flatMap(
-      parsePlaceImageValues
+      parsePlaceImages
     );
   }
 
-  if (typeof value === "object") {
+  if (
+    typeof value ===
+    "object"
+  ) {
     if (
       value.url ||
       value.path ||
@@ -2316,14 +2465,16 @@ function parsePlaceImageValues(value) {
       ];
     }
 
-    for (const key of [
-      "urls",
-      "images",
-      "photos",
-      "files",
-    ]) {
+    for (
+      const key of [
+        "urls",
+        "images",
+        "photos",
+        "files",
+      ]
+    ) {
       if (value[key]) {
-        return parsePlaceImageValues(
+        return parsePlaceImages(
           value[key]
         );
       }
@@ -2332,7 +2483,8 @@ function parsePlaceImageValues(value) {
     return [];
   }
 
-  const text = String(value).trim();
+  const text =
+    String(value).trim();
 
   if (!text) {
     return [];
@@ -2345,11 +2497,11 @@ function parsePlaceImageValues(value) {
       text.endsWith("}"))
   ) {
     try {
-      return parsePlaceImageValues(
+      return parsePlaceImages(
         JSON.parse(text)
       );
     } catch {
-      // Continue with delimiter handling.
+      // Continue below.
     }
   }
 
@@ -2361,51 +2513,85 @@ function parsePlaceImageValues(value) {
   ) {
     return text
       .split(/[|;,]/)
-      .map((item) => item.trim())
+      .map(
+        (item) =>
+          item.trim()
+      )
       .filter(Boolean);
   }
 
   return [text];
 }
 
-function getRecordPlaceImages(record) {
+function getApplicantPlaceImages(
+  applicant
+) {
+  if (!applicant) {
+    return [];
+  }
+
   const candidates = [
-    record?._placeImages,
-    record?.pet_place_photos,
-    record?.pet_place_images,
-    record?.pet_place_urls,
-    record?.place_photos,
-    record?.place_images,
-    record?.pet_place_files,
-    record?.ps_place,
-    record?.pet_place,
+    applicant
+      .pet_place_photos,
+    applicant
+      .pet_place_images,
+    applicant
+      .pet_place_urls,
+    applicant
+      .place_photos,
+    applicant
+      .place_images,
+    applicant
+      .pet_place_files,
+    applicant.pet_place,
   ];
 
-  const firstPopulated = candidates.find(
-    (value) =>
-      parsePlaceImageValues(value)
-        .length
-  );
+  for (
+    const candidate of
+    candidates
+  ) {
+    const images =
+      parsePlaceImages(
+        candidate
+      );
+
+    if (images.length) {
+      return Array.from(
+        new Set(images)
+      );
+    }
+  }
+
+  return [];
+}
+
+function getSitterPlaceImages(
+  sitter
+) {
+  const fromMerged =
+    parsePlaceImages(
+      sitter?.place_images
+    );
+
+  if (fromMerged.length) {
+    return Array.from(
+      new Set(fromMerged)
+    );
+  }
 
   return Array.from(
     new Set(
-      parsePlaceImageValues(
-        firstPopulated
+      parsePlaceImages(
+        sitter?.ps_place
       )
-        .map((item) =>
-          String(item || "").trim()
-        )
-        .filter(Boolean)
     )
   );
 }
 
-function getSitterPlaceImages(sitter) {
-  return getRecordPlaceImages(sitter);
-}
-
-function getFileName(value) {
-  const text = String(value || "").trim();
+function getPlaceFileName(value) {
+  const text = String(
+    value || ""
+  ).trim();
 
   if (!text) {
     return "";
@@ -2414,23 +2600,24 @@ function getFileName(value) {
   try {
     const cleanText =
       isHttpUrl(text)
-        ? new URL(text).pathname
+        ? new URL(text)
+            .pathname
         : text.split("?")[0];
 
-    return (
-      decodeURIComponent(
-        cleanText
-          .split("/")
-          .filter(Boolean)
-          .pop() || ""
-      ) || "Photo"
+    return decodeURIComponent(
+      cleanText
+        .split("/")
+        .filter(Boolean)
+        .pop() ||
+        "Pet Place Photo"
     );
   } catch {
     return (
       text
         .split("/")
         .filter(Boolean)
-        .pop() || "Photo"
+        .pop() ||
+      "Pet Place Photo"
     );
   }
 }
@@ -2439,26 +2626,32 @@ function getStoragePath(
   value,
   bucketName
 ) {
-  const text = String(value || "").trim();
+  const text = String(
+    value || ""
+  ).trim();
 
-  if (!text) return "";
+  if (!text) {
+    return "";
+  }
 
   if (isHttpUrl(text)) {
-    const markers = [
-      `/storage/v1/object/public/${bucketName}/`,
-      `/storage/v1/object/sign/${bucketName}/`,
-      `/storage/v1/object/authenticated/${bucketName}/`,
-    ];
+    for (
+      const marker of [
+        `/storage/v1/object/public/${bucketName}/`,
+        `/storage/v1/object/sign/${bucketName}/`,
+        `/storage/v1/object/authenticated/${bucketName}/`,
+      ]
+    ) {
+      const index =
+        text.indexOf(
+          marker
+        );
 
-    for (const marker of markers) {
-      const markerIndex =
-        text.indexOf(marker);
-
-      if (markerIndex !== -1) {
+      if (index !== -1) {
         return decodeURIComponent(
           text
             .slice(
-              markerIndex +
+              index +
                 marker.length
             )
             .split("?")[0]
@@ -2466,36 +2659,33 @@ function getStoragePath(
       }
     }
 
-    try {
-      const url = new URL(text);
-
-      return decodeURIComponent(
-        url.pathname
-          .split("/")
-          .pop() || ""
-      );
-    } catch {
-      return "";
-    }
+    return "";
   }
 
   const normalized =
-    text.replace(/^\/+/, "");
+    text.replace(
+      /^\/+/,
+      ""
+    );
 
-  const bucketPrefix =
+  const prefix =
     `${bucketName}/`;
 
   return normalized.startsWith(
-    bucketPrefix
+    prefix
   )
     ? normalized.slice(
-        bucketPrefix.length
+        prefix.length
       )
     : normalized;
 }
 
-async function resolvePlaceImage(value) {
-  const text = String(value || "").trim();
+async function resolvePlaceImage(
+  value
+) {
+  const text = String(
+    value || ""
+  ).trim();
 
   if (!text) {
     throw new Error(
@@ -2503,6 +2693,10 @@ async function resolvePlaceImage(value) {
     );
   }
 
+  /*
+    HTTP images are displayed directly inside the current-page modal.
+    No new browser tab is opened.
+  */
   if (isHttpUrl(text)) {
     return {
       url: text,
@@ -2530,9 +2724,14 @@ async function resolvePlaceImage(value) {
       const {
         data,
         error,
-      } = await supabase.storage
-        .from(bucketName)
-        .download(storagePath);
+      } =
+        await supabase.storage
+          .from(
+            bucketName
+          )
+          .download(
+            storagePath
+          );
 
       if (error) {
         lastError = error;
@@ -2540,14 +2739,19 @@ async function resolvePlaceImage(value) {
       }
 
       const objectUrl =
-        URL.createObjectURL(data);
+        URL.createObjectURL(
+          data
+        );
 
       return {
         url: objectUrl,
         revokeOnClose: true,
       };
-    } catch (candidateError) {
-      lastError = candidateError;
+    } catch (
+      candidateError
+    ) {
+      lastError =
+        candidateError;
     }
   }
 
@@ -2559,26 +2763,27 @@ async function resolvePlaceImage(value) {
   );
 }
 
-function revokePreviewObjectUrls(
+function revokePlacePreviewUrls(
   preview
 ) {
-  if (!preview) return;
+  const urls =
+    Array.isArray(
+      preview?.revokeUrls
+    )
+      ? preview.revokeUrls
+      : [];
 
-  const urls = Array.isArray(
-    preview.revokeUrls
-  )
-    ? preview.revokeUrls
-    : [];
-
-  Array.from(new Set(urls)).forEach(
-    (url) => {
-      try {
-        URL.revokeObjectURL(url);
-      } catch {
-        // Ignore cleanup failures.
-      }
+  Array.from(
+    new Set(urls)
+  ).forEach((url) => {
+    try {
+      URL.revokeObjectURL(
+        url
+      );
+    } catch {
+      // Ignore cleanup errors.
     }
-  );
+  });
 }
 
 function splitFullName(fullName) {
@@ -3320,11 +3525,11 @@ const styles = {
     lineHeight: 1.5,
   },
 
-  photoCarouselOverlay: {
+  placeCarouselOverlay: {
     position: "fixed",
     inset: 0,
-    zIndex: 1600,
-    background: "rgba(27, 17, 14, 0.74)",
+    zIndex: 2000,
+    background: "rgba(26, 17, 14, 0.76)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -3332,19 +3537,19 @@ const styles = {
     boxSizing: "border-box",
   },
 
-  photoCarouselModal: {
+  placeCarouselModal: {
     width: "min(900px, 100%)",
     maxHeight: "92vh",
+    background: "#FFFFFF",
     borderRadius: 18,
     border: "1px solid #EEE2DF",
-    background: "#FFFFFF",
-    boxShadow: "0 24px 60px rgba(0, 0, 0, 0.28)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
     overflow: "hidden",
     display: "flex",
     flexDirection: "column",
   },
 
-  photoCarouselHeader: {
+  placeCarouselHeader: {
     minHeight: 72,
     padding: "16px 18px",
     borderBottom: "1px solid #EEE2DF",
@@ -3355,21 +3560,21 @@ const styles = {
     boxSizing: "border-box",
   },
 
-  photoCarouselTitle: {
+  placeCarouselTitle: {
     margin: 0,
     color: BRAND.brown,
     fontSize: 18,
     fontWeight: 900,
   },
 
-  photoCarouselCounter: {
+  placeCarouselCounter: {
     margin: "4px 0 0",
     color: BRAND.muted,
     fontSize: 12,
     fontWeight: 700,
   },
 
-  photoCarouselClose: {
+  placeCarouselClose: {
     width: 38,
     height: 38,
     flexShrink: 0,
@@ -3383,10 +3588,10 @@ const styles = {
     cursor: "pointer",
   },
 
-  photoCarouselStage: {
+  placeCarouselStage: {
+    position: "relative",
     minHeight: 420,
     maxHeight: "68vh",
-    position: "relative",
     background: "#1D1715",
     display: "flex",
     alignItems: "center",
@@ -3394,7 +3599,7 @@ const styles = {
     overflow: "hidden",
   },
 
-  photoCarouselImage: {
+  placeCarouselImage: {
     display: "block",
     maxWidth: "100%",
     maxHeight: "68vh",
@@ -3403,25 +3608,25 @@ const styles = {
     objectFit: "contain",
   },
 
-  photoCarouselArrow: {
+  placeCarouselArrow: {
     position: "absolute",
     top: "50%",
     transform: "translateY(-50%)",
-    zIndex: 2,
+    zIndex: 3,
     width: 44,
     height: 44,
     borderRadius: "50%",
-    border: "1px solid rgba(255,255,255,0.38)",
-    background: "rgba(255,255,255,0.92)",
+    border: "1px solid rgba(255,255,255,0.4)",
+    background: "rgba(255,255,255,0.94)",
     color: BRAND.brown,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.2)",
   },
 
-  photoCarouselFilename: {
+  placeCarouselFilename: {
     margin: 0,
     padding: "12px 18px 4px",
     color: BRAND.muted,
@@ -3431,7 +3636,7 @@ const styles = {
     overflowWrap: "anywhere",
   },
 
-  photoCarouselDots: {
+  placeCarouselDots: {
     minHeight: 38,
     padding: "10px 16px 14px",
     display: "flex",
@@ -3441,17 +3646,17 @@ const styles = {
     flexWrap: "wrap",
   },
 
-  photoCarouselDot: {
+  placeCarouselDot: {
     width: 9,
     height: 9,
-    borderRadius: "50%",
-    border: "none",
-    background: "#D9CCCA",
     padding: 0,
+    border: "none",
+    borderRadius: "50%",
+    background: "#D9CCCA",
     cursor: "pointer",
   },
 
-  photoCarouselDotActive: {
+  placeCarouselDotActive: {
     background: BRAND.pink,
     transform: "scale(1.2)",
   },
