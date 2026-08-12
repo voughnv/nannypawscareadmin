@@ -446,8 +446,21 @@ export default function ApplicantPage() {
           );
       }
 
+      /*
+        Keep the Admin interface terminology as "Accepted", while
+        storing the database-compatible value "Approved".
+
+        The existing APPLICATION.application_status check constraint
+        still uses the older Approved/Rejected/Pending values.
+        normalizeStatus() already converts "Approved" back to
+        "Accepted" for display throughout the Admin page.
+      */
+      const databaseStatus =
+        isAccepting ? "Approved" : status;
+
       const payload = {
-        application_status: status,
+        application_status:
+          databaseStatus,
 
         review_remarks:
           remarks.trim() || null,
