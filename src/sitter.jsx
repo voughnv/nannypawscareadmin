@@ -2334,22 +2334,6 @@ function PlacePhotoCarouselModal({
           )}
         </div>
 
-        {preview.filenames?.[
-          activeIndex
-        ] && (
-          <p
-            style={
-              styles.placeCarouselFilename
-            }
-          >
-            {
-              preview.filenames[
-                activeIndex
-              ]
-            }
-          </p>
-        )}
-
         {urls.length > 1 && (
           <div
             style={
