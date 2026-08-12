@@ -274,13 +274,9 @@ export default function ApplicantPage() {
             application?.application_status ??
             "Pending",
 
-          preferred_start_date:
-            application?.preferred_start_date ??
-            null,
-
-          preferred_end_date:
-            application?.preferred_end_date ??
-            null,
+          preferred_days:
+            application?.preferred_days ??
+            [],
 
           preferred_start_time:
             application?.preferred_start_time ??
@@ -469,11 +465,8 @@ export default function ApplicantPage() {
           getPhilippineDateOnly(),
         ],
 
-        preferred_start_date:
-          record.preferred_start_date,
-
-        preferred_end_date:
-          record.preferred_end_date,
+        preferred_days:
+          getPreferredDays(record),
 
         preferred_start_time:
           record.preferred_start_time,
@@ -499,8 +492,7 @@ export default function ApplicantPage() {
               review_remarks,
               review_date,
               application_status,
-              preferred_start_date,
-              preferred_end_date,
+              preferred_days,
               preferred_start_time,
               preferred_end_time,
               a_id
@@ -522,8 +514,7 @@ export default function ApplicantPage() {
               review_remarks,
               review_date,
               application_status,
-              preferred_start_date,
-              preferred_end_date,
+              preferred_days,
               preferred_start_time,
               preferred_end_time,
               a_id
@@ -559,13 +550,9 @@ export default function ApplicantPage() {
         application_status:
           result.data.application_status,
 
-        preferred_start_date:
+        preferred_days:
           result.data
-            .preferred_start_date,
-
-        preferred_end_date:
-          result.data
-            .preferred_end_date,
+            .preferred_days ?? [],
 
         preferred_start_time:
           result.data
@@ -2479,7 +2466,7 @@ function ApplicantModal({
                       styles.validationHint
                     }
                   >
-                    Preferred start/end dates and start/end times are required before acceptance.
+                    Preferred days, start time, and end time are required before acceptance.
                   </p>
                 )}
               </div>
@@ -3325,6 +3312,11 @@ function normalizePreferredDay(
 }
 
 function getPreferredDays(record) {
+  /*
+    preferred_days is now the official APPLICATION column.
+    The fallback aliases are kept only for compatibility with
+    older/mobile test records.
+  */
   const candidates = [
     record?.preferred_days,
     record?.preferred_pet_sitting_days,
@@ -3585,7 +3577,7 @@ function validateApplicantForAcceptance(
       record
     )
   ) {
-    return "The applicant must provide preferred start/end dates and preferred start/end times for pet sitting before acceptance.";
+    return "The applicant must select at least one preferred day and provide a preferred start time and end time before acceptance.";
   }
 
   return "";
@@ -3619,8 +3611,7 @@ function hasCompletePreferredSchedule(
   record
 ) {
   return Boolean(
-    record.preferred_start_date &&
-      record.preferred_end_date &&
+    getPreferredDays(record).length &&
       record.preferred_start_time &&
       record.preferred_end_time
   );
@@ -3629,24 +3620,6 @@ function hasCompletePreferredSchedule(
 function formatPreferredSchedule(
   record
 ) {
-  if (
-    !hasCompletePreferredSchedule(
-      record
-    )
-  ) {
-    return "Not set";
-  }
-
-  const startDate = formatDate(
-    record.preferred_start_date,
-    "Not set"
-  );
-
-  const endDate = formatDate(
-    record.preferred_end_date,
-    "Not set"
-  );
-
   const startTime = formatTime(
     record.preferred_start_time
   );
@@ -3656,13 +3629,25 @@ function formatPreferredSchedule(
   );
 
   if (
-    record.preferred_start_date ===
-    record.preferred_end_date
+    !record.preferred_start_time &&
+    !record.preferred_end_time
   ) {
-    return `${startDate} • ${startTime} - ${endTime}`;
+    return "Time not set";
   }
 
-  return `${startDate} ${startTime} - ${endDate} ${endTime}`;
+  if (
+    !record.preferred_start_time
+  ) {
+    return `Starts: Not set • Ends: ${endTime}`;
+  }
+
+  if (
+    !record.preferred_end_time
+  ) {
+    return `Starts: ${startTime} • Ends: Not set`;
+  }
+
+  return `${startTime} - ${endTime}`;
 }
 
 function formatTime(value) {
