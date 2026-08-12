@@ -40,6 +40,16 @@ const ROWS_PER_PAGE = 6;
 const SITTER_FIELDS =
   "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place";
 
+const PLACE_BUCKET_CANDIDATES = [
+  import.meta.env.VITE_APPLICANT_PLACE_BUCKET,
+  "PET_PLACE",
+  "PET PLACE",
+  "pet-place",
+  "pet_place",
+  "PLACE",
+  "place",
+].filter(Boolean);
+
 // Approved applicants will be converted into pet sitter accounts
 // from the Applicants page. This page only displays and manages
 // the resulting PET SITTER records.
@@ -61,6 +71,9 @@ export default function SittersPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [openingPhotoId, setOpeningPhotoId] = useState(null);
+
   useEffect(() => {
     fetchSitters();
   }, []);
@@ -68,6 +81,12 @@ export default function SittersPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [search, cardFilter]);
+
+  useEffect(() => {
+    return () => {
+      revokePreviewObjectUrls(photoPreview);
+    };
+  }, [photoPreview]);
 
   useEffect(() => {
     function closeActionMenu() {
@@ -99,7 +118,88 @@ export default function SittersPage() {
 
       if (fetchError) throw fetchError;
 
-      setSitters(data || []);
+      const sitterRows = data || [];
+
+      /*
+        The current PET SITTER table stores ps_place as text. Older
+        accepted applicants may therefore contain only the first photo
+        in ps_place even though their APPLICANT record contains several.
+
+        Read APPLICANT as a fallback and match by email so the Admin can
+        still view the complete Pet Place photo set.
+      */
+      let applicantPhotoMap = new Map();
+
+      try {
+        const {
+          data: applicantRows,
+          error: applicantFetchError,
+        } = await supabase
+          .from("APPLICANT")
+          .select("*");
+
+        if (!applicantFetchError) {
+          applicantPhotoMap = new Map(
+            (applicantRows || [])
+              .map((applicant) => {
+                const email = normalizeEmail(
+                  applicant.a_email
+                );
+
+                return [
+                  email,
+                  getRecordPlaceImages(applicant),
+                ];
+              })
+              .filter(
+                ([email, images]) =>
+                  email && images.length
+              )
+          );
+        } else {
+          console.warn(
+            "Unable to load applicant photo fallback:",
+            applicantFetchError
+          );
+        }
+      } catch (applicantError) {
+        console.warn(
+          "Applicant photo fallback failed:",
+          applicantError
+        );
+      }
+
+      const enrichedSitters = sitterRows.map(
+        (sitter) => {
+          const sitterImages =
+            getRecordPlaceImages({
+              ps_place: sitter.ps_place,
+            });
+
+          const applicantImages =
+            applicantPhotoMap.get(
+              normalizeEmail(sitter.ps_email)
+            ) || [];
+
+          /*
+            Prefer whichever source has the larger complete set.
+            This preserves old one-photo records while supporting
+            newer multi-photo applicant submissions.
+          */
+          const placeImages =
+            applicantImages.length >
+            sitterImages.length
+              ? applicantImages
+              : sitterImages;
+
+          return {
+            ...sitter,
+            _placeImages: placeImages,
+          };
+        }
+      );
+
+      setSitters(enrichedSitters);
     } catch (fetchError) {
       console.error("Unable to load pet sitters:", fetchError);
       setError(
@@ -357,6 +457,64 @@ export default function SittersPage() {
     }
   }
 
+  async function openPlacePhotos(sitter, initialIndex = 0) {
+    const imageValues = getSitterPlaceImages(sitter);
+
+    if (!imageValues.length) {
+      setError(
+        "No Pet Place photos are available for this pet sitter."
+      );
+      return;
+    }
+
+    setOpeningPhotoId(sitter.petsitter_id);
+    setError("");
+
+    try {
+      const resolvedImages = await Promise.all(
+        imageValues.map((imageValue) =>
+          resolvePlaceImage(imageValue)
+        )
+      );
+
+      closePhotoPreview();
+
+      setPhotoPreview({
+        title: `${getFullName(sitter)} - Pet Place Photos`,
+        urls: resolvedImages.map((item) => item.url),
+        filenames: imageValues.map((item) =>
+          getFileName(item)
+        ),
+        revokeUrls: resolvedImages
+          .filter((item) => item.revokeOnClose)
+          .map((item) => item.url),
+        initialIndex: Math.min(
+          Math.max(Number(initialIndex) || 0, 0),
+          Math.max(resolvedImages.length - 1, 0)
+        ),
+      });
+    } catch (previewError) {
+      console.error(
+        "Unable to preview Pet Place photos:",
+        previewError
+      );
+
+      setError(
+        previewError?.message ||
+          "Unable to open the Pet Place photos."
+      );
+    } finally {
+      setOpeningPhotoId(null);
+    }
+  }
+
+  function closePhotoPreview() {
+    setPhotoPreview((previous) => {
+      revokePreviewObjectUrls(previous);
+      return null;
+    });
+  }
+
   const filteredSitters = useMemo(() => {
     const now = new Date();
 
@@ -543,7 +701,7 @@ export default function SittersPage() {
                   <Th>Username</Th>
                   <Th>Contact Number</Th>
                   <Th>Email Address</Th>
-                  <Th>Place Photo</Th>
+                  <Th>Pet Place Photos</Th>
                   <Th>Date Added</Th>
                   <Th>Actions</Th>
                 </tr>
@@ -590,8 +748,17 @@ export default function SittersPage() {
 
                       <td style={styles.normalCell}>
                         <PlacePhotoPreview
-                          imageValue={sitter.ps_place}
+                          imageValues={getSitterPlaceImages(
+                            sitter
+                          )}
                           sitterName={getFullName(sitter)}
+                          opening={
+                            openingPhotoId ===
+                            sitter.petsitter_id
+                          }
+                          onOpen={() =>
+                            openPlacePhotos(sitter)
+                          }
                         />
                       </td>
 
@@ -795,6 +962,18 @@ export default function SittersPage() {
           onClose={closeSitterModal}
           onUpdate={updateSitter}
           onDelete={deleteSitter}
+          onPreviewPhotos={openPlacePhotos}
+          openingPhotos={
+            openingPhotoId ===
+            selectedSitter.petsitter_id
+          }
+        />
+      )}
+
+      {photoPreview && (
+        <PhotoCarouselModal
+          preview={photoPreview}
+          onClose={closePhotoPreview}
         />
       )}
     </>
@@ -855,6 +1034,8 @@ function SitterModal({
   onClose,
   onUpdate,
   onDelete,
+  onPreviewPhotos,
+  openingPhotos,
 }) {
   const [isEditing, setIsEditing] =
     useState(initialEditing);
@@ -1462,11 +1643,17 @@ function SitterModal({
               </div>
 
               <PlacePhotoCard
-                imageValue={sitter.ps_place}
+                imageValues={getSitterPlaceImages(
+                  sitter
+                )}
                 sitterName={
                   getFullName(sitter)
                 }
-                note="The pet sitter can upload and manage this photo from their account. It cannot be changed from the admin website."
+                opening={openingPhotos}
+                onOpen={() =>
+                  onPreviewPhotos(sitter)
+                }
+                note="Pet Place photos are managed from the pet sitter account and cannot be changed from the Admin website."
               />
             </div>
           ) : (
@@ -1526,9 +1713,15 @@ function SitterModal({
               />
 
               <PlacePhotoCard
-                imageValue={sitter.ps_place}
+                imageValues={getSitterPlaceImages(
+                  sitter
+                )}
                 sitterName={
                   getFullName(sitter)
+                }
+                opening={openingPhotos}
+                onOpen={() =>
+                  onPreviewPhotos(sitter)
                 }
               />
 
@@ -1721,34 +1914,79 @@ function EditField({
   );
 }
 
-function PlacePhotoPreview({ imageValue, sitterName }) {
-  const imageUrl = getPlaceImageUrl(imageValue);
+function PlacePhotoPreview({
+  imageValues,
+  sitterName,
+  opening,
+  onOpen,
+}) {
+  const images = Array.isArray(imageValues)
+    ? imageValues
+    : [];
 
-  if (!imageUrl) {
-    return <span style={styles.mutedCell}>Not set</span>;
+  if (!images.length) {
+    return (
+      <span style={styles.mutedCell}>
+        No photos
+      </span>
+    );
   }
 
+  const firstImageUrl =
+    isHttpUrl(images[0])
+      ? images[0]
+      : "";
+
   return (
-    <a
-      href={imageUrl}
-      target="_blank"
-      rel="noreferrer"
-      style={styles.placePreviewLink}
-      onClick={(event) => event.stopPropagation()}
-      title="Open place photo"
+    <button
+      type="button"
+      style={styles.placePreviewButton}
+      onClick={(event) => {
+        event.stopPropagation();
+        onOpen();
+      }}
+      disabled={opening}
+      title="View Pet Place photos"
     >
-      <img
-        src={imageUrl}
-        alt={`${sitterName} place`}
-        style={styles.placeThumbnail}
-      />
-      <span>View Image</span>
-    </a>
+      {firstImageUrl ? (
+        <img
+          src={firstImageUrl}
+          alt={`${sitterName} Pet Place`}
+          style={styles.placeThumbnail}
+          onError={(event) => {
+            event.currentTarget.style.display =
+              "none";
+          }}
+        />
+      ) : (
+        <ImageIcon size={16} />
+      )}
+
+      <span>
+        {opening
+          ? "Opening..."
+          : "View Photos"}
+      </span>
+    </button>
   );
 }
 
-function PlacePhotoCard({ imageValue, sitterName, note }) {
-  const imageUrl = getPlaceImageUrl(imageValue);
+function PlacePhotoCard({
+  imageValues,
+  sitterName,
+  opening,
+  onOpen,
+  note,
+}) {
+  const images = Array.isArray(imageValues)
+    ? imageValues
+    : [];
+
+  const firstImageUrl =
+    images.length &&
+    isHttpUrl(images[0])
+      ? images[0]
+      : "";
 
   return (
     <div style={styles.placePhotoCard}>
@@ -1758,31 +1996,256 @@ function PlacePhotoCard({ imageValue, sitterName, note }) {
         </div>
 
         <div style={styles.detailText}>
-          <p style={styles.detailLabel}>Place Photo</p>
+          <p style={styles.detailLabel}>
+            Pet Place Photos
+          </p>
+
           <h4 style={styles.detailValue}>
-            {imageUrl ? "Photo uploaded" : "No photo uploaded yet"}
+            {images.length
+              ? `Photos available (${images.length})`
+              : "No photos available"}
           </h4>
         </div>
       </div>
 
-      {imageUrl && (
-        <a
-          href={imageUrl}
-          target="_blank"
-          rel="noreferrer"
-          style={styles.placePhotoLink}
+      {images.length > 0 && (
+        <button
+          type="button"
+          style={styles.placePhotoButton}
+          onClick={onOpen}
+          disabled={opening}
         >
-          <img
-            src={imageUrl}
-            alt={`${sitterName} place`}
-            style={styles.placePhotoImage}
-          />
-          <span style={styles.placePhotoAction}>Open full image</span>
-        </a>
+          {firstImageUrl ? (
+            <img
+              src={firstImageUrl}
+              alt={`${sitterName} Pet Place`}
+              style={styles.placePhotoImage}
+            />
+          ) : (
+            <div
+              style={
+                styles.placePhotoPlaceholder
+              }
+            >
+              <ImageIcon size={34} />
+            </div>
+          )}
+
+          <span
+            style={
+              styles.placePhotoAction
+            }
+          >
+            <Eye size={14} />
+            {opening
+              ? "Opening..."
+              : "View Pet Place Photos"}
+          </span>
+        </button>
       )}
 
-      {note && <p style={styles.placePhotoNote}>{note}</p>}
+      {note && (
+        <p style={styles.placePhotoNote}>
+          {note}
+        </p>
+      )}
     </div>
+  );
+}
+
+function PhotoCarouselModal({
+  preview,
+  onClose,
+}) {
+  const [activeIndex, setActiveIndex] =
+    useState(
+      Math.max(
+        0,
+        Number(preview?.initialIndex) || 0
+      )
+    );
+
+  const urls = Array.isArray(preview?.urls)
+    ? preview.urls
+    : [];
+
+  useEffect(() => {
+    setActiveIndex(
+      Math.min(
+        Math.max(
+          0,
+          Number(preview?.initialIndex) || 0
+        ),
+        Math.max(urls.length - 1, 0)
+      )
+    );
+  }, [preview, urls.length]);
+
+  if (!urls.length) {
+    return null;
+  }
+
+  const goPrevious = () => {
+    setActiveIndex((current) =>
+      current <= 0
+        ? urls.length - 1
+        : current - 1
+    );
+  };
+
+  const goNext = () => {
+    setActiveIndex((current) =>
+      current >= urls.length - 1
+        ? 0
+        : current + 1
+    );
+  };
+
+  return createPortal(
+    <div
+      style={styles.photoCarouselOverlay}
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={preview.title}
+        style={styles.photoCarouselModal}
+        onClick={(event) =>
+          event.stopPropagation()
+        }
+      >
+        <div
+          style={
+            styles.photoCarouselHeader
+          }
+        >
+          <div>
+            <h3
+              style={
+                styles.photoCarouselTitle
+              }
+            >
+              {preview.title}
+            </h3>
+
+            <p
+              style={
+                styles.photoCarouselCounter
+              }
+            >
+              Photo {activeIndex + 1} of{" "}
+              {urls.length}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            aria-label="Close photo preview"
+            style={
+              styles.photoCarouselClose
+            }
+            onClick={onClose}
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div
+          style={
+            styles.photoCarouselStage
+          }
+        >
+          {urls.length > 1 && (
+            <button
+              type="button"
+              aria-label="Previous photo"
+              style={{
+                ...styles.photoCarouselArrow,
+                left: 14,
+              }}
+              onClick={goPrevious}
+            >
+              <ChevronLeft size={24} />
+            </button>
+          )}
+
+          <img
+            src={urls[activeIndex]}
+            alt={
+              preview.filenames?.[
+                activeIndex
+              ] ||
+              `Pet Place photo ${
+                activeIndex + 1
+              }`
+            }
+            style={
+              styles.photoCarouselImage
+            }
+          />
+
+          {urls.length > 1 && (
+            <button
+              type="button"
+              aria-label="Next photo"
+              style={{
+                ...styles.photoCarouselArrow,
+                right: 14,
+              }}
+              onClick={goNext}
+            >
+              <ChevronRight size={24} />
+            </button>
+          )}
+        </div>
+
+        {preview.filenames?.[
+          activeIndex
+        ] && (
+          <p
+            style={
+              styles.photoCarouselFilename
+            }
+          >
+            {
+              preview.filenames[
+                activeIndex
+              ]
+            }
+          </p>
+        )}
+
+        {urls.length > 1 && (
+          <div
+            style={
+              styles.photoCarouselDots
+            }
+          >
+            {urls.map((_, index) => (
+              <button
+                type="button"
+                key={index}
+                aria-label={`View photo ${
+                  index + 1
+                }`}
+                onClick={() =>
+                  setActiveIndex(index)
+                }
+                style={{
+                  ...styles.photoCarouselDot,
+                  ...(index ===
+                  activeIndex
+                    ? styles.photoCarouselDotActive
+                    : {}),
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -1808,14 +2271,314 @@ function getSitterFormValues(sitter) {
   };
 }
 
-function getPlaceImageUrl(value) {
+function normalizeEmail(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
+
+function isHttpUrl(value) {
   const text = String(value || "").trim();
 
-  if (text.startsWith("http://") || text.startsWith("https://")) {
-    return text;
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://")
+  );
+}
+
+function parsePlaceImageValues(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return [];
   }
 
-  return "";
+  if (Array.isArray(value)) {
+    return value.flatMap(
+      parsePlaceImageValues
+    );
+  }
+
+  if (typeof value === "object") {
+    if (
+      value.url ||
+      value.path ||
+      value.uri ||
+      value.file
+    ) {
+      return [
+        value.url ||
+          value.path ||
+          value.uri ||
+          value.file,
+      ];
+    }
+
+    for (const key of [
+      "urls",
+      "images",
+      "photos",
+      "files",
+    ]) {
+      if (value[key]) {
+        return parsePlaceImageValues(
+          value[key]
+        );
+      }
+    }
+
+    return [];
+  }
+
+  const text = String(value).trim();
+
+  if (!text) {
+    return [];
+  }
+
+  if (
+    (text.startsWith("[") &&
+      text.endsWith("]")) ||
+    (text.startsWith("{") &&
+      text.endsWith("}"))
+  ) {
+    try {
+      return parsePlaceImageValues(
+        JSON.parse(text)
+      );
+    } catch {
+      // Continue with delimiter handling.
+    }
+  }
+
+  if (
+    text.includes("|") ||
+    text.includes(";") ||
+    (text.includes(",") &&
+      !isHttpUrl(text))
+  ) {
+    return text
+      .split(/[|;,]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [text];
+}
+
+function getRecordPlaceImages(record) {
+  const candidates = [
+    record?._placeImages,
+    record?.pet_place_photos,
+    record?.pet_place_images,
+    record?.pet_place_urls,
+    record?.place_photos,
+    record?.place_images,
+    record?.pet_place_files,
+    record?.ps_place,
+    record?.pet_place,
+  ];
+
+  const firstPopulated = candidates.find(
+    (value) =>
+      parsePlaceImageValues(value)
+        .length
+  );
+
+  return Array.from(
+    new Set(
+      parsePlaceImageValues(
+        firstPopulated
+      )
+        .map((item) =>
+          String(item || "").trim()
+        )
+        .filter(Boolean)
+    )
+  );
+}
+
+function getSitterPlaceImages(sitter) {
+  return getRecordPlaceImages(sitter);
+}
+
+function getFileName(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    return "";
+  }
+
+  try {
+    const cleanText =
+      isHttpUrl(text)
+        ? new URL(text).pathname
+        : text.split("?")[0];
+
+    return (
+      decodeURIComponent(
+        cleanText
+          .split("/")
+          .filter(Boolean)
+          .pop() || ""
+      ) || "Photo"
+    );
+  } catch {
+    return (
+      text
+        .split("/")
+        .filter(Boolean)
+        .pop() || "Photo"
+    );
+  }
+}
+
+function getStoragePath(
+  value,
+  bucketName
+) {
+  const text = String(value || "").trim();
+
+  if (!text) return "";
+
+  if (isHttpUrl(text)) {
+    const markers = [
+      `/storage/v1/object/public/${bucketName}/`,
+      `/storage/v1/object/sign/${bucketName}/`,
+      `/storage/v1/object/authenticated/${bucketName}/`,
+    ];
+
+    for (const marker of markers) {
+      const markerIndex =
+        text.indexOf(marker);
+
+      if (markerIndex !== -1) {
+        return decodeURIComponent(
+          text
+            .slice(
+              markerIndex +
+                marker.length
+            )
+            .split("?")[0]
+        );
+      }
+    }
+
+    try {
+      const url = new URL(text);
+
+      return decodeURIComponent(
+        url.pathname
+          .split("/")
+          .pop() || ""
+      );
+    } catch {
+      return "";
+    }
+  }
+
+  const normalized =
+    text.replace(/^\/+/, "");
+
+  const bucketPrefix =
+    `${bucketName}/`;
+
+  return normalized.startsWith(
+    bucketPrefix
+  )
+    ? normalized.slice(
+        bucketPrefix.length
+      )
+    : normalized;
+}
+
+async function resolvePlaceImage(value) {
+  const text = String(value || "").trim();
+
+  if (!text) {
+    throw new Error(
+      "No Pet Place photo was provided."
+    );
+  }
+
+  if (isHttpUrl(text)) {
+    return {
+      url: text,
+      revokeOnClose: false,
+    };
+  }
+
+  let lastError = null;
+
+  for (
+    const bucketName of
+    PLACE_BUCKET_CANDIDATES
+  ) {
+    try {
+      const storagePath =
+        getStoragePath(
+          text,
+          bucketName
+        );
+
+      if (!storagePath) {
+        continue;
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase.storage
+        .from(bucketName)
+        .download(storagePath);
+
+      if (error) {
+        lastError = error;
+        continue;
+      }
+
+      const objectUrl =
+        URL.createObjectURL(data);
+
+      return {
+        url: objectUrl,
+        revokeOnClose: true,
+      };
+    } catch (candidateError) {
+      lastError = candidateError;
+    }
+  }
+
+  throw (
+    lastError ||
+    new Error(
+      "Unable to retrieve the Pet Place photo."
+    )
+  );
+}
+
+function revokePreviewObjectUrls(
+  preview
+) {
+  if (!preview) return;
+
+  const urls = Array.isArray(
+    preview.revokeUrls
+  )
+    ? preview.revokeUrls
+    : [];
+
+  Array.from(new Set(urls)).forEach(
+    (url) => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // Ignore cleanup failures.
+      }
+    }
+  );
 }
 
 function splitFullName(fullName) {
@@ -2216,14 +2979,18 @@ const styles = {
     fontWeight: 700,
   },
 
-  placePreviewLink: {
+  placePreviewButton: {
+    border: "none",
+    background: "transparent",
+    padding: 0,
     display: "inline-flex",
     alignItems: "center",
     gap: 8,
     color: BRAND.pink,
     fontSize: 12,
     fontWeight: 900,
-    textDecoration: "none",
+    fontFamily: "inherit",
+    cursor: "pointer",
   },
 
   placeThumbnail: {
@@ -2502,10 +3269,29 @@ const styles = {
     gap: 12,
   },
 
-  placePhotoLink: {
+  placePhotoButton: {
+    width: "100%",
     display: "block",
     marginTop: 12,
+    padding: 0,
+    border: "none",
+    background: "transparent",
     textDecoration: "none",
+    textAlign: "left",
+    fontFamily: "inherit",
+    cursor: "pointer",
+  },
+
+  placePhotoPlaceholder: {
+    width: "100%",
+    height: 180,
+    borderRadius: 10,
+    border: "1px solid #E6D9D7",
+    background: "#FFF8F8",
+    color: BRAND.pink,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   placePhotoImage: {
@@ -2518,7 +3304,9 @@ const styles = {
   },
 
   placePhotoAction: {
-    display: "inline-block",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
     marginTop: 8,
     color: BRAND.pink,
     fontSize: 12,
@@ -2530,6 +3318,142 @@ const styles = {
     color: BRAND.muted,
     fontSize: 11,
     lineHeight: 1.5,
+  },
+
+  photoCarouselOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1600,
+    background: "rgba(27, 17, 14, 0.74)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    boxSizing: "border-box",
+  },
+
+  photoCarouselModal: {
+    width: "min(900px, 100%)",
+    maxHeight: "92vh",
+    borderRadius: 18,
+    border: "1px solid #EEE2DF",
+    background: "#FFFFFF",
+    boxShadow: "0 24px 60px rgba(0, 0, 0, 0.28)",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  photoCarouselHeader: {
+    minHeight: 72,
+    padding: "16px 18px",
+    borderBottom: "1px solid #EEE2DF",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    boxSizing: "border-box",
+  },
+
+  photoCarouselTitle: {
+    margin: 0,
+    color: BRAND.brown,
+    fontSize: 18,
+    fontWeight: 900,
+  },
+
+  photoCarouselCounter: {
+    margin: "4px 0 0",
+    color: BRAND.muted,
+    fontSize: 12,
+    fontWeight: 700,
+  },
+
+  photoCarouselClose: {
+    width: 38,
+    height: 38,
+    flexShrink: 0,
+    borderRadius: 9,
+    border: "1px solid #E6D9D7",
+    background: "#FFFFFF",
+    color: BRAND.brown,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  },
+
+  photoCarouselStage: {
+    minHeight: 420,
+    maxHeight: "68vh",
+    position: "relative",
+    background: "#1D1715",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+
+  photoCarouselImage: {
+    display: "block",
+    maxWidth: "100%",
+    maxHeight: "68vh",
+    width: "auto",
+    height: "auto",
+    objectFit: "contain",
+  },
+
+  photoCarouselArrow: {
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: "50%",
+    border: "1px solid rgba(255,255,255,0.38)",
+    background: "rgba(255,255,255,0.92)",
+    color: BRAND.brown,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    boxShadow: "0 6px 18px rgba(0,0,0,0.18)",
+  },
+
+  photoCarouselFilename: {
+    margin: 0,
+    padding: "12px 18px 4px",
+    color: BRAND.muted,
+    fontSize: 12,
+    fontWeight: 700,
+    textAlign: "center",
+    overflowWrap: "anywhere",
+  },
+
+  photoCarouselDots: {
+    minHeight: 38,
+    padding: "10px 16px 14px",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 7,
+    flexWrap: "wrap",
+  },
+
+  photoCarouselDot: {
+    width: 9,
+    height: 9,
+    borderRadius: "50%",
+    border: "none",
+    background: "#D9CCCA",
+    padding: 0,
+    cursor: "pointer",
+  },
+
+  photoCarouselDotActive: {
+    background: BRAND.pink,
+    transform: "scale(1.2)",
   },
 
   detailItem: {
