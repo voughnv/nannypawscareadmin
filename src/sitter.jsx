@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
+import { useAdminSettings } from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -69,6 +70,25 @@ const PLACE_BUCKET_CANDIDATES = [
 
 export default function SittersPage() {
   const requestConfirmation = useConfirmation();
+  const { settings, fontScale } = useAdminSettings();
+
+  /*
+    Default font keeps the Pet Sitter table compact and organized.
+    Large follows the Admin's saved accessibility preference and is
+    intentionally allowed to expand the page horizontally when needed.
+  */
+  const isLargeFont =
+    settings?.fontSize === "Large" ||
+    Number(fontScale || 1) > 1;
+
+  const pageScaleStyle = useMemo(
+    () => ({
+      width: "100%",
+      minWidth: 0,
+      zoom: Number(fontScale || 1),
+    }),
+    [fontScale]
+  );
 
   const [sitters, setSitters] = useState([]);
   const [search, setSearch] = useState("");
@@ -802,7 +822,7 @@ export default function SittersPage() {
   );
 
   return (
-    <>
+    <div style={pageScaleStyle}>
         <header style={styles.header}>
           <div>
             <h1 style={styles.title}>Pet Sitters</h1>
@@ -846,9 +866,9 @@ export default function SittersPage() {
           <StatCard
             icon={<Dog size={29} />}
             iconStyle={styles.statBlue}
-            title="Pref Dog"
+            title="Dog Preference"
             value={stats.prefDog}
-            desc="Prefer caring for dogs"
+            desc="Sitters who prefer dogs"
             active={cardFilter === "dog"}
             onClick={() =>
               setCardFilter("dog")
@@ -858,9 +878,9 @@ export default function SittersPage() {
           <StatCard
             icon={<Cat size={29} />}
             iconStyle={styles.statPurple}
-            title="Pref Cat"
+            title="Cat Preference"
             value={stats.prefCat}
-            desc="Prefer caring for cats"
+            desc="Sitters who prefer cats"
             active={cardFilter === "cat"}
             onClick={() =>
               setCardFilter("cat")
@@ -870,9 +890,9 @@ export default function SittersPage() {
           <StatCard
             icon={<PawPrint size={29} />}
             iconStyle={styles.statGreen}
-            title="Both"
+            title="Dog & Cat Preference"
             value={stats.prefBoth}
-            desc="Prefer dogs and cats"
+            desc="Sitters who prefer both"
             active={cardFilter === "both"}
             onClick={() =>
               setCardFilter("both")
@@ -923,7 +943,14 @@ export default function SittersPage() {
           </div>
 
           <div style={styles.tableWrapper}>
-            <table style={styles.table}>
+            <table
+              style={{
+                ...styles.table,
+                minWidth: isLargeFont
+                  ? 1240
+                  : 1080,
+              }}
+            >
               <colgroup>
                 <col style={{ width: "4%" }} />
                 <col style={{ width: "10%" }} />
@@ -1243,7 +1270,7 @@ export default function SittersPage() {
           }
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -2312,7 +2339,7 @@ function SitterPreferenceCard({
               styles.detailValue
             }
           >
-            Preferred Pet Type Sitting
+            Preferred Pet Type
           </h4>
         </div>
       </div>
@@ -2332,7 +2359,7 @@ function SitterPreferenceCard({
               styles.preferenceSectionLabel
             }
           >
-            Preferred Pet
+            Preferred Pet Type
           </span>
 
           <PreferredPetBadge
@@ -3703,7 +3730,7 @@ const styles = {
 
   statCard: {
     width: "100%",
-    height: 118,
+    minHeight: 118,
     background: "#fff",
     borderRadius: 16,
     border: "1px solid #EEE2DF",
@@ -3910,7 +3937,6 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1240,
     tableLayout: "fixed",
     borderCollapse: "collapse",
   },
