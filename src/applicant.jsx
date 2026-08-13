@@ -1566,15 +1566,15 @@ export default function ApplicantPage() {
             style={styles.table}
           >
             <colgroup>
-              <col style={{ width: "4%" }} />
-              <col style={{ width: "12%" }} />
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "15%" }} />
-              <col style={{ width: "15%" }} />
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "9%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "7%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "10%" }} />
               <col style={{ width: "10%" }} />
             </colgroup>
 
@@ -4317,12 +4317,12 @@ const styles = {
     border:
       "1px solid var(--app-border)",
     boxShadow: "var(--app-shadow)",
-    padding: 18,
+    padding: "16px 14px",
     display: "flex",
     alignItems: "center",
     gap: 16,
     boxSizing: "border-box",
-    textAlign: "left",
+    textAlign: "center",
     fontFamily: "inherit",
     cursor: "pointer",
     transition:
@@ -4669,7 +4669,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1320,
+    minWidth: 1450,
     borderCollapse:
       "collapse",
     tableLayout: "fixed",
@@ -4684,6 +4684,7 @@ const styles = {
   },
 
   th: {
+    verticalAlign: "middle",
     textAlign: "left",
     padding: "13px 10px",
     color: "var(--app-text)",
@@ -4699,7 +4700,8 @@ const styles = {
   },
 
   numberCell: {
-    padding: "13px 10px",
+    verticalAlign: "middle",
+    padding: "16px 14px",
     color: "var(--app-muted)",
     fontSize: 13,
     fontWeight: 800,
@@ -4708,7 +4710,8 @@ const styles = {
   },
 
   normalCell: {
-    padding: "13px 10px",
+    textAlign: "center",
+    padding: "16px 14px",
     fontSize: 12.5,
     color: "var(--app-text)",
     whiteSpace: "normal",
@@ -4718,7 +4721,8 @@ const styles = {
   },
 
   addressCell: {
-    padding: "13px 10px",
+    textAlign: "center",
+    padding: "16px 14px",
     fontSize: 12.5,
     color: "var(--app-text)",
     minWidth: 0,
@@ -4729,7 +4733,8 @@ const styles = {
   },
 
   scheduleCell: {
-    padding: "13px 10px",
+    textAlign: "center",
+    padding: "16px 14px",
     fontSize: 12,
     color: "var(--app-text)",
     minWidth: 0,
@@ -4781,7 +4786,7 @@ const styles = {
     cursor: "pointer",
     fontFamily: "inherit",
     overflow: "hidden",
-    textAlign: "left",
+    textAlign: "center",
   },
 
   petPlaceThumbnail: {
