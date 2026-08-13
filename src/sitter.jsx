@@ -15,7 +15,10 @@ import {
   UserRound,
   CalendarPlus,
   AtSign,
-  BarChart3,
+  Dog,
+  Cat,
+  PawPrint,
+  Clock3,
   MoreHorizontal,
   Eye,
   Pencil,
@@ -39,6 +42,16 @@ const ROWS_PER_PAGE = 6;
 
 const SITTER_FIELDS =
   "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place";
+
+const PREFERRED_DAY_OPTIONS = [
+  { name: "Monday", short: "Mon", letter: "M" },
+  { name: "Tuesday", short: "Tue", letter: "T" },
+  { name: "Wednesday", short: "Wed", letter: "W" },
+  { name: "Thursday", short: "Thu", letter: "T" },
+  { name: "Friday", short: "Fri", letter: "F" },
+  { name: "Saturday", short: "Sat", letter: "S" },
+  { name: "Sunday", short: "Sun", letter: "S" },
+];
 
 const PLACE_BUCKET_CANDIDATES = [
   import.meta.env.VITE_APPLICANT_PLACE_BUCKET,
@@ -114,6 +127,7 @@ export default function SittersPage() {
       const [
         sitterResult,
         applicantResult,
+        applicationResult,
       ] = await Promise.all([
         supabase
           .from("PET SITTER")
@@ -123,14 +137,27 @@ export default function SittersPage() {
           }),
 
         /*
-          APPLICANT is read as a photo fallback because the current
-          acceptance flow may store only the first image in ps_place.
-          The applicant record still contains the original submitted
-          Pet Place value, including multiple images when stored as JSON.
+          The accepted Pet Sitter is linked back to the original
+          applicant through the same email address. APPLICANT is also
+          retained as the fallback source for the complete Pet Place
+          photo collection.
         */
         supabase
           .from("APPLICANT")
           .select("*"),
+
+        /*
+          Pet preference and availability belong to APPLICATION.
+          The Admin Pet Sitter page reads the latest application for
+          the matched applicant instead of duplicating those values
+          into the PET SITTER table.
+        */
+        supabase
+          .from("APPLICATION")
+          .select("*")
+          .order("created_at", {
+            ascending: false,
+          }),
       ]);
 
       if (sitterResult.error) {
@@ -138,14 +165,24 @@ export default function SittersPage() {
       }
 
       if (applicantResult.error) {
-        console.warn(
-          "Unable to load applicant Pet Place photo fallback:",
-          applicantResult.error
+        throw new Error(
+          applicantResult.error?.message ||
+            "Unable to load the applicant records linked to Pet Sitters."
+        );
+      }
+
+      if (applicationResult.error) {
+        throw new Error(
+          applicationResult.error?.message ||
+            "Unable to load Pet Sitter application preferences."
         );
       }
 
       const applicants =
         applicantResult.data || [];
+
+      const applications =
+        applicationResult.data || [];
 
       const applicantByEmail = new Map(
         applicants
@@ -160,6 +197,33 @@ export default function SittersPage() {
           )
       );
 
+      /*
+        APPLICATION is ordered newest first. Keep the first record for
+        each applicant so the Pet Sitter page reflects the most recent
+        submitted application preferences if multiple records exist.
+      */
+      const latestApplicationByApplicantId =
+        new Map();
+
+      for (const application of applications) {
+        const applicantId =
+          Number(application.a_id);
+
+        if (
+          !Number.isFinite(applicantId) ||
+          latestApplicationByApplicantId.has(
+            applicantId
+          )
+        ) {
+          continue;
+        }
+
+        latestApplicationByApplicantId.set(
+          applicantId,
+          application
+        );
+      }
+
       const mergedSitters = (
         sitterResult.data || []
       ).map((sitter) => {
@@ -169,6 +233,15 @@ export default function SittersPage() {
               sitter.ps_email
             )
           );
+
+        const application =
+          applicant
+            ? latestApplicationByApplicantId.get(
+                Number(
+                  applicant.applicant_id
+                )
+              )
+            : null;
 
         const sitterImages =
           parsePlaceImages(
@@ -182,8 +255,8 @@ export default function SittersPage() {
 
         /*
           Use the Applicant photo set when it contains more photos.
-          This fixes already-accepted sitters where ps_place only
-          contains the first image.
+          This keeps already-accepted Pet Sitters compatible with the
+          newer multi-photo application flow.
         */
         const placeImages =
           applicantImages.length >
@@ -193,11 +266,54 @@ export default function SittersPage() {
 
         return {
           ...sitter,
-          place_images: placeImages,
+
+          applicant_id:
+            applicant?.applicant_id ??
+            null,
+
+          application_id:
+            application?.application_id ??
+            null,
+
+          application_status:
+            application?.application_status ??
+            null,
+
+          preferred_days:
+            application?.preferred_days ??
+            [],
+
+          preferred_start_time:
+            application?.preferred_start_time ??
+            null,
+
+          preferred_end_time:
+            application?.preferred_end_time ??
+            null,
+
+          preferred_pet_type:
+            application?.preferred_pet_type ??
+            null,
+
+          place_images:
+            placeImages,
         };
       });
 
       setSitters(mergedSitters);
+
+      /*
+        Keep an open details modal synchronized after Refresh.
+      */
+      setSelectedSitter((previous) =>
+        previous
+          ? mergedSitters.find(
+              (item) =>
+                item.petsitter_id ===
+                previous.petsitter_id
+            ) || null
+          : null
+      );
     } catch (fetchError) {
       console.error(
         "Unable to load pet sitters:",
@@ -368,7 +484,10 @@ export default function SittersPage() {
         previous.map((item) =>
           item.petsitter_id ===
           sitter.petsitter_id
-            ? data
+            ? {
+                ...item,
+                ...data,
+              }
             : item
         )
       );
@@ -557,11 +676,21 @@ export default function SittersPage() {
 
     if (cardFilter === "month") {
       records = records.filter((sitter) =>
-        isSameMonth(sitter.created_at, now)
+        isSameMonth(
+          sitter.created_at,
+          now
+        )
       );
-    } else if (cardFilter === "year") {
-      records = records.filter((sitter) =>
-        isSameYear(sitter.created_at, now)
+    } else if (
+      cardFilter === "dog" ||
+      cardFilter === "cat" ||
+      cardFilter === "both"
+    ) {
+      records = records.filter(
+        (sitter) =>
+          normalizePreferredPetType(
+            sitter.preferred_pet_type
+          ) === cardFilter
       );
     }
 
@@ -588,10 +717,20 @@ export default function SittersPage() {
         sitter.petsitter_id
       ).toLowerCase();
 
+      const username = String(
+        sitter.ps_username || ""
+      ).toLowerCase();
+
+      const email = String(
+        sitter.ps_email || ""
+      ).toLowerCase();
+
       return (
         fullName.includes(keyword) ||
         rawSitterId.includes(keyword) ||
-        formattedSitterId.includes(keyword)
+        formattedSitterId.includes(keyword) ||
+        username.includes(keyword) ||
+        email.includes(keyword)
       );
     });
   }, [sitters, search, cardFilter]);
@@ -617,12 +756,38 @@ export default function SittersPage() {
 
     return {
       total: sitters.length,
-      newThisMonth: sitters.filter((sitter) =>
-        isSameMonth(sitter.created_at, now)
-      ).length,
-      addedThisYear: sitters.filter((sitter) =>
-        isSameYear(sitter.created_at, now)
-      ).length,
+
+      newThisMonth:
+        sitters.filter((sitter) =>
+          isSameMonth(
+            sitter.created_at,
+            now
+          )
+        ).length,
+
+      prefDog:
+        sitters.filter(
+          (sitter) =>
+            normalizePreferredPetType(
+              sitter.preferred_pet_type
+            ) === "dog"
+        ).length,
+
+      prefCat:
+        sitters.filter(
+          (sitter) =>
+            normalizePreferredPetType(
+              sitter.preferred_pet_type
+            ) === "cat"
+        ).length,
+
+      prefBoth:
+        sitters.filter(
+          (sitter) =>
+            normalizePreferredPetType(
+              sitter.preferred_pet_type
+            ) === "both"
+        ).length,
     };
   }, [sitters]);
 
@@ -655,33 +820,63 @@ export default function SittersPage() {
 
         <section style={styles.statsGrid}>
           <StatCard
-            icon={<UserRound size={30} />}
+            icon={<UserRound size={29} />}
             iconStyle={styles.statPink}
             title="Total Pet Sitters"
             value={stats.total}
             desc="All registered sitters"
             active={cardFilter === "all"}
-            onClick={() => setCardFilter("all")}
+            onClick={() =>
+              setCardFilter("all")
+            }
           />
 
           <StatCard
-            icon={<CalendarPlus size={30} />}
+            icon={<CalendarPlus size={29} />}
             iconStyle={styles.statOrange}
             title="New This Month"
             value={stats.newThisMonth}
             desc="Recently added accounts"
             active={cardFilter === "month"}
-            onClick={() => setCardFilter("month")}
+            onClick={() =>
+              setCardFilter("month")
+            }
           />
 
           <StatCard
-            icon={<BarChart3 size={30} />}
+            icon={<Dog size={29} />}
+            iconStyle={styles.statBlue}
+            title="Pref Dog"
+            value={stats.prefDog}
+            desc="Prefer caring for dogs"
+            active={cardFilter === "dog"}
+            onClick={() =>
+              setCardFilter("dog")
+            }
+          />
+
+          <StatCard
+            icon={<Cat size={29} />}
+            iconStyle={styles.statPurple}
+            title="Pref Cat"
+            value={stats.prefCat}
+            desc="Prefer caring for cats"
+            active={cardFilter === "cat"}
+            onClick={() =>
+              setCardFilter("cat")
+            }
+          />
+
+          <StatCard
+            icon={<PawPrint size={29} />}
             iconStyle={styles.statGreen}
-            title="Added This Year"
-            value={stats.addedThisYear}
-            desc="Accounts created this year"
-            active={cardFilter === "year"}
-            onClick={() => setCardFilter("year")}
+            title="Both"
+            value={stats.prefBoth}
+            desc="Prefer dogs and cats"
+            active={cardFilter === "both"}
+            onClick={() =>
+              setCardFilter("both")
+            }
           />
         </section>
 
@@ -712,7 +907,7 @@ export default function SittersPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search Pet Sitter ID or name"
+                placeholder="Search ID, name, username, or email"
                 style={styles.searchInput}
               />
             </div>
@@ -729,6 +924,19 @@ export default function SittersPage() {
 
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
+              <colgroup>
+                <col style={{ width: "6%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "3%" }} />
+              </colgroup>
+
               <thead>
                 <tr style={styles.tableHeadRow}>
                   <Th>No.</Th>
@@ -736,6 +944,8 @@ export default function SittersPage() {
                   <Th>Username</Th>
                   <Th>Contact Number</Th>
                   <Th>Email Address</Th>
+                  <Th>Preferred Schedule</Th>
+                  <Th>Preferred Pet</Th>
                   <Th>Pet Place Photos</Th>
                   <Th>Date Added</Th>
                   <Th>Actions</Th>
@@ -745,7 +955,7 @@ export default function SittersPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
+                    <td colSpan="10" style={styles.emptyCell}>
                       <div style={styles.loadingContent}>
                         <RefreshCw size={22} />
                         <span>Loading pet sitter records...</span>
@@ -779,6 +989,20 @@ export default function SittersPage() {
 
                       <td style={styles.normalCell}>
                         {sitter.ps_email || "Not set"}
+                      </td>
+
+                      <td style={styles.scheduleCell}>
+                        <PreferredScheduleCell
+                          sitter={sitter}
+                        />
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        <PreferredPetBadge
+                          value={
+                            sitter.preferred_pet_type
+                          }
+                        />
                       </td>
 
                       <td style={styles.normalCell}>
@@ -927,7 +1151,7 @@ export default function SittersPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" style={styles.emptyCell}>
+                    <td colSpan="10" style={styles.emptyCell}>
                       No pet sitters found.
                     </td>
                   </tr>
@@ -1685,6 +1909,16 @@ function SitterModal({
                 />
               </div>
 
+              <SitterPreferenceCard
+                sitter={sitter}
+                note="These preferences came from the accepted application and are view-only on the Admin Pet Sitter page."
+              />
+
+              <SitterPreferenceCard
+                sitter={sitter}
+                note="These preferences came from the accepted application and are view-only on the Admin Pet Sitter page."
+              />
+
               <PlacePhotoCard
                 images={
                   getSitterPlaceImages(
@@ -1966,6 +2200,252 @@ function EditField({
         ) : null}
       </div>
     </label>
+  );
+}
+
+function PreferredScheduleCell({
+  sitter,
+}) {
+  const days =
+    formatPreferredDays(sitter);
+
+  const timeRange =
+    formatPreferredTimeRange(
+      sitter
+    );
+
+  return (
+    <div
+      style={
+        styles.scheduleSummary
+      }
+    >
+      <strong
+        style={
+          styles.schedulePrimary
+        }
+      >
+        {days}
+      </strong>
+
+      <span
+        style={
+          styles.scheduleSecondary
+        }
+      >
+        {timeRange}
+      </span>
+    </div>
+  );
+}
+
+function PreferredPetBadge({
+  value,
+}) {
+  const normalized =
+    normalizePreferredPetType(
+      value
+    );
+
+  const badgeStyle =
+    normalized === "dog"
+      ? styles.petBadgeDog
+      : normalized === "cat"
+      ? styles.petBadgeCat
+      : normalized === "both"
+      ? styles.petBadgeBoth
+      : styles.petBadgeUnset;
+
+  return (
+    <span
+      style={{
+        ...styles.petBadge,
+        ...badgeStyle,
+      }}
+    >
+      {formatPreferredPetType(
+        value
+      )}
+    </span>
+  );
+}
+
+function SitterPreferenceCard({
+  sitter,
+  note = "",
+}) {
+  const selectedDays =
+    getPreferredDays(sitter);
+
+  const selectedSet =
+    new Set(selectedDays);
+
+  return (
+    <div
+      style={
+        styles.preferenceCard
+      }
+    >
+      <div
+        style={
+          styles.preferenceHeader
+        }
+      >
+        <div
+          style={
+            styles.detailIcon
+          }
+        >
+          <PawPrint size={18} />
+        </div>
+
+        <div>
+          <p
+            style={
+              styles.detailLabel
+            }
+          >
+            Application Preferences
+          </p>
+
+          <h4
+            style={
+              styles.detailValue
+            }
+          >
+            Preferred Pet Sitting
+          </h4>
+        </div>
+      </div>
+
+      <div
+        style={
+          styles.preferenceGrid
+        }
+      >
+        <div
+          style={
+            styles.preferenceSection
+          }
+        >
+          <span
+            style={
+              styles.preferenceSectionLabel
+            }
+          >
+            Preferred Pet
+          </span>
+
+          <PreferredPetBadge
+            value={
+              sitter.preferred_pet_type
+            }
+          />
+        </div>
+
+        <div
+          style={
+            styles.preferenceSection
+          }
+        >
+          <span
+            style={
+              styles.preferenceSectionLabel
+            }
+          >
+            Preferred Time
+          </span>
+
+          <strong
+            style={
+              styles.preferenceValue
+            }
+          >
+            {formatPreferredTimeRange(
+              sitter
+            )}
+          </strong>
+        </div>
+      </div>
+
+      <div
+        style={
+          styles.preferenceDaysSection
+        }
+      >
+        <span
+          style={
+            styles.preferenceSectionLabel
+          }
+        >
+          Preferred Days
+        </span>
+
+        <div
+          style={
+            styles.preferredDaysRow
+          }
+        >
+          {PREFERRED_DAY_OPTIONS.map(
+            (day) => {
+              const selected =
+                selectedSet.has(
+                  day.name
+                );
+
+              return (
+                <div
+                  key={
+                    day.name
+                  }
+                  title={
+                    day.name
+                  }
+                  style={{
+                    ...styles.preferredDayCircle,
+                    ...(selected
+                      ? styles.preferredDayCircleSelected
+                      : {}),
+                  }}
+                >
+                  {day.letter}
+                </div>
+              );
+            }
+          )}
+        </div>
+
+        <span
+          style={
+            styles.preferenceDaysText
+          }
+        >
+          {selectedDays.length
+            ? selectedDays
+                .map(
+                  (dayName) =>
+                    PREFERRED_DAY_OPTIONS.find(
+                      (option) =>
+                        option.name ===
+                        dayName
+                    )?.short ||
+                    dayName
+                )
+                .join(", ")
+            : "No preferred days selected"}
+        </span>
+      </div>
+
+      {note ? (
+        <p
+          style={
+            styles.preferenceNote
+          }
+        >
+          {note}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
@@ -2381,6 +2861,313 @@ function DetailItem({ icon, label, value }) {
       </div>
     </div>
   );
+}
+
+function normalizePreferredDay(
+  value
+) {
+  const text = String(
+    value || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  const mapping = {
+    m: "Monday",
+    mon: "Monday",
+    monday: "Monday",
+    tu: "Tuesday",
+    tue: "Tuesday",
+    tues: "Tuesday",
+    tuesday: "Tuesday",
+    w: "Wednesday",
+    wed: "Wednesday",
+    wednesday: "Wednesday",
+    th: "Thursday",
+    thu: "Thursday",
+    thur: "Thursday",
+    thurs: "Thursday",
+    thursday: "Thursday",
+    f: "Friday",
+    fri: "Friday",
+    friday: "Friday",
+    sa: "Saturday",
+    sat: "Saturday",
+    saturday: "Saturday",
+    su: "Sunday",
+    sun: "Sunday",
+    sunday: "Sunday",
+  };
+
+  return mapping[text] || "";
+}
+
+function parsePreferredDays(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap(
+      parsePreferredDays
+    );
+  }
+
+  if (
+    typeof value === "object"
+  ) {
+    for (const key of [
+      "days",
+      "selectedDays",
+      "preferred_days",
+      "values",
+    ]) {
+      if (value[key]) {
+        return parsePreferredDays(
+          value[key]
+        );
+      }
+    }
+
+    return [];
+  }
+
+  const text =
+    String(value).trim();
+
+  if (!text) {
+    return [];
+  }
+
+  if (
+    (text.startsWith("[") &&
+      text.endsWith("]")) ||
+    (text.startsWith("{") &&
+      text.endsWith("}"))
+  ) {
+    try {
+      return parsePreferredDays(
+        JSON.parse(text)
+      );
+    } catch {
+      /*
+        PostgreSQL text[] values normally arrive as JavaScript arrays
+        through Supabase. Keep a text fallback for older records.
+      */
+    }
+  }
+
+  return text
+    .replace(/[{}[\]"]/g, "")
+    .split(/[,|;]/)
+    .map(
+      (item) =>
+        item.trim()
+    )
+    .filter(Boolean);
+}
+
+function getPreferredDays(
+  record
+) {
+  const parsed =
+    parsePreferredDays(
+      record?.preferred_days
+    );
+
+  const normalized =
+    parsed
+      .map(
+        normalizePreferredDay
+      )
+      .filter(Boolean);
+
+  return PREFERRED_DAY_OPTIONS
+    .map(
+      (day) =>
+        day.name
+    )
+    .filter(
+      (dayName) =>
+        normalized.includes(
+          dayName
+        )
+    );
+}
+
+function formatPreferredDays(
+  record
+) {
+  const days =
+    getPreferredDays(record);
+
+  if (!days.length) {
+    return "Days not set";
+  }
+
+  return days
+    .map(
+      (dayName) =>
+        PREFERRED_DAY_OPTIONS.find(
+          (day) =>
+            day.name ===
+            dayName
+        )?.short ||
+        dayName
+    )
+    .join(", ");
+}
+
+function formatTimeOnly(
+  value
+) {
+  if (!value) {
+    return "Not set";
+  }
+
+  const text =
+    String(value).trim();
+
+  const match =
+    text.match(
+      /^(\d{1,2}):(\d{2})/
+    );
+
+  if (!match) {
+    return text;
+  }
+
+  const hour =
+    Number(match[1]);
+
+  const minute =
+    match[2];
+
+  if (
+    Number.isNaN(hour) ||
+    hour < 0 ||
+    hour > 23
+  ) {
+    return text;
+  }
+
+  const suffix =
+    hour >= 12
+      ? "PM"
+      : "AM";
+
+  const displayHour =
+    hour % 12 || 12;
+
+  return `${displayHour}:${minute} ${suffix}`;
+}
+
+function formatPreferredTimeRange(
+  record
+) {
+  const start =
+    record?.preferred_start_time;
+
+  const end =
+    record?.preferred_end_time;
+
+  if (!start && !end) {
+    return "Time not set";
+  }
+
+  if (!start) {
+    return `Until ${formatTimeOnly(
+      end
+    )}`;
+  }
+
+  if (!end) {
+    return `From ${formatTimeOnly(
+      start
+    )}`;
+  }
+
+  return `${formatTimeOnly(
+    start
+  )} - ${formatTimeOnly(end)}`;
+}
+
+function normalizePreferredPetType(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "";
+  }
+
+  const raw = Array.isArray(value)
+    ? value.join(" and ")
+    : String(value);
+
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\s+/g, " ");
+
+  const hasDog =
+    /\bdogs?\b/.test(
+      normalized
+    );
+
+  const hasCat =
+    /\bcats?\b/.test(
+      normalized
+    );
+
+  if (
+    normalized === "both" ||
+    (hasDog && hasCat)
+  ) {
+    return "both";
+  }
+
+  if (hasDog) {
+    return "dog";
+  }
+
+  if (hasCat) {
+    return "cat";
+  }
+
+  return "";
+}
+
+function formatPreferredPetType(
+  value
+) {
+  const normalized =
+    normalizePreferredPetType(
+      value
+    );
+
+  if (normalized === "dog") {
+    return "Dog";
+  }
+
+  if (normalized === "cat") {
+    return "Cat";
+  }
+
+  if (normalized === "both") {
+    return "Dog and Cat";
+  }
+
+  return "Not set";
 }
 
 function getSitterFormValues(sitter) {
@@ -2837,15 +3624,6 @@ function isSameMonth(dateValue, comparisonDate) {
   );
 }
 
-function isSameYear(dateValue, comparisonDate) {
-  if (!dateValue) return false;
-
-  const date = new Date(dateValue);
-
-  if (Number.isNaN(date.getTime())) return false;
-
-  return date.getFullYear() === comparisonDate.getFullYear();
-}
 
 function getVisiblePages(currentPage, totalPages) {
   if (totalPages <= 7) {
@@ -2919,8 +3697,8 @@ const styles = {
 
   statsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-    gap: 18,
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: 14,
     marginBottom: 24,
   },
 
@@ -2969,6 +3747,16 @@ const styles = {
   statOrange: {
     background: "#FCEBDD",
     color: "#F16C08",
+  },
+
+  statBlue: {
+    background: "#E4EFFB",
+    color: "#2E6EAE",
+  },
+
+  statPurple: {
+    background: "#EFE5F8",
+    color: "#7A4BA3",
   },
 
   statGreen: {
@@ -3123,7 +3911,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1080,
+    minWidth: 1540,
     borderCollapse: "collapse",
   },
 
@@ -3160,6 +3948,72 @@ const styles = {
     fontSize: 13,
     color: "#1F1714",
     whiteSpace: "nowrap",
+    verticalAlign: "middle",
+  },
+
+  scheduleCell: {
+    padding: 14,
+    fontSize: 13,
+    color: "#1F1714",
+    verticalAlign: "middle",
+  },
+
+  scheduleSummary: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    minWidth: 118,
+  },
+
+  schedulePrimary: {
+    color: BRAND.brown,
+    fontSize: 12,
+    fontWeight: 900,
+    lineHeight: 1.35,
+  },
+
+  scheduleSecondary: {
+    color: BRAND.muted,
+    fontSize: 11,
+    fontWeight: 700,
+    whiteSpace: "nowrap",
+  },
+
+  petBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 28,
+    padding: "4px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+    border: "1px solid transparent",
+  },
+
+  petBadgeDog: {
+    background: "#EAF3FC",
+    color: "#285F95",
+    borderColor: "#CADFF3",
+  },
+
+  petBadgeCat: {
+    background: "#F3EAF9",
+    color: "#714493",
+    borderColor: "#DFCDED",
+  },
+
+  petBadgeBoth: {
+    background: "#E8F6EE",
+    color: "#187341",
+    borderColor: "#CAE8D6",
+  },
+
+  petBadgeUnset: {
+    background: "#F5F1F0",
+    color: BRAND.muted,
+    borderColor: "#E7DDDA",
   },
 
   mutedCell: {
@@ -3443,6 +4297,106 @@ const styles = {
     gridColumn: "1 / -1",
   },
   
+  preferenceCard: {
+    gridColumn: "1 / -1",
+    border: "1px solid #EEE2DF",
+    borderRadius: 12,
+    padding: 14,
+    background: "#FFFCFB",
+    boxSizing: "border-box",
+  },
+
+  preferenceHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    marginBottom: 14,
+  },
+
+  preferenceGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 10,
+    marginBottom: 12,
+  },
+
+  preferenceSection: {
+    minHeight: 66,
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid #F0E5E2",
+    background: "#FFFFFF",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    gap: 7,
+    boxSizing: "border-box",
+  },
+
+  preferenceSectionLabel: {
+    color: BRAND.muted,
+    fontSize: 11,
+    fontWeight: 900,
+  },
+
+  preferenceValue: {
+    color: BRAND.brown,
+    fontSize: 13,
+    fontWeight: 900,
+  },
+
+  preferenceDaysSection: {
+    padding: 12,
+    borderRadius: 10,
+    border: "1px solid #F0E5E2",
+    background: "#FFFFFF",
+  },
+
+  preferredDaysRow: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 7,
+    marginTop: 9,
+    marginBottom: 8,
+  },
+
+  preferredDayCircle: {
+    width: 30,
+    height: 30,
+    borderRadius: "50%",
+    border: "1px solid #E5D9D6",
+    background: "#FAF6F5",
+    color: "#9B8B86",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: 11,
+    fontWeight: 900,
+  },
+
+  preferredDayCircleSelected: {
+    borderColor: BRAND.pink,
+    background: BRAND.softPink,
+    color: BRAND.pink,
+  },
+
+  preferenceDaysText: {
+    display: "block",
+    color: BRAND.brown,
+    fontSize: 12,
+    fontWeight: 800,
+    lineHeight: 1.4,
+  },
+
+  preferenceNote: {
+    margin: "10px 0 0",
+    color: BRAND.muted,
+    fontSize: 11,
+    lineHeight: 1.5,
+  },
+
   placePhotoCard: {
     gridColumn: "span 2",
     border: "1px solid #EEE2DF",
