@@ -925,16 +925,16 @@ export default function SittersPage() {
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
               <colgroup>
-                <col style={{ width: "6%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "4%" }} />
                 <col style={{ width: "10%" }} />
                 <col style={{ width: "9%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "3%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "12%" }} />
+                <col style={{ width: "7%" }} />
               </colgroup>
 
               <thead>
@@ -1914,11 +1914,6 @@ function SitterModal({
                 note="These preferences came from the accepted application and are view-only on the Admin Pet Sitter page."
               />
 
-              <SitterPreferenceCard
-                sitter={sitter}
-                note="These preferences came from the accepted application and are view-only on the Admin Pet Sitter page."
-              />
-
               <PlacePhotoCard
                 images={
                   getSitterPlaceImages(
@@ -1993,6 +1988,10 @@ function SitterModal({
                 value={formatContactNumber(
                   sitter.ps_contactno
                 )}
+              />
+
+              <SitterPreferenceCard
+                sitter={sitter}
               />
 
               <PlacePhotoCard
@@ -2305,7 +2304,7 @@ function SitterPreferenceCard({
               styles.detailLabel
             }
           >
-            Application Preferences
+            Pet Sitting Preferences
           </p>
 
           <h4
@@ -2313,7 +2312,7 @@ function SitterPreferenceCard({
               styles.detailValue
             }
           >
-            Preferred Pet Sitting
+            Preferred Pet Type Sitting
           </h4>
         </div>
       </div>
@@ -3911,7 +3910,8 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1540,
+    minWidth: 1240,
+    tableLayout: "fixed",
     borderCollapse: "collapse",
   },
 
@@ -3923,9 +3923,9 @@ const styles = {
 
   th: {
     textAlign: "left",
-    padding: "14px",
+    padding: "12px 10px",
     color: "#16100E",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 900,
     whiteSpace: "nowrap",
   },
@@ -3935,46 +3935,51 @@ const styles = {
   },
 
   numberCell: {
-    padding: 14,
+    padding: "12px 8px",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
+    verticalAlign: "middle",
   },
 
   normalCell: {
-    padding: 14,
-    fontSize: 13,
+    padding: "12px 10px",
+    fontSize: 12,
     color: "#1F1714",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   scheduleCell: {
-    padding: 14,
-    fontSize: 13,
+    padding: "12px 10px",
+    fontSize: 12,
     color: "#1F1714",
     verticalAlign: "middle",
+    overflow: "hidden",
   },
 
   scheduleSummary: {
     display: "flex",
     flexDirection: "column",
-    gap: 4,
-    minWidth: 118,
+    gap: 3,
+    minWidth: 0,
   },
 
   schedulePrimary: {
     color: BRAND.brown,
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: 900,
-    lineHeight: 1.35,
+    lineHeight: 1.3,
+    whiteSpace: "normal",
   },
 
   scheduleSecondary: {
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: 700,
     whiteSpace: "nowrap",
   },
@@ -3983,10 +3988,10 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 28,
-    padding: "4px 10px",
+    minHeight: 26,
+    padding: "3px 8px",
     borderRadius: 999,
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: 900,
     whiteSpace: "nowrap",
     border: "1px solid transparent",
@@ -4028,35 +4033,39 @@ const styles = {
     padding: 0,
     display: "inline-flex",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: 900,
     fontFamily: "inherit",
     cursor: "pointer",
+    whiteSpace: "nowrap",
   },
 
   placeThumbnail: {
-    width: 54,
-    height: 42,
-    borderRadius: 8,
+    width: 42,
+    height: 34,
+    borderRadius: 7,
     objectFit: "cover",
     border: "1px solid #E6D9D7",
     background: "#FFF8F8",
+    flexShrink: 0,
   },
 
   primaryText: {
     display: "block",
-    fontSize: 13,
+    fontSize: 12,
     color: "#1B1412",
     fontWeight: 800,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   actionCell: {
-    padding: 14,
-    width: 70,
+    padding: "10px 8px",
     whiteSpace: "nowrap",
     position: "relative",
+    textAlign: "center",
   },
 
   actionMenuWrap: {
@@ -4065,8 +4074,8 @@ const styles = {
   },
 
   actionMenuTrigger: {
-    width: 36,
-    height: 36,
+    width: 32,
+    height: 32,
     borderRadius: 8,
     border: "1px solid #E6D9D7",
     background: "#FFFFFF",
