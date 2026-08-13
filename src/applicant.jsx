@@ -3473,7 +3473,7 @@ function formatPreferredPetType(
         normalized === "cats and dogs" ||
         normalized === "dogs and cats"
       ) {
-        return "Cat & Dog";
+        return "Dog and Cat";
       }
 
       return String(item)
