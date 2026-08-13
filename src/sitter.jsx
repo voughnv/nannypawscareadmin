@@ -2240,6 +2240,11 @@ function PreferredScheduleCell({
       sitter
     );
 
+  const hasDays =
+    getPreferredDays(
+      sitter
+    ).length > 0;
+
   return (
     <div
       style={
@@ -2251,7 +2256,7 @@ function PreferredScheduleCell({
           styles.schedulePrimary
         }
       >
-        {days}
+        {timeRange}
       </strong>
 
       <span
@@ -2259,7 +2264,9 @@ function PreferredScheduleCell({
           styles.scheduleSecondary
         }
       >
-        {timeRange}
+        {hasDays
+          ? `Days: ${days}`
+          : "No preferred days selected"}
       </span>
     </div>
   );
@@ -2447,7 +2454,7 @@ function SitterPreferenceCard({
           }
         >
           {selectedDays.length
-            ? selectedDays
+            ? `Selected Days: ${selectedDays
                 .map(
                   (dayName) =>
                     PREFERRED_DAY_OPTIONS.find(
@@ -2457,7 +2464,7 @@ function SitterPreferenceCard({
                     )?.short ||
                     dayName
                 )
-                .join(", ")
+                .join(", ")}`
             : "No preferred days selected"}
         </span>
       </div>
@@ -4000,14 +4007,15 @@ const styles = {
     fontSize: 11.5,
     fontWeight: 900,
     lineHeight: 1.3,
-    whiteSpace: "normal",
+    whiteSpace: "nowrap",
   },
 
   scheduleSecondary: {
-    color: BRAND.muted,
+    color: BRAND.pink,
     fontSize: 10.5,
-    fontWeight: 700,
-    whiteSpace: "nowrap",
+    fontWeight: 900,
+    lineHeight: 1.3,
+    whiteSpace: "normal",
   },
 
   petBadge: {
