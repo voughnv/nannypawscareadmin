@@ -286,6 +286,10 @@ export default function ApplicantPage() {
             application?.preferred_end_time ??
             null,
 
+          preferred_pet_type:
+            application?.preferred_pet_type ??
+            null,
+
           has_application_record:
             Boolean(application),
         };
@@ -473,6 +477,9 @@ export default function ApplicantPage() {
 
         preferred_end_time:
           record.preferred_end_time,
+
+        preferred_pet_type:
+          record.preferred_pet_type || null,
       };
 
       let result;
@@ -495,6 +502,7 @@ export default function ApplicantPage() {
               preferred_days,
               preferred_start_time,
               preferred_end_time,
+              preferred_pet_type,
               a_id
             `
           )
@@ -517,6 +525,7 @@ export default function ApplicantPage() {
               preferred_days,
               preferred_start_time,
               preferred_end_time,
+              preferred_pet_type,
               a_id
             `
           )
@@ -561,6 +570,12 @@ export default function ApplicantPage() {
         preferred_end_time:
           result.data
             .preferred_end_time,
+
+        preferred_pet_type:
+          result.data
+            .preferred_pet_type ??
+          record.preferred_pet_type ??
+          null,
 
         has_application_record: true,
       };
@@ -1552,13 +1567,14 @@ export default function ApplicantPage() {
           >
             <colgroup>
               <col style={{ width: "4%" }} />
-              <col style={{ width: "13%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "15%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "9%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "8%" }} />
+              <col style={{ width: "7%" }} />
               <col style={{ width: "10%" }} />
             </colgroup>
 
@@ -1579,6 +1595,9 @@ export default function ApplicantPage() {
                 <Th>
                   Preferred Schedule
                 </Th>
+                <Th>
+                  Preferred Pet
+                </Th>
                 <Th>Pet Place</Th>
                 <Th>Resume</Th>
                 <Th>Status</Th>
@@ -1592,7 +1611,7 @@ export default function ApplicantPage() {
               {loading ? (
                 <tr>
                   <td
-                    colSpan="9"
+                    colSpan="10"
                     style={
                       styles.emptyCell
                     }
@@ -1700,6 +1719,22 @@ export default function ApplicantPage() {
                             )}
                           </span>
                         </div>
+                      </td>
+
+                      <td
+                        style={
+                          styles.normalCell
+                        }
+                      >
+                        <span
+                          style={
+                            styles.preferredPetText
+                          }
+                        >
+                          {formatPreferredPetType(
+                            record.preferred_pet_type
+                          )}
+                        </span>
                       </td>
 
                       <td
@@ -1859,7 +1894,7 @@ export default function ApplicantPage() {
               ) : (
                 <tr>
                   <td
-                    colSpan="9"
+                    colSpan="10"
                     style={
                       styles.emptyCell
                     }
@@ -2469,6 +2504,42 @@ function ApplicantModal({
                     Preferred days, start time, and end time are required before acceptance.
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div
+              style={
+                styles.wideDetailItem
+              }
+            >
+              <div
+                style={
+                  styles.detailIcon
+                }
+              >
+                <UserRound
+                  size={16}
+                />
+              </div>
+
+              <div>
+                <p
+                  style={
+                    styles.detailLabel
+                  }
+                >
+                  Preferred Pet
+                </p>
+
+                <h4
+                  style={
+                    styles.detailValue
+                  }
+                >
+                  {formatPreferredPetType(
+                    record.preferred_pet_type
+                  )}
+                </h4>
               </div>
             </div>
 
@@ -3349,6 +3420,71 @@ function getPreferredDays(record) {
     .filter((dayName) =>
       selectedSet.has(dayName)
     );
+}
+
+function formatPreferredPetType(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "Not set";
+  }
+
+  const values = Array.isArray(value)
+    ? value
+    : String(value)
+        .split(/[,|;]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+  if (!values.length) {
+    return "Not set";
+  }
+
+  return values
+    .map((item) => {
+      const normalized = String(item)
+        .trim()
+        .toLowerCase();
+
+      if (
+        normalized === "dog" ||
+        normalized === "dogs" ||
+        normalized === "canine"
+      ) {
+        return "Dog";
+      }
+
+      if (
+        normalized === "cat" ||
+        normalized === "cats" ||
+        normalized === "feline"
+      ) {
+        return "Cat";
+      }
+
+      if (
+        normalized === "both" ||
+        normalized === "cat and dog" ||
+        normalized === "dog and cat" ||
+        normalized === "cats and dogs" ||
+        normalized === "dogs and cats"
+      ) {
+        return "Cat & Dog";
+      }
+
+      return String(item)
+        .trim()
+        .replace(
+          /\w/g,
+          (letter) =>
+            letter.toUpperCase()
+        );
+    })
+    .join(", ");
 }
 
 function formatPreferredDays(
@@ -4533,7 +4669,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1180,
+    minWidth: 1320,
     borderCollapse:
       "collapse",
     tableLayout: "fixed",
@@ -4602,6 +4738,14 @@ const styles = {
     fontWeight: 700,
     overflowWrap: "anywhere",
     verticalAlign: "middle",
+  },
+
+  preferredPetText: {
+    display: "inline-block",
+    color: "var(--app-strong)",
+    fontSize: 12.5,
+    fontWeight: 800,
+    lineHeight: 1.4,
   },
 
   scheduleDaysText: {
