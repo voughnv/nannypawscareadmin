@@ -78,11 +78,7 @@ export default function ApplicantPage() {
   const { settings, fontScale } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
-  /*
-    Keep this page synchronized with the Admin Settings page.
-    The entire Applicant workspace scales using the saved fontScale,
-    while all neutral colors below use these page-level theme variables.
-  */
+  
   const pageThemeStyle = useMemo(
     () => ({
       "--admin-font-scale": String(fontScale || 1),
