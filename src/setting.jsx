@@ -14,6 +14,110 @@ const BRAND = {
   muted: "#6F625F",
 };
 
+const SETTINGS_INTERACTION_CSS = `
+  .settings-interactive {
+    transition:
+      transform 0.14s ease,
+      box-shadow 0.18s ease,
+      filter 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease !important;
+    transform-origin: center;
+  }
+
+  .settings-interactive:not(:disabled):hover {
+    transform: translateY(-2px);
+  }
+
+  .settings-interactive:not(:disabled):active {
+    transform: translateY(0) scale(0.975);
+  }
+
+  .settings-interactive:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.52);
+    outline-offset: 2px;
+  }
+
+  .settings-row-interactive {
+    transition:
+      transform 0.16s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .settings-row-interactive:hover {
+    transform: translateY(-1px);
+    border-color: rgba(217, 67, 104, 0.38) !important;
+    box-shadow: 0 6px 16px rgba(58, 30, 20, 0.07);
+  }
+
+  .settings-select {
+    transition:
+      transform 0.16s ease,
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
+    cursor: pointer;
+  }
+
+  .settings-select:hover {
+    border-color: rgba(217, 67, 104, 0.46) !important;
+  }
+
+  .settings-select:focus {
+    border-color: rgba(217, 67, 104, 0.74) !important;
+    box-shadow: 0 0 0 3px rgba(217, 67, 104, 0.10);
+    transform: translateY(-1px);
+  }
+
+  .settings-toggle:not(:disabled):hover {
+    box-shadow:
+      0 6px 14px rgba(217, 67, 104, 0.18),
+      0 0 0 3px rgba(217, 67, 104, 0.07);
+  }
+
+  .settings-toggle:not(:disabled):hover span {
+    transform: scale(1.06);
+  }
+
+  .settings-reset:not(:disabled):hover {
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.48) !important;
+    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.09);
+  }
+
+  .settings-save:not(:disabled):hover {
+    filter: brightness(1.04);
+    box-shadow:
+      0 8px 18px rgba(217, 67, 104, 0.22),
+      0 0 0 2px rgba(217, 67, 104, 0.07);
+  }
+
+  .settings-save:disabled {
+    transform: none !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  .settings-alert {
+    animation: settingsAlertIn 0.20s ease both;
+  }
+
+  @keyframes settingsAlertIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
 export default function SettingPage() {
   const navigate = useNavigate();
 
@@ -136,6 +240,7 @@ export default function SettingPage() {
           : "transparent",
       }}
     >
+      <style>{SETTINGS_INTERACTION_CSS}</style>
       <header style={styles.header}>
         <div>
           <h1 style={{ ...styles.title, color: mainText }}>
@@ -155,7 +260,12 @@ export default function SettingPage() {
       </header>
 
       {message && (
-        <div style={styles.alertSuccess}>{message}</div>
+        <div
+          className="settings-alert"
+          style={styles.alertSuccess}
+        >
+          {message}
+        </div>
       )}
 
       <form
@@ -195,6 +305,7 @@ export default function SettingPage() {
 
         <div style={styles.settingsList}>
           <label
+            className="settings-row-interactive"
             style={{
               ...styles.settingRow,
               background: rowBackground,
@@ -223,6 +334,7 @@ export default function SettingPage() {
             </div>
 
             <select
+              className="settings-select"
               value={selectedFontSize}
               onChange={handleFontSizeChange}
               style={{
@@ -240,6 +352,7 @@ export default function SettingPage() {
           </label>
 
           <div
+            className="settings-row-interactive"
             style={{
               ...styles.settingRow,
               background: rowBackground,
@@ -281,6 +394,7 @@ export default function SettingPage() {
             </div>
 
             <button
+              className="settings-interactive settings-toggle"
               type="button"
               aria-label="Toggle dark mode"
               aria-pressed={selectedDarkMode}
@@ -311,6 +425,7 @@ export default function SettingPage() {
           }}
         >
           <button
+            className="settings-interactive settings-reset"
             type="button"
             onClick={handleReset}
             style={{
@@ -325,6 +440,7 @@ export default function SettingPage() {
           </button>
 
           <button
+            className="settings-interactive settings-save"
             type="submit"
             disabled={!hasChanges}
             style={{
@@ -453,6 +569,8 @@ const styles = {
     justifyContent: "space-between",
     gap: 24,
     boxSizing: "border-box",
+    transition:
+      "transform 0.16s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease",
   },
 
   optionInfo: {
@@ -494,6 +612,8 @@ const styles = {
     fontWeight: 700,
     outline: "none",
     flexShrink: 0,
+    transition:
+      "transform 0.16s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease",
   },
 
   toggle: {
@@ -506,6 +626,8 @@ const styles = {
     alignItems: "center",
     cursor: "pointer",
     flexShrink: 0,
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, background 0.18s ease",
   },
 
   toggleCircle: {
@@ -513,7 +635,8 @@ const styles = {
     height: 20,
     borderRadius: "50%",
     background: "#FFFFFF",
-    transition: "transform 0.2s ease",
+    transition:
+      "transform 0.2s ease, box-shadow 0.18s ease",
     boxShadow: "0 1px 4px rgba(0, 0, 0, 0.18)",
   },
 
@@ -540,6 +663,8 @@ const styles = {
     fontSize: 14,
     fontWeight: 800,
     cursor: "pointer",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease",
   },
 
   saveBtn: {
@@ -556,6 +681,8 @@ const styles = {
     fontSize: 14,
     fontWeight: 900,
     cursor: "pointer",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, filter 0.18s ease",
   },
 
   disabledSaveBtn: {

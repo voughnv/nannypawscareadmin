@@ -34,6 +34,173 @@ const BRAND = {
   muted: "#6F625F",
 };
 
+const APPLICANT_INTERACTION_CSS = `
+  .applicant-interactive {
+    transition:
+      transform 0.14s ease,
+      box-shadow 0.18s ease,
+      filter 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease !important;
+    transform-origin: center;
+  }
+
+  .applicant-interactive:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.12);
+    filter: brightness(1.015);
+  }
+
+  .applicant-interactive:not(:disabled):active {
+    transform: translateY(0) scale(0.975);
+    box-shadow: 0 3px 8px rgba(58, 30, 20, 0.10);
+  }
+
+  .applicant-interactive:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.52);
+    outline-offset: 2px;
+  }
+
+  .applicant-stat-card:not(:disabled):hover {
+    transform: translateY(-4px) !important;
+    border-color: rgba(217, 67, 104, 0.55) !important;
+    box-shadow:
+      0 12px 24px rgba(58, 30, 20, 0.12),
+      0 0 0 2px rgba(217, 67, 104, 0.07) !important;
+  }
+
+  .applicant-stat-card:not(:disabled):active {
+    transform: translateY(-1px) scale(0.985) !important;
+  }
+
+  .applicant-search-box {
+    transition:
+      transform 0.16s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .applicant-search-box:hover {
+    border-color: rgba(217, 67, 104, 0.38) !important;
+    box-shadow: 0 5px 14px rgba(58, 30, 20, 0.08);
+  }
+
+  .applicant-search-box:focus-within {
+    border-color: rgba(217, 67, 104, 0.72) !important;
+    box-shadow:
+      0 0 0 3px var(--app-focus-ring),
+      0 6px 16px rgba(58, 30, 20, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .applicant-search-box.has-value {
+    box-shadow: inset 0 0 0 1px rgba(217, 67, 104, 0.16);
+  }
+
+  .applicant-input-interactive {
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .applicant-input-interactive:not(:disabled):not([readonly]):hover {
+    border-color: rgba(217, 67, 104, 0.42) !important;
+  }
+
+  .applicant-input-interactive:not(:disabled):not([readonly]):focus {
+    outline: none;
+    border-color: rgba(217, 67, 104, 0.74) !important;
+    box-shadow: 0 0 0 3px var(--app-focus-ring);
+  }
+
+  .applicant-table-row {
+    transition:
+      background-color 0.16s ease,
+      box-shadow 0.16s ease,
+      filter 0.16s ease;
+  }
+
+  .applicant-table-row:hover {
+    background: var(--app-hover) !important;
+    box-shadow: inset 3px 0 0 #D94368;
+  }
+
+  .applicant-table-row:active {
+    background: var(--app-hover-strong) !important;
+    filter: brightness(0.995);
+  }
+
+  .applicant-table-row:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.48);
+    outline-offset: -2px;
+    background: var(--app-hover) !important;
+  }
+
+  .applicant-file-button:not(:disabled):hover {
+    color: #D94368 !important;
+    filter: brightness(1.04);
+  }
+
+  .applicant-file-button img {
+    transition:
+      transform 0.20s ease,
+      box-shadow 0.20s ease,
+      border-color 0.20s ease;
+  }
+
+  .applicant-file-button:not(:disabled):hover img {
+    transform: scale(1.04);
+    border-color: rgba(217, 67, 104, 0.50) !important;
+    box-shadow: 0 6px 14px rgba(58, 30, 20, 0.12);
+  }
+
+  .applicant-media-button:not(:disabled):hover {
+    transform: translateY(-2px);
+  }
+
+  .applicant-media-button img {
+    transition:
+      transform 0.22s ease,
+      box-shadow 0.22s ease,
+      border-color 0.22s ease;
+  }
+
+  .applicant-media-button:not(:disabled):hover img {
+    transform: scale(1.012);
+    border-color: rgba(217, 67, 104, 0.50) !important;
+    box-shadow: 0 9px 22px rgba(58, 30, 20, 0.12);
+  }
+
+  .applicant-close-button:not(:disabled):hover {
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.48) !important;
+    background: var(--app-hover) !important;
+  }
+
+  .applicant-toggle:not(:disabled):hover {
+    border-color: rgba(217, 67, 104, 0.52) !important;
+    background: var(--app-hover) !important;
+  }
+
+  .applicant-danger:not(:disabled):hover {
+    filter: brightness(0.98);
+    box-shadow: 0 7px 16px rgba(225, 29, 72, 0.15);
+  }
+
+  .applicant-success:not(:disabled):hover {
+    filter: brightness(1.04);
+    box-shadow: 0 7px 16px rgba(217, 67, 104, 0.20);
+  }
+
+  .applicant-carousel-dot:not(:disabled):hover {
+    transform: scale(1.35);
+    box-shadow: none;
+  }
+`;
+
 const ROWS_PER_PAGE = 6;
 
 const RESUME_BUCKET = "RESUME";
@@ -78,7 +245,11 @@ export default function ApplicantPage() {
   const { settings, fontScale } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
-  
+  /*
+    Keep this page synchronized with the Admin Settings page.
+    The entire Applicant workspace scales using the saved fontScale,
+    while all neutral colors below use these page-level theme variables.
+  */
   const pageThemeStyle = useMemo(
     () => ({
       "--admin-font-scale": String(fontScale || 1),
@@ -94,6 +265,9 @@ export default function ApplicantPage() {
       "--app-muted": darkMode ? "#CFC2BE" : "#6D5F5B",
       "--app-border": darkMode ? "#443934" : "#EEE2DF",
       "--app-border-strong": darkMode ? "#5A4B45" : "#E2D5D3",
+      "--app-hover": darkMode ? "#34282C" : "#FFF7F9",
+      "--app-hover-strong": darkMode ? "#412E35" : "#FDEBED",
+      "--app-focus-ring": "rgba(217, 67, 104, 0.12)",
       "--app-shadow": darkMode
         ? "0 8px 18px rgba(0,0,0,0.24)"
         : "0 8px 18px rgba(51,26,18,0.07)",
@@ -1167,6 +1341,8 @@ export default function ApplicantPage() {
 
   return (
     <div style={pageThemeStyle}>
+      <style>{APPLICANT_INTERACTION_CSS}</style>
+
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>
@@ -1281,7 +1457,7 @@ export default function ApplicantPage() {
             {error}
           </span>
 
-          <button
+          <button className="applicant-interactive"
             style={styles.errorClose}
             onClick={() =>
               setError("")
@@ -1304,7 +1480,7 @@ export default function ApplicantPage() {
             {success}
           </span>
 
-          <button
+          <button className="applicant-interactive"
             style={
               styles.successClose
             }
@@ -1328,6 +1504,7 @@ export default function ApplicantPage() {
             }
           >
             <div
+              className={`applicant-search-box${search ? " has-value" : ""}`}
               style={styles.searchBox}
             >
               <Search
@@ -1335,7 +1512,7 @@ export default function ApplicantPage() {
                 color="#5E4B45"
               />
 
-              <input
+              <input className="applicant-input-interactive"
                 value={search}
                 onChange={(event) =>
                   setSearch(
@@ -1349,7 +1526,7 @@ export default function ApplicantPage() {
               />
             </div>
 
-            <button
+            <button className="applicant-interactive"
               type="button"
               style={styles.dateBtn}
               onClick={() =>
@@ -1375,7 +1552,7 @@ export default function ApplicantPage() {
               styles.filterActions
             }
           >
-            <button
+            <button className="applicant-interactive applicant-toggle"
               type="button"
               aria-pressed={
                 showAcceptedApplicants
@@ -1416,7 +1593,7 @@ export default function ApplicantPage() {
               </span>
             </button>
 
-            <button
+            <button className="applicant-interactive"
               type="button"
               style={
                 styles.refreshBtn
@@ -1449,7 +1626,7 @@ export default function ApplicantPage() {
             >
               From
 
-              <input
+              <input className="applicant-input-interactive"
                 type="date"
                 value={dateFrom}
                 min="0001-01-01"
@@ -1506,7 +1683,7 @@ export default function ApplicantPage() {
             >
               To
 
-              <input
+              <input className="applicant-input-interactive"
                 type="date"
                 value={dateTo}
                 min={
@@ -1545,7 +1722,7 @@ export default function ApplicantPage() {
               />
             </label>
 
-            <button
+            <button className="applicant-interactive"
               type="button"
               style={styles.clearBtn}
               onClick={clearFilters}
@@ -1637,6 +1814,9 @@ export default function ApplicantPage() {
                       key={
                         record.applicant_id
                       }
+                      className="applicant-table-row"
+                      role="button"
+                      tabIndex={0}
                       style={{
                         ...styles.tableRow,
                         cursor:
@@ -1647,6 +1827,17 @@ export default function ApplicantPage() {
                           record
                         )
                       }
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" ||
+                          event.key === " "
+                        ) {
+                          event.preventDefault();
+                          setSelectedRecord(
+                            record
+                          );
+                        }
+                      }}
                     >
                       <td
                         style={
@@ -1741,7 +1932,7 @@ export default function ApplicantPage() {
                         {getPetPlaceImages(
                           record
                         ).length ? (
-                          <button
+                          <button className="applicant-interactive applicant-file-button"
                             type="button"
                             style={
                               styles.fileCellButton
@@ -1815,7 +2006,7 @@ export default function ApplicantPage() {
                         }
                       >
                         {record.resume_file ? (
-                          <button
+                          <button className="applicant-interactive applicant-file-button"
                             type="button"
                             style={
                               styles.fileCellButton
@@ -1916,7 +2107,7 @@ export default function ApplicantPage() {
           <div
             style={styles.pages}
           >
-            <button
+            <button className="applicant-interactive"
               style={{
                 ...styles.pageBtn,
 
@@ -1950,7 +2141,7 @@ export default function ApplicantPage() {
               (_, index) =>
                 index + 1
             ).map((page) => (
-              <button
+              <button className="applicant-interactive"
                 key={page}
                 onClick={() =>
                   setCurrentPage(
@@ -1971,7 +2162,7 @@ export default function ApplicantPage() {
               </button>
             ))}
 
-            <button
+            <button className="applicant-interactive"
               style={{
                 ...styles.pageBtn,
 
@@ -2058,6 +2249,7 @@ function StatCard({
 }) {
   return (
     <button
+      className="applicant-interactive applicant-stat-card"
       type="button"
       aria-pressed={active}
       onClick={onClick}
@@ -2272,7 +2464,7 @@ function ApplicantModal({
             </p>
           </div>
 
-          <button
+          <button className="applicant-interactive applicant-close-button"
             type="button"
             style={
               styles.modalCloseBtn
@@ -2585,7 +2777,7 @@ function ApplicantModal({
               {getPetPlaceImages(
                 record
               ).length > 0 && (
-                <button
+                <button className="applicant-interactive applicant-media-button"
                   type="button"
                   style={
                     styles.mediaPreviewButton
@@ -2718,7 +2910,7 @@ function ApplicantModal({
                 </h4>
 
                 {record.resume_file && (
-                  <button
+                  <button className="applicant-interactive applicant-file-button"
                     type="button"
                     style={
                       styles.modalFileButton
@@ -2754,7 +2946,7 @@ function ApplicantModal({
               Review Remarks
             </p>
 
-            <textarea
+            <textarea className="applicant-input-interactive"
               value={remarks}
               onChange={(event) =>
                 setRemarks(
@@ -2781,7 +2973,7 @@ function ApplicantModal({
           <div
             style={styles.modalActions}
           >
-            <button
+            <button className="applicant-interactive applicant-danger"
               type="button"
               style={
                 styles.rejectModalBtn
@@ -2798,7 +2990,7 @@ function ApplicantModal({
               Reject
             </button>
 
-            <button
+            <button className="applicant-interactive applicant-success"
               type="button"
               style={
                 styles.acceptModalBtn
@@ -2935,7 +3127,7 @@ function MediaPreviewModal({
               )}
           </div>
 
-          <button
+          <button className="applicant-interactive applicant-close-button"
             type="button"
             aria-label="Close preview"
             style={
@@ -2968,7 +3160,7 @@ function MediaPreviewModal({
               }
             >
               {hasMultipleImages && (
-                <button
+                <button className="applicant-interactive"
                   type="button"
                   aria-label="Previous photo"
                   style={{
@@ -2996,7 +3188,7 @@ function MediaPreviewModal({
               />
 
               {hasMultipleImages && (
-                <button
+                <button className="applicant-interactive"
                   type="button"
                   aria-label="Next photo"
                   style={{
@@ -3021,7 +3213,7 @@ function MediaPreviewModal({
                 >
                   {imageUrls.map(
                     (_, index) => (
-                      <button
+                      <button className="applicant-interactive applicant-carousel-dot"
                         key={index}
                         type="button"
                         aria-label={`View photo ${
@@ -4484,6 +4676,8 @@ const styles = {
     padding: "0 14px",
     background: "var(--app-card)",
     boxSizing: "border-box",
+    transition:
+      "transform 0.16s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   searchInput: {
@@ -4523,6 +4717,8 @@ const styles = {
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   dateBtn: {
@@ -4540,6 +4736,8 @@ const styles = {
     fontSize: 14,
     cursor: "pointer",
     whiteSpace: "nowrap",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   toggleButton: {
@@ -4558,6 +4756,8 @@ const styles = {
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease",
   },
 
   toggleButtonActive: {
@@ -4643,6 +4843,8 @@ const styles = {
     padding: "0 10px",
     color: "var(--app-text)",
     outline: "none",
+    transition:
+      "border-color 0.18s ease, box-shadow 0.18s ease",
   },
 
   clearBtn: {
@@ -4692,6 +4894,8 @@ const styles = {
   tableRow: {
     borderBottom:
       "1px solid var(--app-border)",
+    transition:
+      "background 0.16s ease, box-shadow 0.16s ease",
   },
 
   numberCell: {
@@ -4893,6 +5097,8 @@ const styles = {
       "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   activePage: {
@@ -4983,6 +5189,8 @@ const styles = {
       "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease",
   },
 
   profileTop: {
@@ -5256,6 +5464,9 @@ const styles = {
     fontFamily: "inherit",
     fontSize: 13,
     boxSizing: "border-box",
+    outline: "none",
+    transition:
+      "border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease",
   },
 
   readOnlyRemarks: {
@@ -5386,6 +5597,8 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, color 0.18s ease",
   },
 
   previewBody: {

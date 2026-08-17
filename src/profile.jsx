@@ -19,6 +19,103 @@ const BRAND = {
   muted: "#6F625F",
 };
 
+const PROFILE_INTERACTION_CSS = `
+  .profile-interactive {
+    transition:
+      transform 0.14s ease,
+      box-shadow 0.18s ease,
+      filter 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease !important;
+    transform-origin: center;
+  }
+
+  .profile-interactive:not(:disabled):hover {
+    transform: translateY(-2px);
+  }
+
+  .profile-interactive:not(:disabled):active {
+    transform: translateY(0) scale(0.975);
+  }
+
+  .profile-interactive:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.52);
+    outline-offset: 2px;
+  }
+
+  .profile-save-button:not(:disabled):hover {
+    filter: brightness(1.04);
+    box-shadow:
+      0 8px 18px rgba(217, 67, 104, 0.22),
+      0 0 0 2px rgba(217, 67, 104, 0.07);
+  }
+
+  .profile-save-button:not(:disabled):active {
+    box-shadow: 0 4px 10px rgba(217, 67, 104, 0.16);
+  }
+
+  .profile-eye-button:not(:disabled):hover {
+    color: #D94368 !important;
+    background: #FDEBED !important;
+    transform: scale(1.08);
+  }
+
+  .profile-eye-button:not(:disabled):active {
+    transform: scale(0.94);
+  }
+
+  .profile-input-wrapper {
+    transition:
+      transform 0.16s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .profile-input-wrapper:not(.is-disabled):hover {
+    border-color: rgba(217, 67, 104, 0.42) !important;
+    box-shadow: 0 5px 14px rgba(58, 30, 20, 0.07);
+  }
+
+  .profile-input-wrapper:not(.is-disabled):focus-within {
+    border-color: rgba(217, 67, 104, 0.74) !important;
+    box-shadow:
+      0 0 0 3px rgba(217, 67, 104, 0.10),
+      0 6px 16px rgba(58, 30, 20, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .profile-input-wrapper.has-value:not(.is-disabled) {
+    box-shadow: inset 0 0 0 1px rgba(217, 67, 104, 0.10);
+  }
+
+  .profile-input-control {
+    transition:
+      color 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .profile-input-control::selection {
+    background: rgba(217, 67, 104, 0.20);
+  }
+
+  .profile-alert {
+    animation: profileAlertIn 0.20s ease both;
+  }
+
+  @keyframes profileAlertIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
 export default function ProfilePage() {
   const navigate = useNavigate();
 
@@ -213,6 +310,8 @@ export default function ProfilePage() {
 
   return (
     <>
+        <style>{PROFILE_INTERACTION_CSS}</style>
+
         <header style={styles.header}>
           <div>
             <h1 style={styles.title}>Profile</h1>
@@ -228,6 +327,7 @@ export default function ProfilePage() {
 
         {message && (
           <div
+            className="profile-alert"
             style={
               messageType === "error"
                 ? { ...styles.alert, ...styles.alertError }
@@ -308,6 +408,7 @@ export default function ProfilePage() {
             </div>
 
             <button
+              className="profile-interactive profile-save-button"
               onClick={handleSave}
               style={{
                 ...styles.saveBtn,
@@ -345,6 +446,9 @@ function Input({ label, value, setValue, icon, disabled, type = "text", note }) 
       <label style={styles.label}>{label}</label>
 
       <div
+        className={`profile-input-wrapper${value ? " has-value" : ""}${
+          disabled ? " is-disabled" : ""
+        }`}
         style={
           disabled
             ? { ...styles.inputWrapper, ...styles.disabledWrapper }
@@ -353,6 +457,7 @@ function Input({ label, value, setValue, icon, disabled, type = "text", note }) 
       >
         {icon}
         <input
+          className="profile-input-control"
           disabled={disabled}
           type={type}
           value={value}
@@ -371,15 +476,20 @@ function PasswordInput({ label, value, setValue, show, setShow }) {
     <div style={styles.inputGroup}>
       <label style={styles.label}>{label}</label>
 
-      <div style={styles.inputWrapper}>
+      <div
+        className={`profile-input-wrapper${value ? " has-value" : ""}`}
+        style={styles.inputWrapper}
+      >
         <Lock size={18} />
         <input
+          className="profile-input-control"
           type={show ? "text" : "password"}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           style={styles.input}
         />
         <button
+          className="profile-interactive profile-eye-button"
           type="button"
           onClick={() => setShow(!show)}
           style={styles.eyeBtn}
@@ -525,6 +635,8 @@ const styles = {
     height: 46,
     background: "#fff",
     color: "#6C5B56",
+    transition:
+      "transform 0.16s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease",
   },
 
   disabledWrapper: {
@@ -549,13 +661,20 @@ const styles = {
   },
 
   eyeBtn: {
+    width: 30,
+    height: 30,
     border: "none",
+    borderRadius: 7,
     background: "transparent",
     color: BRAND.muted,
     cursor: "pointer",
     padding: 0,
     display: "flex",
     alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    transition:
+      "transform 0.14s ease, background 0.18s ease, color 0.18s ease",
   },
 
   divider: {
@@ -577,6 +696,8 @@ const styles = {
     gap: 10,
     fontSize: 15,
     fontWeight: 800,
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, filter 0.18s ease",
   },
 
   noteBox: {
