@@ -32,6 +32,11 @@ export default function AdminSidebar() {
   const [admin, setAdmin] = useState(() => getStoredAdmin());
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const [profileHovered, setProfileHovered] = useState(false);
+  const [profilePressed, setProfilePressed] = useState(false);
+  const [logoutHovered, setLogoutHovered] = useState(false);
+  const [logoutPressed, setLogoutPressed] = useState(false);
+
   useEffect(() => {
     function refreshAdmin() {
       setAdmin(getStoredAdmin());
@@ -136,19 +141,52 @@ export default function AdminSidebar() {
       <div style={styles.sidebarBottom}>
         <NavLink
           to="/profile"
+          onMouseEnter={() => setProfileHovered(true)}
+          onMouseLeave={() => {
+            setProfileHovered(false);
+            setProfilePressed(false);
+          }}
+          onMouseDown={() => setProfilePressed(true)}
+          onMouseUp={() => setProfilePressed(false)}
+          onFocus={() => setProfileHovered(true)}
+          onBlur={() => {
+            setProfileHovered(false);
+            setProfilePressed(false);
+          }}
           style={({ isActive }) => ({
             ...styles.profileCard,
-            background: darkMode
+            background: isActive
+              ? darkMode
+                ? "#4A3038"
+                : "#F9CDD4"
+              : profileHovered
+              ? darkMode
+                ? "#443733"
+                : "#FBE3E7"
+              : darkMode
               ? "#3A302C"
               : "#F9DADF",
             borderColor: isActive
               ? BRAND.pink
+              : profileHovered
+              ? darkMode
+                ? "#6B5550"
+                : "#EFB7C3"
               : darkMode
               ? "#514540"
               : "transparent",
             boxShadow: isActive
-              ? "0 0 0 2px rgba(217, 67, 104, 0.10)"
+              ? "0 6px 16px rgba(217, 67, 104, 0.16)"
+              : profileHovered
+              ? darkMode
+                ? "0 8px 18px rgba(0, 0, 0, 0.22)"
+                : "0 8px 18px rgba(85,54,48,0.12)"
               : "none",
+            transform: profilePressed
+              ? "translateX(2px) scale(0.985)"
+              : profileHovered
+              ? "translateX(4px)"
+              : "translateX(0)",
           })}
         >
           <div
@@ -157,6 +195,9 @@ export default function AdminSidebar() {
               background: darkMode
                 ? "#2B2421"
                 : "#FFFFFF",
+              transform: profileHovered
+                ? "scale(1.06)"
+                : "scale(1)",
             }}
           >
             <User size={24} />
@@ -197,9 +238,44 @@ export default function AdminSidebar() {
           type="button"
           onClick={handleLogout}
           disabled={loggingOut}
+          onMouseEnter={() =>
+            !loggingOut && setLogoutHovered(true)
+          }
+          onMouseLeave={() => {
+            setLogoutHovered(false);
+            setLogoutPressed(false);
+          }}
+          onMouseDown={() =>
+            !loggingOut && setLogoutPressed(true)
+          }
+          onMouseUp={() => setLogoutPressed(false)}
+          onFocus={() =>
+            !loggingOut && setLogoutHovered(true)
+          }
+          onBlur={() => {
+            setLogoutHovered(false);
+            setLogoutPressed(false);
+          }}
           style={{
             ...styles.logoutBtn,
-            color: normalText,
+            color: logoutHovered
+              ? BRAND.pink
+              : normalText,
+            background: logoutHovered
+              ? darkMode
+                ? "#412B31"
+                : "#FBE1E6"
+              : "transparent",
+            boxShadow: logoutHovered
+              ? darkMode
+                ? "0 6px 14px rgba(0, 0, 0, 0.20)"
+                : "0 6px 14px rgba(217, 67, 104, 0.10)"
+              : "none",
+            transform: logoutPressed
+              ? "translateX(2px) scale(0.985)"
+              : logoutHovered
+              ? "translateX(4px)"
+              : "translateX(0)",
             fontSize: 16 * fontScale,
             opacity: loggingOut ? 0.55 : 1,
             cursor: loggingOut
@@ -207,7 +283,16 @@ export default function AdminSidebar() {
               : "pointer",
           }}
         >
-          <LogOut size={20} />
+          <LogOut
+            size={20}
+            style={{
+              transform: logoutHovered
+                ? "translateX(2px)"
+                : "translateX(0)",
+              transition: "transform 0.18s ease",
+            }}
+          />
+
           <span>
             {loggingOut
               ? "Logging out..."
@@ -226,13 +311,30 @@ function SidebarItem({
   darkMode,
   fontScale,
 }) {
+  const [hovered, setHovered] = useState(false);
+  const [pressed, setPressed] = useState(false);
+
   return (
     <NavLink
       to={to}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => {
+        setHovered(false);
+        setPressed(false);
+      }}
+      onMouseDown={() => setPressed(true)}
+      onMouseUp={() => setPressed(false)}
+      onFocus={() => setHovered(true)}
+      onBlur={() => {
+        setHovered(false);
+        setPressed(false);
+      }}
       style={({ isActive }) => ({
         ...styles.navItem,
         color: isActive
           ? "#D74264"
+          : hovered
+          ? BRAND.pink
           : darkMode
           ? "#FFF7F4"
           : BRAND.brown,
@@ -240,11 +342,37 @@ function SidebarItem({
           ? darkMode
             ? "#4A3038"
             : "#F9CDD4"
+          : hovered
+          ? darkMode
+            ? "#392D30"
+            : "#FCE3E7"
           : "transparent",
+        boxShadow: isActive
+          ? "0 5px 14px rgba(217, 67, 104, 0.14)"
+          : hovered
+          ? darkMode
+            ? "0 5px 12px rgba(0, 0, 0, 0.18)"
+            : "0 5px 12px rgba(217, 67, 104, 0.08)"
+          : "none",
+        transform: pressed
+          ? "translateX(2px) scale(0.985)"
+          : hovered
+          ? "translateX(5px)"
+          : "translateX(0)",
         fontSize: 16 * fontScale,
       })}
     >
-      {icon}
+      <span
+        style={{
+          ...styles.navIcon,
+          transform: hovered
+            ? "scale(1.08)"
+            : "scale(1)",
+        }}
+      >
+        {icon}
+      </span>
+
       <span>{text}</span>
     </NavLink>
   );
@@ -325,7 +453,7 @@ const styles = {
     width: "100%",
     height: 56,
     overflow: "hidden",
-    border: "none",
+    border: "1px solid transparent",
     borderRadius: 10,
     display: "flex",
     alignItems: "center",
@@ -336,8 +464,21 @@ const styles = {
     textAlign: "left",
     textDecoration: "none",
     boxSizing: "border-box",
+    outline: "none",
+    transformOrigin: "left center",
+    willChange: "transform",
     transition:
-      "background 0.2s ease, color 0.2s ease",
+      "background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.14s ease",
+  },
+
+  navIcon: {
+    width: 20,
+    height: 20,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    transition: "transform 0.18s ease",
   },
 
   sidebarBottom: {
@@ -359,8 +500,11 @@ const styles = {
     boxSizing: "border-box",
     textDecoration: "none",
     border: "1px solid",
+    outline: "none",
+    transformOrigin: "left center",
+    willChange: "transform",
     transition:
-      "background 0.2s ease, border-color 0.2s ease",
+      "background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.14s ease",
   },
 
   profileIcon: {
@@ -372,6 +516,8 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    transition:
+      "background 0.18s ease, transform 0.18s ease",
   },
 
   profileInfo: {
@@ -398,13 +544,19 @@ const styles = {
   logoutBtn: {
     width: "100%",
     height: 50,
-    border: "none",
+    border: "1px solid transparent",
     borderRadius: 10,
-    background: "transparent",
     display: "flex",
     alignItems: "center",
     gap: 14,
     padding: "0 18px",
     fontWeight: 700,
+    textAlign: "left",
+    fontFamily: "inherit",
+    outline: "none",
+    transformOrigin: "left center",
+    willChange: "transform",
+    transition:
+      "background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, transform 0.14s ease, opacity 0.18s ease",
   },
 };

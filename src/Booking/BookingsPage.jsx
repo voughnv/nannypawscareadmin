@@ -51,6 +51,151 @@ const ALLOWED_STATUS_TRANSITIONS = {
 
 const BOOKING_FIELDS = "*";
 
+
+const BOOKING_INTERACTION_CSS = `
+  .bookings-interactive-page button:not(:disabled) {
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      border-color 160ms ease,
+      background-color 160ms ease,
+      color 160ms ease,
+      filter 160ms ease;
+  }
+
+  .bookings-interactive-page button:not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.015) saturate(1.03);
+  }
+
+  .bookings-interactive-page button:not(:disabled):active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .bookings-interactive-page button:focus-visible,
+  .bookings-interactive-page input:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.42);
+    outline-offset: 2px;
+  }
+
+  .bookings-interactive-page .booking-stat-card:not(:disabled):hover {
+    transform: translateY(-3px);
+    border-color: rgba(217, 67, 104, 0.55) !important;
+    box-shadow:
+      0 13px 26px rgba(58, 30, 20, 0.11),
+      0 0 0 2px rgba(217, 67, 104, 0.06) !important;
+  }
+
+  .bookings-interactive-page .booking-stat-card:not(:disabled):hover .booking-stat-icon {
+    transform: scale(1.06);
+  }
+
+  .bookings-interactive-page .booking-stat-icon {
+    transition: transform 170ms ease;
+  }
+
+  .bookings-interactive-page .booking-search-shell {
+    transition:
+      transform 170ms ease,
+      border-color 170ms ease,
+      box-shadow 170ms ease,
+      background-color 170ms ease;
+  }
+
+  .bookings-interactive-page .booking-search-shell:hover {
+    border-color: rgba(217, 67, 104, 0.42) !important;
+    background: #fffdfd !important;
+  }
+
+  .bookings-interactive-page .booking-search-shell:focus-within {
+    transform: translateY(-1px);
+    border-color: #D94368 !important;
+    background: #ffffff !important;
+    box-shadow:
+      0 0 0 3px rgba(217, 67, 104, 0.10),
+      0 7px 16px rgba(58, 30, 20, 0.06);
+  }
+
+  .bookings-interactive-page .booking-search-shell.has-search-value {
+    border-color: rgba(217, 67, 104, 0.56) !important;
+    box-shadow: 0 0 0 2px rgba(217, 67, 104, 0.05);
+  }
+
+  .bookings-interactive-page .booking-search-input {
+    transition: color 160ms ease;
+  }
+
+  .bookings-interactive-page .booking-date-input {
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .bookings-interactive-page .booking-date-input:hover {
+    border-color: rgba(217, 67, 104, 0.42) !important;
+    background: #fffdfd !important;
+  }
+
+  .bookings-interactive-page .booking-date-input:focus {
+    outline: none;
+    transform: translateY(-1px);
+    border-color: #D94368 !important;
+    box-shadow: 0 0 0 3px rgba(217, 67, 104, 0.10);
+    background: #ffffff !important;
+  }
+
+  .bookings-interactive-page .booking-clickable-row td {
+    transition:
+      background-color 150ms ease,
+      color 150ms ease,
+      box-shadow 150ms ease;
+  }
+
+  .bookings-interactive-page .booking-clickable-row:hover td {
+    background: #FFF5F7;
+  }
+
+  .bookings-interactive-page .booking-clickable-row:hover td:first-child {
+    box-shadow: inset 3px 0 0 #D94368;
+  }
+
+  .bookings-interactive-page .booking-clickable-row:active td {
+    background: #FDEBED;
+  }
+
+  .bookings-interactive-page .booking-clickable-row:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.42);
+    outline-offset: -2px;
+  }
+
+  .bookings-interactive-page .booking-proof-button:not(:disabled):hover {
+    box-shadow: 0 5px 12px rgba(217, 67, 104, 0.14);
+  }
+
+  .bookings-interactive-page .booking-pagination-button:not(:disabled):hover {
+    border-color: rgba(217, 67, 104, 0.55) !important;
+    box-shadow: 0 4px 10px rgba(58, 30, 20, 0.08);
+  }
+
+  .bookings-interactive-page .booking-close-button:not(:disabled):hover {
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.5) !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bookings-interactive-page *,
+    .bookings-interactive-page *::before,
+    .bookings-interactive-page *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+`;
+
 export default function BookingsPage() {
   const requestConfirmation = useConfirmation();
 
@@ -561,7 +706,9 @@ export default function BookingsPage() {
   );
 
   return (
-    <>
+    <div className="bookings-interactive-page">
+      <style>{BOOKING_INTERACTION_CSS}</style>
+
         <header style={styles.header}>
           <div>
             <h1 style={styles.title}>Bookings</h1>
@@ -639,7 +786,11 @@ export default function BookingsPage() {
           <div style={styles.errorBox}>
             <AlertCircle size={20} />
             <span style={styles.errorText}>{error}</span>
-            <button style={styles.errorClose} onClick={() => setError("")}>
+            <button
+              className="booking-close-button"
+              style={styles.errorClose}
+              onClick={() => setError("")}
+            >
               <X size={18} />
             </button>
           </div>
@@ -648,12 +799,16 @@ export default function BookingsPage() {
         <section style={styles.tableCard}>
           <div style={styles.filters}>
             <div style={styles.leftFilters}>
-              <div style={styles.searchBox}>
+              <div
+                className={`booking-search-shell${search.trim() ? " has-search-value" : ""}`}
+                style={styles.searchBox}
+              >
                 <Search size={22} color="#5E4B45" />
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search booking ID or service"
+                  className="booking-search-input"
                   style={styles.searchInput}
                 />
               </div>
@@ -717,6 +872,7 @@ export default function BookingsPage() {
                       setDateTo(nextFrom);
                     }
                   }}
+                  className="booking-date-input"
                   style={styles.dateInput}
                 />
               </label>
@@ -746,6 +902,7 @@ export default function BookingsPage() {
 
                     setDateTo(nextTo);
                   }}
+                  className="booking-date-input"
                   style={styles.dateInput}
                 />
               </label>
@@ -786,8 +943,25 @@ export default function BookingsPage() {
                   paginatedBookings.map((booking, index) => (
                     <tr
                       key={booking.booking_id}
+                      className="booking-clickable-row"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open details for ${formatBookingId(
+                        booking.booking_id
+                      )}`}
                       style={{ ...styles.tableRow, cursor: "pointer" }}
                       onClick={() => setSelectedBooking(booking)}
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
+
+                        if (
+                          event.key === "Enter" ||
+                          event.key === " "
+                        ) {
+                          event.preventDefault();
+                          setSelectedBooking(booking);
+                        }
+                      }}
                     >
                       <td style={styles.numberCell}>
                         {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
@@ -830,10 +1004,14 @@ export default function BookingsPage() {
                         {booking.payment_proof ? (
                           <button
                             type="button"
+                            className="booking-proof-button"
                             style={styles.proofTableBtn}
                             onClick={(event) => {
                               event.stopPropagation();
                               setSelectedProofBooking(booking);
+                            }}
+                            onKeyDown={(event) => {
+                              event.stopPropagation();
                             }}
                           >
                             View Proof
@@ -869,6 +1047,7 @@ export default function BookingsPage() {
 
             <div style={styles.pages}>
               <button
+                className="booking-pagination-button"
                 style={{
                   ...styles.pageBtn,
                   ...(currentPage === 1 ? styles.disabledBtn : {}),
@@ -888,6 +1067,7 @@ export default function BookingsPage() {
                   </span>
                 ) : (
                   <button
+                    className="booking-pagination-button"
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     style={
@@ -902,6 +1082,7 @@ export default function BookingsPage() {
               )}
 
               <button
+                className="booking-pagination-button"
                 style={{
                   ...styles.pageBtn,
                   ...(currentPage === totalPages ? styles.disabledBtn : {}),
@@ -963,7 +1144,7 @@ export default function BookingsPage() {
           onComplete={completeBooking}
         />
       )}
-    </>
+    </div>
   );
 }
 
@@ -978,6 +1159,7 @@ function StatCard({
 }) {
   return (
     <button
+      className="booking-stat-card"
       type="button"
       onClick={onClick}
       aria-pressed={active}
@@ -986,7 +1168,12 @@ function StatCard({
         ...(active ? styles.statCardActive : {}),
       }}
     >
-      <div style={{ ...styles.statIcon, ...iconStyle }}>{icon}</div>
+      <div
+        className="booking-stat-icon"
+        style={{ ...styles.statIcon, ...iconStyle }}
+      >
+        {icon}
+      </div>
       <div style={styles.statContent}>
         <p style={styles.statTitle}>{title}</p>
         <h2 style={styles.statValue}>{value}</h2>
@@ -1036,6 +1223,7 @@ function BookingReportModal({
           <button
             type="button"
             aria-label="Close booking report"
+            className="booking-close-button"
             style={styles.reportCloseBtn}
             onClick={onClose}
           >
@@ -1083,6 +1271,7 @@ function BookingReportModal({
           <button
             type="button"
             onClick={onClose}
+            className="booking-secondary-action"
             style={styles.reportCancelBtn}
           >
             Close
@@ -1091,6 +1280,7 @@ function BookingReportModal({
           <button
             type="button"
             onClick={onApplyFilter}
+            className="booking-primary-action"
             style={styles.reportDoneBtn}
           >
             View Filtered Bookings
@@ -1213,6 +1403,7 @@ function PaymentProofPreviewModal({
           <button
             type="button"
             aria-label="Close proof of payment"
+            className="booking-close-button"
             style={styles.proofModalCloseBtn}
             onClick={onClose}
           >

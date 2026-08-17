@@ -26,6 +26,96 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
   ])
 );
 
+
+const BOOKING_MODAL_INTERACTION_CSS = `
+  .booking-details-interactive button:not(:disabled) {
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease,
+      border-color 160ms ease,
+      background-color 160ms ease,
+      color 160ms ease,
+      filter 160ms ease;
+  }
+
+  .booking-details-interactive button:not(:disabled):hover {
+    transform: translateY(-1px);
+    filter: brightness(1.015) saturate(1.03);
+  }
+
+  .booking-details-interactive button:not(:disabled):active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .booking-details-interactive button:focus-visible,
+  .booking-details-interactive textarea:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.42);
+    outline-offset: 2px;
+  }
+
+  .booking-details-interactive .booking-modal-close:not(:disabled):hover {
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.52) !important;
+    box-shadow: 0 5px 12px rgba(58, 30, 20, 0.08);
+  }
+
+  .booking-details-interactive .booking-review-textarea:not([readonly]) {
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      background-color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .booking-details-interactive .booking-review-textarea:not([readonly]):hover {
+    border-color: rgba(217, 67, 104, 0.46) !important;
+    background: #fffdfd !important;
+  }
+
+  .booking-details-interactive .booking-review-textarea:not([readonly]):focus {
+    outline: none;
+    transform: translateY(-1px);
+    border-color: #D94368 !important;
+    box-shadow: 0 0 0 3px rgba(217, 67, 104, 0.10);
+    background: #ffffff !important;
+  }
+
+  .booking-details-interactive .booking-proof-interactive:not(:disabled):hover {
+    box-shadow: 0 8px 18px rgba(217, 67, 104, 0.10);
+  }
+
+  .booking-details-interactive .booking-proof-interactive:not(:disabled):hover img {
+    transform: scale(1.012);
+    border-color: rgba(217, 67, 104, 0.48) !important;
+  }
+
+  .booking-details-interactive .booking-proof-interactive img {
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .booking-details-interactive .booking-action-button:not(:disabled):hover {
+    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.10);
+  }
+
+  .booking-details-interactive .booking-action-button:not(:disabled):active {
+    box-shadow: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .booking-details-interactive *,
+    .booking-details-interactive *::before,
+    .booking-details-interactive *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
+    }
+  }
+`;
+
 export default function BookingDetailsModal({
   booking,
   updating,
@@ -60,9 +150,12 @@ export default function BookingDetailsModal({
 
   return (
     <div
+      className="booking-details-interactive"
       style={styles.modalOverlay}
       onClick={updating ? undefined : onClose}
     >
+      <style>{BOOKING_MODAL_INTERACTION_CSS}</style>
+
       <div
         role="dialog"
         aria-modal="true"
@@ -83,6 +176,7 @@ export default function BookingDetailsModal({
           <button
             type="button"
             aria-label="Close booking details"
+            className="booking-modal-close"
             style={{
               ...styles.closeBtn,
               ...(updating ? styles.disabledButton : {}),
@@ -208,6 +302,7 @@ export default function BookingDetailsModal({
               </div>
 
               <textarea
+                className="booking-review-textarea"
                 value={reviewRemarks}
                 onChange={(event) => {
                   setReviewRemarks(event.target.value);
@@ -268,6 +363,7 @@ export default function BookingDetailsModal({
               <>
                 <button
                   type="button"
+                  className="booking-action-button"
                   style={{
                     ...styles.actionButton,
                     ...styles.rejectButton,
@@ -298,6 +394,7 @@ export default function BookingDetailsModal({
 
                 <button
                   type="button"
+                  className="booking-action-button"
                   style={{
                     ...styles.actionButton,
                     ...styles.confirmButton,
@@ -453,6 +550,7 @@ function PaymentProof({ value, bookingId }) {
     <>
       <button
         type="button"
+        className="booking-proof-interactive"
         style={styles.proofLink}
         title="View proof of payment"
         onClick={() => setPreviewOpen(true)}
@@ -500,6 +598,7 @@ function PaymentProof({ value, bookingId }) {
               <button
                 type="button"
                 aria-label="Close proof preview"
+                className="booking-modal-close"
                 style={styles.proofPreviewCloseBtn}
                 onClick={() => setPreviewOpen(false)}
               >
