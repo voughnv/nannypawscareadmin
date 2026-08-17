@@ -39,6 +39,144 @@ const BRAND = {
   muted: "#6F625F",
 };
 
+
+const SITTER_INTERACTION_CSS = `
+  .sitter-interactive {
+    transition:
+      transform 0.14s ease,
+      box-shadow 0.18s ease,
+      filter 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease,
+      color 0.18s ease !important;
+    transform-origin: center;
+  }
+
+  .sitter-interactive:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.12);
+    filter: brightness(1.015);
+  }
+
+  .sitter-interactive:not(:disabled):active {
+    transform: translateY(0) scale(0.975);
+    box-shadow: 0 3px 8px rgba(58, 30, 20, 0.10);
+  }
+
+  .sitter-interactive:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.52);
+    outline-offset: 2px;
+  }
+
+  .sitter-stat-card:not(:disabled):hover {
+    transform: translateY(-4px) !important;
+    border-color: rgba(217, 67, 104, 0.50) !important;
+    box-shadow:
+      0 12px 24px rgba(58, 30, 20, 0.12),
+      0 0 0 2px rgba(217, 67, 104, 0.06) !important;
+  }
+
+  .sitter-stat-card:not(:disabled):active {
+    transform: translateY(-1px) scale(0.985) !important;
+  }
+
+  .sitter-search-box {
+    transition:
+      transform 0.16s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .sitter-search-box:hover {
+    box-shadow: 0 5px 14px rgba(58, 30, 20, 0.08);
+  }
+
+  .sitter-search-box:focus-within {
+    border-color: rgba(217, 67, 104, 0.70) !important;
+    box-shadow:
+      0 0 0 3px rgba(217, 67, 104, 0.10),
+      0 6px 16px rgba(58, 30, 20, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .sitter-search-box.has-value {
+    box-shadow: inset 0 0 0 1px rgba(217, 67, 104, 0.14);
+  }
+
+  .sitter-input-interactive {
+    transition:
+      border-color 0.18s ease,
+      box-shadow 0.18s ease,
+      background-color 0.18s ease;
+  }
+
+  .sitter-input-interactive:not(:disabled):hover {
+    border-color: rgba(217, 67, 104, 0.42) !important;
+  }
+
+  .sitter-input-interactive:not(:disabled):focus {
+    border-color: rgba(217, 67, 104, 0.72) !important;
+    box-shadow: 0 0 0 3px rgba(217, 67, 104, 0.10);
+  }
+
+  .sitter-table-row {
+    transition:
+      background-color 0.16s ease,
+      box-shadow 0.16s ease,
+      filter 0.16s ease;
+  }
+
+  .sitter-table-row:hover {
+    background: #FFF7F9 !important;
+    box-shadow: inset 3px 0 0 #D94368;
+  }
+
+  .sitter-table-row:active {
+    background: #FDEBED !important;
+    filter: brightness(0.995);
+  }
+
+  .sitter-table-row:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.46);
+    outline-offset: -2px;
+    background: #FFF7F9 !important;
+  }
+
+  .sitter-action-menu-item:not(:disabled):hover {
+    background: #FDEBED !important;
+    color: #D94368 !important;
+    transform: translateX(2px);
+    box-shadow: none;
+  }
+
+  .sitter-action-menu-danger:not(:disabled):hover {
+    background: #FFF0F2 !important;
+    color: #B42335 !important;
+  }
+
+  .sitter-photo-button:not(:disabled):hover {
+    box-shadow: 0 8px 18px rgba(58, 30, 20, 0.10);
+  }
+
+  .sitter-photo-button img {
+    transition:
+      transform 0.20s ease,
+      box-shadow 0.20s ease;
+  }
+
+  .sitter-photo-button:not(:disabled):hover img {
+    transform: scale(1.018);
+    box-shadow: 0 8px 18px rgba(58, 30, 20, 0.12);
+  }
+
+  .sitter-close-button:not(:disabled):hover {
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.45) !important;
+    background: #FFF7F9 !important;
+  }
+`;
+
 const ROWS_PER_PAGE = 6;
 
 const SITTER_FIELDS =
@@ -823,6 +961,8 @@ export default function SittersPage() {
 
   return (
     <div style={pageScaleStyle}>
+        <style>{SITTER_INTERACTION_CSS}</style>
+
         <header style={styles.header}>
           <div>
             <h1 style={styles.title}>Pet Sitters</h1>
@@ -904,7 +1044,7 @@ export default function SittersPage() {
           <div style={styles.errorBox}>
             <AlertCircle size={20} />
             <span style={styles.errorText}>{error}</span>
-            <button style={styles.errorClose} onClick={() => setError("")}>
+            <button className="sitter-interactive" style={styles.errorClose} onClick={() => setError("")}>
               <X size={18} />
             </button>
           </div>
@@ -914,7 +1054,7 @@ export default function SittersPage() {
           <div style={styles.successBox}>
             <CheckCircle2 size={20} />
             <span style={styles.successText}>{success}</span>
-            <button style={styles.successClose} onClick={() => setSuccess("")}>
+            <button className="sitter-interactive" style={styles.successClose} onClick={() => setSuccess("")}>
               <X size={18} />
             </button>
           </div>
@@ -922,9 +1062,12 @@ export default function SittersPage() {
 
         <section style={styles.tableCard}>
           <div style={styles.filters}>
-            <div style={styles.searchBox}>
+            <div
+              className={`sitter-search-box${search ? " has-value" : ""}`}
+              style={styles.searchBox}
+            >
               <Search size={22} color="#5E4B45" />
-              <input
+              <input className="sitter-input-interactive"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search ID, name, username, or email"
@@ -932,7 +1075,7 @@ export default function SittersPage() {
               />
             </div>
 
-            <button
+            <button className="sitter-interactive"
               style={styles.refreshBtn}
               onClick={fetchSitters}
               disabled={loading}
@@ -993,8 +1136,20 @@ export default function SittersPage() {
                   paginatedSitters.map((sitter, index) => (
                     <tr
                       key={sitter.petsitter_id}
+                      className="sitter-table-row"
+                      role="button"
+                      tabIndex={0}
                       style={{ ...styles.tableRow, cursor: "pointer" }}
                       onClick={() => openSitter(sitter)}
+                      onKeyDown={(event) => {
+                        if (
+                          event.key === "Enter" ||
+                          event.key === " "
+                        ) {
+                          event.preventDefault();
+                          openSitter(sitter);
+                        }
+                      }}
                     >
                       <td style={styles.numberCell}>
                         {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
@@ -1061,7 +1216,7 @@ export default function SittersPage() {
                           style={styles.actionMenuWrap}
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <button
+                          <button className="sitter-interactive"
                             type="button"
                             style={styles.actionMenuTrigger}
                             aria-label={`Open actions for ${getFullName(sitter)}`}
@@ -1124,7 +1279,7 @@ export default function SittersPage() {
                                 }}
                                 onClick={(event) => event.stopPropagation()}
                               >
-                                <button
+                                <button className="sitter-interactive sitter-action-menu-item"
                                   type="button"
                                   style={styles.actionMenuItem}
                                   onClick={() => openSitter(sitter, "view")}
@@ -1133,7 +1288,7 @@ export default function SittersPage() {
                                   <span>View Details</span>
                                 </button>
 
-                                <button
+                                <button className="sitter-interactive sitter-action-menu-item"
                                   type="button"
                                   style={styles.actionMenuItem}
                                   onClick={() => openSitter(sitter, "edit")}
@@ -1144,7 +1299,7 @@ export default function SittersPage() {
 
                                 <div style={styles.actionMenuDivider} />
 
-                                <button
+                                <button className="sitter-interactive sitter-action-menu-item sitter-action-menu-danger"
                                   type="button"
                                   style={{
                                     ...styles.actionMenuItem,
@@ -1194,7 +1349,7 @@ export default function SittersPage() {
             </p>
 
             <div style={styles.pages}>
-              <button
+              <button className="sitter-interactive"
                 style={{
                   ...styles.pageBtn,
                   ...(currentPage === 1 ? styles.disabledBtn : {}),
@@ -1213,7 +1368,7 @@ export default function SittersPage() {
                     …
                   </span>
                 ) : (
-                  <button
+                  <button className="sitter-interactive"
                     key={page}
                     onClick={() => setCurrentPage(page)}
                     style={
@@ -1227,7 +1382,7 @@ export default function SittersPage() {
                 )
               )}
 
-              <button
+              <button className="sitter-interactive"
                 style={{
                   ...styles.pageBtn,
                   ...(currentPage === totalPages ? styles.disabledBtn : {}),
@@ -1286,6 +1441,7 @@ function StatCard({
 }) {
   return (
     <button
+      className="sitter-interactive sitter-stat-card"
       type="button"
       onClick={onClick}
       aria-pressed={active}
@@ -1763,7 +1919,7 @@ function SitterModal({
             </h2>
           </div>
 
-          <button
+          <button className="sitter-interactive sitter-close-button"
             type="button"
             aria-label="Close sitter details"
             style={{
@@ -2062,7 +2218,7 @@ function SitterModal({
         </div>
 
         <div style={styles.modalFooter}>
-          <button
+          <button className="sitter-interactive"
             type="button"
             style={{
               ...styles.deleteModalBtn,
@@ -2087,7 +2243,7 @@ function SitterModal({
           >
             {isEditing ? (
               <>
-                <button
+                <button className="sitter-interactive"
                   type="button"
                   style={{
                     ...styles.cancelEditBtn,
@@ -2101,7 +2257,7 @@ function SitterModal({
                   Cancel
                 </button>
 
-                <button
+                <button className="sitter-interactive"
                   type="button"
                   style={{
                     ...styles.saveChangesBtn,
@@ -2123,7 +2279,7 @@ function SitterModal({
               </>
             ) : (
               <>
-                <button
+                <button className="sitter-interactive"
                   type="button"
                   style={{
                     ...styles.editModalBtn,
@@ -2138,7 +2294,7 @@ function SitterModal({
                   Edit Details
                 </button>
 
-                <button
+                <button className="sitter-interactive"
                   type="button"
                   style={{
                     ...styles.closeModalBtn,
@@ -2193,7 +2349,7 @@ function EditField({
           {required ? " *" : ""}
         </span>
 
-        <input
+        <input className="sitter-input-interactive"
           type={type}
           value={value}
           disabled={disabled}
@@ -2505,7 +2661,7 @@ function PlacePhotoPreview({
     photoList[0];
 
   return (
-    <button
+    <button className="sitter-interactive sitter-photo-button"
       type="button"
       style={
         styles.placePreviewButton
@@ -2602,7 +2758,7 @@ function PlacePhotoCard({
       </div>
 
       {photoList.length > 0 && (
-        <button
+        <button className="sitter-interactive sitter-photo-button"
           type="button"
           style={
             styles.placePhotoButton
@@ -2776,7 +2932,7 @@ function PlacePhotoCarouselModal({
             </p>
           </div>
 
-          <button
+          <button className="sitter-interactive sitter-close-button"
             type="button"
             aria-label="Close photo viewer"
             style={
@@ -2794,7 +2950,7 @@ function PlacePhotoCarouselModal({
           }
         >
           {urls.length > 1 && (
-            <button
+            <button className="sitter-interactive"
               type="button"
               aria-label="Previous photo"
               style={{
@@ -2829,7 +2985,7 @@ function PlacePhotoCarouselModal({
           />
 
           {urls.length > 1 && (
-            <button
+            <button className="sitter-interactive"
               type="button"
               aria-label="Next photo"
               style={{
@@ -2855,7 +3011,7 @@ function PlacePhotoCarouselModal({
           >
             {urls.map(
               (_, index) => (
-                <button
+                <button className="sitter-interactive"
                   type="button"
                   key={index}
                   aria-label={`View photo ${
@@ -3907,6 +4063,8 @@ const styles = {
     padding: "0 14px",
     background: "#fff",
     boxSizing: "border-box",
+    transition:
+      "transform 0.16s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   searchInput: {
@@ -3935,6 +4093,8 @@ const styles = {
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   tableWrapper: {
@@ -3965,6 +4125,8 @@ const styles = {
 
   tableRow: {
     borderBottom: "1px solid #E7DAD7",
+    transition:
+      "background 0.16s ease, box-shadow 0.16s ease",
   },
 
   numberCell: {
@@ -4118,6 +4280,8 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   actionMenu: {
@@ -4146,6 +4310,8 @@ const styles = {
     fontWeight: 800,
     textAlign: "left",
     cursor: "pointer",
+    transition:
+      "background 0.16s ease, color 0.16s ease, transform 0.14s ease",
   },
 
   actionMenuDivider: {
@@ -4205,6 +4371,8 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
+    transition:
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   activePage: {
@@ -4728,6 +4896,8 @@ const styles = {
     boxSizing: "border-box",
     fontFamily: "inherit",
     fontSize: 13,
+    transition:
+      "border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease",
   },
 
   editInputError: {
