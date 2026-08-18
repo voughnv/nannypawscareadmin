@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import {
   CalendarDays,
   LogOut,
+  Menu,
   MessageSquare,
   MessagesSquare,
   Settings,
@@ -25,13 +26,15 @@ const MENU_ITEMS = [
   { to: "/feedbacks", text: "Feedbacks", icon: MessageSquare },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ onCollapse }) {
   const { settings, fontScale } = useAdminSettings();
   const darkMode = settings.darkMode;
 
   const [admin, setAdmin] = useState(() => getStoredAdmin());
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const [menuHovered, setMenuHovered] = useState(false);
+  const [menuPressed, setMenuPressed] = useState(false);
   const [logoHovered, setLogoHovered] = useState(false);
   const [logoPressed, setLogoPressed] = useState(false);
   const [profileHovered, setProfileHovered] = useState(false);
@@ -108,6 +111,53 @@ export default function AdminSidebar() {
           : "transparent",
       }}
     >
+      <button
+        type="button"
+        aria-label="Hide sidebar"
+        title="Hide sidebar"
+        onClick={onCollapse}
+        onMouseEnter={() => setMenuHovered(true)}
+        onMouseLeave={() => {
+          setMenuHovered(false);
+          setMenuPressed(false);
+        }}
+        onMouseDown={() => setMenuPressed(true)}
+        onMouseUp={() => setMenuPressed(false)}
+        onFocus={() => setMenuHovered(true)}
+        onBlur={() => {
+          setMenuHovered(false);
+          setMenuPressed(false);
+        }}
+        style={{
+          ...styles.collapseButton,
+          color: menuHovered ? BRAND.pink : normalText,
+          background: menuHovered
+            ? darkMode
+              ? "#392D30"
+              : "#FCE3E7"
+            : darkMode
+            ? "#2F2724"
+            : "#FFF7F8",
+          borderColor: menuHovered
+            ? BRAND.pink
+            : darkMode
+            ? "#514540"
+            : "#E8DAD7",
+          boxShadow: menuHovered
+            ? darkMode
+              ? "0 6px 14px rgba(0, 0, 0, 0.22)"
+              : "0 6px 14px rgba(217, 67, 104, 0.10)"
+            : "none",
+          transform: menuPressed
+            ? "scale(0.94)"
+            : menuHovered
+            ? "translateY(-1px)"
+            : "translateY(0)",
+        }}
+      >
+        <Menu size={20} />
+      </button>
+
       <NavLink
         to="/bookings"
         aria-label="Go to Bookings"
@@ -432,6 +482,7 @@ function getStoredAdmin() {
 
 const styles = {
   sidebar: {
+    position: "relative",
     width: 250,
     minWidth: 250,
     height: "100vh",
@@ -443,6 +494,25 @@ const styles = {
     borderRight: "1px solid transparent",
     transition:
       "background 0.2s ease, border-color 0.2s ease",
+  },
+
+  collapseButton: {
+    position: "absolute",
+    top: 18,
+    right: 14,
+    zIndex: 5,
+    width: 38,
+    height: 38,
+    borderRadius: 9,
+    border: "1px solid",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    outline: "none",
+    transition:
+      "transform 0.14s ease, background 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
   },
 
   logoBox: {
