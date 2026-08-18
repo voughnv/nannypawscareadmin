@@ -123,7 +123,6 @@ export default function BookingDetailsModal({
   onPending,
   onApprove,
   onReject,
-  onComplete,
 }) {
   const [reviewRemarks, setReviewRemarks] = useState(
     booking?.admin_review_remarks || ""
@@ -334,15 +333,17 @@ export default function BookingDetailsModal({
 
         </div>
 
-        {(isCompleted || isRejected) && (
+        {(isConfirmed || isCompleted || isRejected) && (
           <div style={styles.stickyReadOnlyFooter}>
             {isCompleted
-              ? "This booking has been completed and can no longer be changed."
-              : "This booking has been rejected and can no longer be changed."}
+              ? "This booking has been completed by the Pet Sitter and can no longer be changed."
+              : isRejected
+              ? "This booking has been rejected and can no longer be changed."
+              : "This booking is approved. The assigned Pet Sitter will mark it as completed after the service is finished."}
           </div>
         )}
 
-        {(isPending || isConfirmed || hasUnknownStatus) && (
+        {(isPending || hasUnknownStatus) && (
           <div style={styles.modalActions}>
             {hasUnknownStatus && (
               <button
@@ -406,21 +407,6 @@ export default function BookingDetailsModal({
                   {updating ? "Updating..." : "Approve"}
                 </button>
               </>
-            )}
-
-            {isConfirmed && (
-              <button
-                type="button"
-                style={{
-                  ...styles.actionButton,
-                  ...styles.completeButton,
-                  ...(updating ? styles.disabledButton : {}),
-                }}
-                disabled={updating}
-                onClick={() => onComplete(booking)}
-              >
-                {updating ? "Updating..." : "Mark as Completed"}
-              </button>
             )}
           </div>
         )}
@@ -1285,12 +1271,6 @@ const styles = {
     border: "none",
     background: "#F8D8DB",
     color: "#DF101D",
-  },
-
-  completeButton: {
-    border: "none",
-    background: "#E6EDFF",
-    color: "#0C4BB3",
   },
 
   confirmButton: {
