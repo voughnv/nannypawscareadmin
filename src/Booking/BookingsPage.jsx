@@ -43,7 +43,7 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
 
 const ALLOWED_STATUS_TRANSITIONS = {
   Pending: ["Confirmed", "Rejected"],
-  Confirmed: ["Completed"],
+  Confirmed: [],
   Completed: [],
   Rejected: [],
   "Not Set": ["Pending"],
@@ -217,6 +217,56 @@ export default function BookingsPage() {
 
   useEffect(() => {
     fetchBookings();
+  }, []);
+
+  /*
+    Completion is controlled by the Pet Sitter mobile app.
+    When Supabase Realtime is enabled for BOOKING, changes made by the
+    sitter (including Confirmed -> Completed) are reflected here without
+    requiring the Admin to change the status manually.
+  */
+  useEffect(() => {
+    const bookingChannel = supabase
+      .channel("admin-booking-status-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "BOOKING",
+        },
+        (payload) => {
+          const updatedRow = payload?.new;
+
+          if (!updatedRow?.booking_id) return;
+
+          setBookings((previous) =>
+            previous.map((booking) =>
+              Number(booking.booking_id) === Number(updatedRow.booking_id)
+                ? {
+                    ...booking,
+                    ...updatedRow,
+                  }
+                : booking
+            )
+          );
+
+          setSelectedBooking((previous) =>
+            previous &&
+            Number(previous.booking_id) === Number(updatedRow.booking_id)
+              ? {
+                  ...previous,
+                  ...updatedRow,
+                }
+              : previous
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(bookingChannel);
+    };
   }, []);
 
   useEffect(() => {
@@ -535,20 +585,6 @@ export default function BookingsPage() {
     });
 
     return true;
-  }
-
-  async function completeBooking(booking) {
-    const confirmed = await requestConfirmation({
-      title: "Complete booking?",
-      message: `Mark booking ${formatBookingId(
-        booking.booking_id
-      )} as completed? This status cannot be changed afterward.`,
-      confirmText: "Mark as Completed",
-      variant: "info",
-    });
-
-    if (!confirmed) return;
-    await updateBookingStatus(booking, "Completed");
   }
 
   async function setPendingBooking(booking) {
@@ -1141,7 +1177,6 @@ export default function BookingsPage() {
           onPending={setPendingBooking}
           onApprove={approveBooking}
           onReject={rejectBooking}
-          onComplete={completeBooking}
         />
       )}
     </div>
