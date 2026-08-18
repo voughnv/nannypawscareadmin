@@ -6,12 +6,13 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  ArrowRight,
-  UserRound,
   Clock3,
-  MessageSquareText,
+  UserRound,
   X,
   AlertCircle,
+  MessageCircleMore,
+  CircleUserRound,
+  ArrowRight,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useAdminSettings } from "./context/AdminSettingsContext";
@@ -25,9 +26,7 @@ const BRAND = {
   muted: "#6F625F",
 };
 
-const ROWS_PER_PAGE = 8;
-const MESSAGE_FIELDS =
-  "message_id, created_at, message_content, message_date, message_time, sender_role, receiver_role";
+const ROWS_PER_PAGE = 6;
 
 const MESSAGE_INTERACTION_CSS = `
   .messages-page button:not(:disabled) {
@@ -55,7 +54,7 @@ const MESSAGE_INTERACTION_CSS = `
     outline-offset: 2px;
   }
 
-  .messages-page .message-stat-card:not(:disabled):hover {
+  .messages-page .conversation-stat-card:not(:disabled):hover {
     transform: translateY(-4px);
     border-color: rgba(217, 67, 104, 0.55) !important;
     box-shadow:
@@ -63,22 +62,22 @@ const MESSAGE_INTERACTION_CSS = `
       0 0 0 2px rgba(217, 67, 104, 0.06) !important;
   }
 
-  .messages-page .message-stat-card.is-active {
+  .messages-page .conversation-stat-card.is-active {
     border-color: #D94368 !important;
     box-shadow:
       0 8px 18px rgba(217, 67, 104, 0.13),
       0 0 0 2px rgba(217, 67, 104, 0.08) !important;
   }
 
-  .messages-page .message-stat-icon {
+  .messages-page .conversation-stat-icon {
     transition: transform 170ms ease;
   }
 
-  .messages-page .message-stat-card:not(:disabled):hover .message-stat-icon {
+  .messages-page .conversation-stat-card:not(:disabled):hover .conversation-stat-icon {
     transform: scale(1.06);
   }
 
-  .messages-page .message-search-shell {
+  .messages-page .conversation-search-shell {
     transition:
       transform 170ms ease,
       border-color 170ms ease,
@@ -86,11 +85,11 @@ const MESSAGE_INTERACTION_CSS = `
       background-color 170ms ease;
   }
 
-  .messages-page .message-search-shell:hover {
+  .messages-page .conversation-search-shell:hover {
     border-color: rgba(217, 67, 104, 0.42) !important;
   }
 
-  .messages-page .message-search-shell:focus-within {
+  .messages-page .conversation-search-shell:focus-within {
     transform: translateY(-1px);
     border-color: #D94368 !important;
     box-shadow:
@@ -98,49 +97,49 @@ const MESSAGE_INTERACTION_CSS = `
       0 7px 16px rgba(58, 30, 20, 0.06);
   }
 
-  .messages-page .message-search-shell.has-value {
+  .messages-page .conversation-search-shell.has-value {
     border-color: rgba(217, 67, 104, 0.54) !important;
     box-shadow: inset 0 0 0 1px rgba(217, 67, 104, 0.09);
   }
 
-  .messages-page .message-date-input {
+  .messages-page .conversation-date-input {
     transition:
       transform 160ms ease,
       border-color 160ms ease,
       box-shadow 160ms ease;
   }
 
-  .messages-page .message-date-input:hover {
+  .messages-page .conversation-date-input:hover {
     border-color: rgba(217, 67, 104, 0.42) !important;
   }
 
-  .messages-page .message-date-input:focus {
+  .messages-page .conversation-date-input:focus {
     outline: none;
     transform: translateY(-1px);
     border-color: #D94368 !important;
     box-shadow: 0 0 0 3px rgba(217, 67, 104, 0.10);
   }
 
-  .messages-page .message-clickable-row td {
+  .messages-page .conversation-row td {
     transition:
       background-color 150ms ease,
       box-shadow 150ms ease,
       color 150ms ease;
   }
 
-  .messages-page .message-clickable-row:hover td {
+  .messages-page .conversation-row:hover td {
     background: var(--msg-hover);
   }
 
-  .messages-page .message-clickable-row:hover td:first-child {
+  .messages-page .conversation-row:hover td:first-child {
     box-shadow: inset 3px 0 0 #D94368;
   }
 
-  .messages-page .message-clickable-row:active td {
+  .messages-page .conversation-row:active td {
     background: var(--msg-hover-strong);
   }
 
-  .messages-page .message-clickable-row:focus-visible {
+  .messages-page .conversation-row:focus-visible {
     outline: 2px solid rgba(217, 67, 104, 0.42);
     outline-offset: -2px;
   }
@@ -154,6 +153,17 @@ const MESSAGE_INTERACTION_CSS = `
   .messages-page .message-page-button:not(:disabled):hover {
     border-color: rgba(217, 67, 104, 0.55) !important;
     box-shadow: 0 4px 10px rgba(58, 30, 20, 0.08);
+  }
+
+  .messages-page .chat-bubble {
+    transition:
+      transform 160ms ease,
+      box-shadow 160ms ease;
+  }
+
+  .messages-page .chat-bubble:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 5px 12px rgba(58, 30, 20, 0.07);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -200,23 +210,27 @@ export default function MessagesPage() {
   );
 
   const [messages, setMessages] = useState([]);
+  const [owners, setOwners] = useState([]);
+  const [sitters, setSitters] = useState([]);
+
   const [search, setSearch] = useState("");
   const [cardFilter, setCardFilter] = useState("all");
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [selectedConversation, setSelectedConversation] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchMessages();
+    fetchMessageData();
   }, []);
 
   useEffect(() => {
     const channel = supabase
-      .channel("admin-message-monitor")
+      .channel("admin-message-conversation-monitor")
       .on(
         "postgres_changes",
         {
@@ -225,7 +239,7 @@ export default function MessagesPage() {
           table: "MESSAGES",
         },
         () => {
-          fetchMessages(false);
+          fetchMessageData(false);
         }
       )
       .subscribe();
@@ -239,7 +253,7 @@ export default function MessagesPage() {
     setCurrentPage(1);
   }, [search, cardFilter, dateFrom, dateTo]);
 
-  async function fetchMessages(showLoading = true) {
+  async function fetchMessageData(showLoading = true) {
     if (showLoading) {
       setLoading(true);
     }
@@ -247,23 +261,34 @@ export default function MessagesPage() {
     setError("");
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("MESSAGES")
-        .select(MESSAGE_FIELDS)
-        .order("created_at", { ascending: false });
+      const [messageResult, ownerResult, sitterResult] = await Promise.all([
+        supabase
+          .from("MESSAGES")
+          .select("*")
+          .order("created_at", { ascending: true }),
 
-      if (fetchError) throw fetchError;
+        supabase
+          .from("PET_OWNER")
+          .select("po_id, po_fname, po_lname, po_username"),
 
-      const nextMessages = data || [];
-      setMessages(nextMessages);
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id, ps_fname, ps_lname, ps_username"),
+      ]);
 
-      setSelectedMessage((previous) =>
-        previous
-          ? nextMessages.find(
-              (item) => item.message_id === previous.message_id
-            ) || null
-          : null
-      );
+      if (messageResult.error) throw messageResult.error;
+
+      if (ownerResult.error) {
+        console.warn("Unable to load PET_OWNER records:", ownerResult.error);
+      }
+
+      if (sitterResult.error) {
+        console.warn("Unable to load PET SITTER records:", sitterResult.error);
+      }
+
+      setMessages(messageResult.data || []);
+      setOwners(ownerResult.data || []);
+      setSitters(sitterResult.data || []);
     } catch (fetchError) {
       console.error("Unable to load messages:", fetchError);
 
@@ -278,59 +303,135 @@ export default function MessagesPage() {
     }
   }
 
-  function applyCardFilter(nextFilter) {
-    setCardFilter(nextFilter);
-    setCurrentPage(1);
-  }
+  const ownerMap = useMemo(
+    () =>
+      new Map(
+        owners.map((owner) => [
+          normalizeReferenceKey(owner.po_id),
+          owner,
+        ])
+      ),
+    [owners]
+  );
 
-  function clearFilters() {
-    setSearch("");
-    setCardFilter("all");
-    setDateFrom("");
-    setDateTo("");
-    setShowDateFilter(false);
-    setCurrentPage(1);
-  }
+  const sitterMap = useMemo(
+    () =>
+      new Map(
+        sitters.map((sitter) => [
+          normalizeReferenceKey(sitter.petsitter_id),
+          sitter,
+        ])
+      ),
+    [sitters]
+  );
+
+  const { conversations, unlinkedCount } = useMemo(() => {
+    const grouped = new Map();
+    let unlinked = 0;
+
+    messages.forEach((message) => {
+      const ownerId = getMessageOwnerId(message);
+      const sitterId = getMessageSitterId(message);
+
+      if (!ownerId || !sitterId) {
+        unlinked += 1;
+        return;
+      }
+
+      const key = `${ownerId}::${sitterId}`;
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          key,
+          po_id: ownerId,
+          petsitter_id: sitterId,
+          owner: ownerMap.get(ownerId) || null,
+          sitter: sitterMap.get(sitterId) || null,
+          messages: [],
+        });
+      }
+
+      grouped.get(key).messages.push(message);
+    });
+
+    const groupedConversations = Array.from(grouped.values())
+      .map((conversation) => {
+        const sortedMessages = [...conversation.messages].sort(
+          compareMessagesAscending
+        );
+
+        const lastMessage =
+          sortedMessages[sortedMessages.length - 1] || null;
+
+        return {
+          ...conversation,
+          messages: sortedMessages,
+          lastMessage,
+          ownerName: getOwnerName(
+            conversation.owner,
+            conversation.po_id
+          ),
+          sitterName: getSitterName(
+            conversation.sitter,
+            conversation.petsitter_id
+          ),
+          lastSender: normalizeRole(lastMessage?.sender_role),
+          lastMessageDate: getMessageDate(lastMessage),
+          lastActivityAt:
+            lastMessage?.created_at ||
+            buildMessageDateTime(lastMessage),
+        };
+      })
+      .sort(
+        (a, b) =>
+          getComparableTimestamp(b.lastMessage) -
+          getComparableTimestamp(a.lastMessage)
+      );
+
+    return {
+      conversations: groupedConversations,
+      unlinkedCount: unlinked,
+    };
+  }, [messages, ownerMap, sitterMap]);
 
   const today = getPhilippineDateOnly();
 
   const stats = useMemo(() => {
-    const ownerToSitter = messages.filter(
-      (message) =>
-        isOwnerRole(message.sender_role) &&
-        isSitterRole(message.receiver_role)
+    const activeToday = conversations.filter(
+      (conversation) => conversation.lastMessageDate === today
     ).length;
 
-    const sitterToOwner = messages.filter(
-      (message) =>
-        isSitterRole(message.sender_role) &&
-        isOwnerRole(message.receiver_role)
+    const waitingOnSitter = conversations.filter(
+      (conversation) =>
+        isOwnerRole(conversation.lastMessage?.sender_role)
     ).length;
 
-    const todayCount = messages.filter(
-      (message) => getMessageDate(message) === today
+    const waitingOnOwner = conversations.filter(
+      (conversation) =>
+        isSitterRole(conversation.lastMessage?.sender_role)
     ).length;
 
     return {
-      total: messages.length,
-      ownerToSitter,
-      sitterToOwner,
-      today: todayCount,
+      total: conversations.length,
+      activeToday,
+      waitingOnSitter,
+      waitingOnOwner,
     };
-  }, [messages, today]);
+  }, [conversations, today]);
 
-  const filteredMessages = useMemo(() => {
-    const keyword = search.trim().replace(/\s+/g, " ").toLowerCase();
+  const filteredConversations = useMemo(() => {
+    const keyword = search
+      .trim()
+      .replace(/\s+/g, " ")
+      .toLowerCase();
 
-    return messages.filter((message) => {
+    return conversations.filter((conversation) => {
       const searchableValues = [
-        message.message_id,
-        formatMessageId(message.message_id),
-        message.message_content,
-        formatRole(message.sender_role),
-        formatRole(message.receiver_role),
-        message.sender_role,
-        message.receiver_role,
+        conversation.po_id,
+        conversation.petsitter_id,
+        conversation.ownerName,
+        conversation.sitterName,
+        conversation.lastMessage?.message_content,
       ]
         .filter(
           (value) =>
@@ -346,22 +447,22 @@ export default function MessagesPage() {
 
       const matchesCard =
         cardFilter === "all" ||
-        (cardFilter === "owner-to-sitter" &&
-          isOwnerRole(message.sender_role) &&
-          isSitterRole(message.receiver_role)) ||
-        (cardFilter === "sitter-to-owner" &&
-          isSitterRole(message.sender_role) &&
-          isOwnerRole(message.receiver_role)) ||
         (cardFilter === "today" &&
-          getMessageDate(message) === today);
-
-      const messageDate = getMessageDate(message);
+          conversation.lastMessageDate === today) ||
+        (cardFilter === "waiting-sitter" &&
+          isOwnerRole(conversation.lastMessage?.sender_role)) ||
+        (cardFilter === "waiting-owner" &&
+          isSitterRole(conversation.lastMessage?.sender_role));
 
       const matchesDateFrom =
-        !dateFrom || (messageDate && messageDate >= dateFrom);
+        !dateFrom ||
+        (conversation.lastMessageDate &&
+          conversation.lastMessageDate >= dateFrom);
 
       const matchesDateTo =
-        !dateTo || (messageDate && messageDate <= dateTo);
+        !dateTo ||
+        (conversation.lastMessageDate &&
+          conversation.lastMessageDate <= dateTo);
 
       return (
         matchesSearch &&
@@ -370,11 +471,18 @@ export default function MessagesPage() {
         matchesDateTo
       );
     });
-  }, [messages, search, cardFilter, dateFrom, dateTo, today]);
+  }, [
+    conversations,
+    search,
+    cardFilter,
+    dateFrom,
+    dateTo,
+    today,
+  ]);
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredMessages.length / ROWS_PER_PAGE)
+    Math.ceil(filteredConversations.length / ROWS_PER_PAGE)
   );
 
   useEffect(() => {
@@ -383,23 +491,52 @@ export default function MessagesPage() {
     }
   }, [currentPage, totalPages]);
 
-  const paginatedMessages = useMemo(() => {
+  const paginatedConversations = useMemo(() => {
     const start = (currentPage - 1) * ROWS_PER_PAGE;
 
-    return filteredMessages.slice(
+    return filteredConversations.slice(
       start,
       start + ROWS_PER_PAGE
     );
-  }, [filteredMessages, currentPage]);
+  }, [filteredConversations, currentPage]);
+
+  useEffect(() => {
+    if (!selectedConversation) return;
+
+    const refreshedConversation = conversations.find(
+      (conversation) =>
+        conversation.key === selectedConversation.key
+    );
+
+    if (refreshedConversation) {
+      setSelectedConversation(refreshedConversation);
+    } else {
+      setSelectedConversation(null);
+    }
+  }, [conversations]);
+
+  function applyCardFilter(nextFilter) {
+    setCardFilter(nextFilter);
+    setCurrentPage(1);
+  }
+
+  function clearFilters() {
+    setSearch("");
+    setCardFilter("all");
+    setDateFrom("");
+    setDateTo("");
+    setShowDateFilter(false);
+    setCurrentPage(1);
+  }
 
   const firstVisible =
-    filteredMessages.length > 0
+    filteredConversations.length > 0
       ? (currentPage - 1) * ROWS_PER_PAGE + 1
       : 0;
 
   const lastVisible = Math.min(
     currentPage * ROWS_PER_PAGE,
-    filteredMessages.length
+    filteredConversations.length
   );
 
   return (
@@ -409,6 +546,7 @@ export default function MessagesPage() {
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>Messages</h1>
+
           <p style={styles.subtitle}>
             Monitor conversations between pet owners and pet sitters.
           </p>
@@ -425,47 +563,48 @@ export default function MessagesPage() {
         <StatCard
           icon={<MessagesSquare size={30} />}
           iconStyle={styles.statPink}
-          title="Total Messages"
+          title="All Conversations"
           value={stats.total}
-          desc="All message records"
+          desc="Owner and sitter threads"
           active={cardFilter === "all"}
           onClick={() => applyCardFilter("all")}
         />
 
         <StatCard
-          icon={<ArrowRight size={30} />}
-          iconStyle={styles.statOrange}
-          title="Owner to Sitter"
-          value={stats.ownerToSitter}
-          desc="Messages sent by pet owners"
-          active={cardFilter === "owner-to-sitter"}
-          onClick={() => applyCardFilter("owner-to-sitter")}
-        />
-
-        <StatCard
-          icon={<ArrowRight size={30} />}
-          iconStyle={styles.statGreen}
-          title="Sitter to Owner"
-          value={stats.sitterToOwner}
-          desc="Messages sent by pet sitters"
-          active={cardFilter === "sitter-to-owner"}
-          onClick={() => applyCardFilter("sitter-to-owner")}
-        />
-
-        <StatCard
           icon={<Clock3 size={30} />}
           iconStyle={styles.statBlue}
-          title="Today"
-          value={stats.today}
-          desc="Messages sent today"
+          title="Active Today"
+          value={stats.activeToday}
+          desc="Recent conversation activity"
           active={cardFilter === "today"}
           onClick={() => applyCardFilter("today")}
+        />
+
+        <StatCard
+          icon={<CircleUserRound size={30} />}
+          iconStyle={styles.statOrange}
+          title="Waiting on Sitter"
+          value={stats.waitingOnSitter}
+          desc="Owner sent the last message"
+          active={cardFilter === "waiting-sitter"}
+          onClick={() => applyCardFilter("waiting-sitter")}
+        />
+
+        <StatCard
+          icon={<UserRound size={30} />}
+          iconStyle={styles.statGreen}
+          title="Waiting on Owner"
+          value={stats.waitingOnOwner}
+          desc="Sitter sent the last message"
+          active={cardFilter === "waiting-owner"}
+          onClick={() => applyCardFilter("waiting-owner")}
         />
       </section>
 
       {error && (
         <div style={styles.errorBox}>
           <AlertCircle size={20} />
+
           <span style={styles.errorText}>{error}</span>
 
           <button
@@ -479,21 +618,41 @@ export default function MessagesPage() {
         </div>
       )}
 
+      {unlinkedCount > 0 && (
+        <div style={styles.noticeBox}>
+          <AlertCircle size={18} />
+
+          <div>
+            <strong>
+              {unlinkedCount} message
+              {unlinkedCount === 1 ? "" : "s"} cannot be grouped yet.
+            </strong>
+
+            <span>
+              Those records do not contain both po_id and petsitter_id.
+            </span>
+          </div>
+        </div>
+      )}
+
       <section style={styles.tableCard}>
         <div style={styles.filters}>
           <div style={styles.leftFilters}>
             <div
-              className={`message-search-shell${
+              className={`conversation-search-shell${
                 search.trim() ? " has-value" : ""
               }`}
               style={styles.searchBox}
             >
-              <Search size={21} color={darkMode ? "#CFC2BE" : "#5E4B45"} />
+              <Search
+                size={21}
+                color={darkMode ? "#CFC2BE" : "#5E4B45"}
+              />
 
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search message ID, content, or role"
+                placeholder="Search pet owner, pet sitter, ID, or last message"
                 style={styles.searchInput}
               />
             </div>
@@ -506,6 +665,7 @@ export default function MessagesPage() {
               }
             >
               <Calendar size={19} />
+
               <span>
                 {showDateFilter
                   ? "Hide date range"
@@ -518,11 +678,12 @@ export default function MessagesPage() {
             <button
               type="button"
               style={styles.refreshBtn}
-              onClick={() => fetchMessages()}
+              onClick={() => fetchMessageData()}
               disabled={loading}
-              title="Refresh messages"
+              title="Refresh conversations"
             >
               <RefreshCw size={18} />
+
               <span>{loading ? "Loading..." : "Refresh"}</span>
             </button>
           </div>
@@ -532,13 +693,15 @@ export default function MessagesPage() {
           <div style={styles.datePanel}>
             <label style={styles.dateLabel}>
               From
+
               <input
-                className="message-date-input"
+                className="conversation-date-input"
                 type="date"
                 value={dateFrom}
                 max={dateTo || "9999-12-31"}
                 onChange={(event) => {
                   const nextFrom = event.target.value;
+
                   setDateFrom(nextFrom);
 
                   if (dateTo && nextFrom && nextFrom > dateTo) {
@@ -551,8 +714,9 @@ export default function MessagesPage() {
 
             <label style={styles.dateLabel}>
               To
+
               <input
-                className="message-date-input"
+                className="conversation-date-input"
                 type="date"
                 value={dateTo}
                 min={dateFrom || undefined}
@@ -575,21 +739,21 @@ export default function MessagesPage() {
           <table style={styles.table}>
             <colgroup>
               <col style={{ width: "6%" }} />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "17%" }} />
-              <col style={{ width: "32%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "20%" }} />
+              <col style={{ width: "30%" }} />
               <col style={{ width: "15%" }} />
-              <col style={{ width: "13%" }} />
+              <col style={{ width: "9%" }} />
             </colgroup>
 
             <thead>
               <tr style={styles.tableHeadRow}>
                 <Th>No.</Th>
-                <Th>Sender</Th>
-                <Th>Receiver</Th>
-                <Th>Message</Th>
-                <Th>Message Date</Th>
-                <Th>Time</Th>
+                <Th>Pet Owner</Th>
+                <Th>Pet Sitter</Th>
+                <Th>Last Message</Th>
+                <Th>Last Activity</Th>
+                <Th>Messages</Th>
               </tr>
             </thead>
 
@@ -599,70 +763,101 @@ export default function MessagesPage() {
                   <td colSpan="6" style={styles.emptyCell}>
                     <div style={styles.loadingContent}>
                       <RefreshCw size={21} />
-                      <span>Loading messages...</span>
+                      <span>Loading conversations...</span>
                     </div>
                   </td>
                 </tr>
-              ) : paginatedMessages.length > 0 ? (
-                paginatedMessages.map((message, index) => (
-                  <tr
-                    key={message.message_id}
-                    className="message-clickable-row"
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`Open ${formatMessageId(
-                      message.message_id
-                    )}`}
-                    style={{ ...styles.tableRow, cursor: "pointer" }}
-                    onClick={() => setSelectedMessage(message)}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return;
-
-                      if (
-                        event.key === "Enter" ||
-                        event.key === " "
-                      ) {
-                        event.preventDefault();
-                        setSelectedMessage(message);
+              ) : paginatedConversations.length > 0 ? (
+                paginatedConversations.map(
+                  (conversation, index) => (
+                    <tr
+                      key={conversation.key}
+                      className="conversation-row"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Open conversation between ${conversation.ownerName} and ${conversation.sitterName}`}
+                      style={{
+                        ...styles.tableRow,
+                        cursor: "pointer",
+                      }}
+                      onClick={() =>
+                        setSelectedConversation(conversation)
                       }
-                    }}
-                  >
-                    <td style={styles.numberCell}>
-                      {(currentPage - 1) * ROWS_PER_PAGE + index + 1}
-                    </td>
+                      onKeyDown={(event) => {
+                        if (event.target !== event.currentTarget) return;
 
-                    <td style={styles.normalCell}>
-                      <RoleBadge role={message.sender_role} />
-                    </td>
+                        if (
+                          event.key === "Enter" ||
+                          event.key === " "
+                        ) {
+                          event.preventDefault();
+                          setSelectedConversation(conversation);
+                        }
+                      }}
+                    >
+                      <td style={styles.numberCell}>
+                        {(currentPage - 1) * ROWS_PER_PAGE +
+                          index +
+                          1}
+                      </td>
 
-                    <td style={styles.normalCell}>
-                      <RoleBadge role={message.receiver_role} />
-                    </td>
+                      <td style={styles.normalCell}>
+                        <strong style={styles.primaryText}>
+                          {conversation.ownerName}
+                        </strong>
 
-                    <td style={styles.messageCell}>
-                      <strong style={styles.messageText}>
-                        {message.message_content ||
-                          "No message content."}
-                      </strong>
+                        <span style={styles.secondaryText}>
+                          Owner ID: {conversation.po_id}
+                        </span>
+                      </td>
 
-                      <span style={styles.secondaryText}>
-                        {formatMessageId(message.message_id)}
-                      </span>
-                    </td>
+                      <td style={styles.normalCell}>
+                        <strong style={styles.primaryText}>
+                          {conversation.sitterName}
+                        </strong>
 
-                    <td style={styles.normalCell}>
-                      {formatDate(getMessageDate(message))}
-                    </td>
+                        <span style={styles.secondaryText}>
+                          Sitter ID: {conversation.petsitter_id}
+                        </span>
+                      </td>
 
-                    <td style={styles.normalCell}>
-                      {formatMessageTime(message)}
-                    </td>
-                  </tr>
-                ))
+                      <td style={styles.messageCell}>
+                        <strong style={styles.messagePreview}>
+                          {conversation.lastMessage?.message_content ||
+                            "No message content."}
+                        </strong>
+
+                        <span style={styles.secondaryText}>
+                          Last sender: {conversation.lastSender}
+                        </span>
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        <strong style={styles.primaryText}>
+                          {formatDate(
+                            conversation.lastMessageDate
+                          )}
+                        </strong>
+
+                        <span style={styles.secondaryText}>
+                          {formatMessageTime(
+                            conversation.lastMessage
+                          )}
+                        </span>
+                      </td>
+
+                      <td style={styles.normalCell}>
+                        <span style={styles.countBadge}>
+                          {conversation.messages.length}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                )
               ) : (
                 <tr>
                   <td colSpan="6" style={styles.emptyCell}>
-                    No messages found.
+                    No linked conversations found.
                   </td>
                 </tr>
               )}
@@ -673,7 +868,7 @@ export default function MessagesPage() {
         <div style={styles.pagination}>
           <p style={styles.pageText}>
             Showing {firstVisible} to {lastVisible} of{" "}
-            {filteredMessages.length} messages
+            {filteredConversations.length} conversations
           </p>
 
           <div style={styles.pages}>
@@ -739,10 +934,10 @@ export default function MessagesPage() {
         </div>
       </section>
 
-      {selectedMessage && (
-        <MessageDetailsModal
-          message={selectedMessage}
-          onClose={() => setSelectedMessage(null)}
+      {selectedConversation && (
+        <ConversationModal
+          conversation={selectedConversation}
+          onClose={() => setSelectedConversation(null)}
         />
       )}
     </div>
@@ -762,14 +957,14 @@ function StatCard({
     <button
       type="button"
       aria-pressed={active}
-      className={`message-stat-card${
+      className={`conversation-stat-card${
         active ? " is-active" : ""
       }`}
       style={styles.statCard}
       onClick={onClick}
     >
       <div
-        className="message-stat-icon"
+        className="conversation-stat-icon"
         style={{
           ...styles.statIcon,
           ...iconStyle,
@@ -791,46 +986,35 @@ function Th({ children }) {
   return <th style={styles.th}>{children}</th>;
 }
 
-function RoleBadge({ role }) {
-  const normalized = normalizeRole(role);
-
-  const roleStyle = isOwnerRole(role)
-    ? styles.ownerBadge
-    : isSitterRole(role)
-    ? styles.sitterBadge
-    : styles.otherRoleBadge;
-
-  return (
-    <span style={{ ...styles.roleBadge, ...roleStyle }}>
-      {normalized}
-    </span>
-  );
-}
-
-function MessageDetailsModal({ message, onClose }) {
+function ConversationModal({ conversation, onClose }) {
   return (
     <div style={styles.modalOverlay} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="message-details-title"
+        aria-labelledby="conversation-title"
         style={styles.modal}
         onClick={(event) => event.stopPropagation()}
       >
         <div style={styles.modalHeader}>
           <div>
-            <h2 id="message-details-title" style={styles.modalTitle}>
-              Message Details
+            <p style={styles.modalEyebrow}>CONVERSATION TRACKER</p>
+
+            <h2 id="conversation-title" style={styles.modalTitle}>
+              {conversation.ownerName}
+              <span style={styles.modalTitleArrow}> ↔ </span>
+              {conversation.sitterName}
             </h2>
 
             <p style={styles.modalReference}>
-              {formatMessageId(message.message_id)}
+              Owner ID: {conversation.po_id} • Sitter ID:{" "}
+              {conversation.petsitter_id}
             </p>
           </div>
 
           <button
             type="button"
-            aria-label="Close message details"
+            aria-label="Close conversation"
             className="message-close-button"
             style={styles.modalCloseBtn}
             onClick={onClose}
@@ -839,77 +1023,87 @@ function MessageDetailsModal({ message, onClose }) {
           </button>
         </div>
 
-        <div style={styles.modalBody}>
-          <div style={styles.directionCard}>
-            <div style={styles.rolePerson}>
-              <div style={styles.avatar}>
-                <UserRound size={22} />
+        <div style={styles.participantStrip}>
+          <Participant
+            label="Pet Owner"
+            name={conversation.ownerName}
+            idLabel={`Owner ID: ${conversation.po_id}`}
+          />
+
+          <ArrowRight size={22} color={BRAND.pink} />
+
+          <Participant
+            label="Pet Sitter"
+            name={conversation.sitterName}
+            idLabel={`Sitter ID: ${conversation.petsitter_id}`}
+          />
+        </div>
+
+        <div style={styles.chatBody}>
+          {conversation.messages.map((message) => {
+            const fromOwner = isOwnerRole(message.sender_role);
+
+            return (
+              <div
+                key={message.message_id}
+                style={{
+                  ...styles.chatRow,
+                  justifyContent: fromOwner ? "flex-start" : "flex-end",
+                }}
+              >
+                <div
+                  className="chat-bubble"
+                  style={{
+                    ...styles.chatBubble,
+                    ...(fromOwner
+                      ? styles.ownerChatBubble
+                      : styles.sitterChatBubble),
+                  }}
+                >
+                  <div style={styles.chatBubbleHeader}>
+                    <span style={styles.chatSender}>
+                      {fromOwner
+                        ? conversation.ownerName
+                        : conversation.sitterName}
+                    </span>
+
+                    <span style={styles.chatRole}>
+                      {normalizeRole(message.sender_role)}
+                    </span>
+                  </div>
+
+                  <p style={styles.chatMessage}>
+                    {message.message_content || "No message content."}
+                  </p>
+
+                  <div style={styles.chatMeta}>
+                    <span>
+                      {formatDate(getMessageDate(message))}
+                    </span>
+
+                    <span>•</span>
+
+                    <span>{formatMessageTime(message)}</span>
+
+                    <span>•</span>
+
+                    <span>
+                      {formatMessageId(message.message_id)}
+                    </span>
+                  </div>
+                </div>
               </div>
-
-              <div>
-                <p style={styles.detailLabel}>Sender</p>
-                <RoleBadge role={message.sender_role} />
-              </div>
-            </div>
-
-            <ArrowRight size={24} color={BRAND.pink} />
-
-            <div style={styles.rolePerson}>
-              <div style={styles.avatar}>
-                <UserRound size={22} />
-              </div>
-
-              <div>
-                <p style={styles.detailLabel}>Receiver</p>
-                <RoleBadge role={message.receiver_role} />
-              </div>
-            </div>
-          </div>
-
-          <div style={styles.messageDetailCard}>
-            <div style={styles.detailTitleRow}>
-              <MessageSquareText size={18} color={BRAND.pink} />
-              <p style={styles.detailLabel}>Message Content</p>
-            </div>
-
-            <p style={styles.fullMessage}>
-              {message.message_content || "No message content."}
-            </p>
-          </div>
-
-          <div style={styles.modalInfoGrid}>
-            <DetailItem
-              label="Message ID"
-              value={formatMessageId(message.message_id)}
-            />
-
-            <DetailItem
-              label="Message Date"
-              value={formatDate(getMessageDate(message))}
-            />
-
-            <DetailItem
-              label="Message Time"
-              value={formatMessageTime(message)}
-            />
-
-            <DetailItem
-              label="Date Created"
-              value={formatDateTime(message.created_at)}
-            />
-          </div>
-
-          <div style={styles.futureNote}>
-            <strong>Conversation participant linking is not available yet.</strong>
-            <span>
-              The current MESSAGES table stores sender_role and receiver_role,
-              but it does not yet identify the specific Pet Owner, Pet Sitter,
-              booking, or conversation.
-            </span>
-          </div>
+            );
+          })}
         </div>
 
         <div style={styles.modalActions}>
+          <div style={styles.messageCountText}>
+            <MessageCircleMore size={16} />
+            {conversation.messages.length} message
+            {conversation.messages.length === 1 ? "" : "s"}
+          </div>
+
           <button
             type="button"
             style={styles.closeModalBtn}
@@ -923,12 +1117,77 @@ function MessageDetailsModal({ message, onClose }) {
   );
 }
 
-function DetailItem({ label, value }) {
+function Participant({ label, name, idLabel }) {
   return (
-    <div style={styles.detailItem}>
-      <p style={styles.detailLabel}>{label}</p>
-      <h4 style={styles.detailValue}>{value}</h4>
+    <div style={styles.participant}>
+      <div style={styles.avatar}>
+        <UserRound size={21} />
+      </div>
+
+      <div>
+        <p style={styles.participantLabel}>{label}</p>
+        <h4 style={styles.participantName}>{name}</h4>
+        <p style={styles.participantId}>{idLabel}</p>
+      </div>
     </div>
+  );
+}
+
+function getMessageOwnerId(message) {
+  return normalizeReferenceKey(
+    message?.po_id ??
+      message?.petowner_id ??
+      message?.pet_owner_id ??
+      message?.owner_id
+  );
+}
+
+function getMessageSitterId(message) {
+  return normalizeReferenceKey(
+    message?.petsitter_id ??
+      message?.ps_id ??
+      message?.pet_sitter_id ??
+      message?.sitter_id
+  );
+}
+
+function normalizeReferenceKey(value) {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+
+  return String(value).trim();
+}
+
+function getOwnerName(owner, fallbackId) {
+  if (!owner) {
+    return fallbackId ? `Pet Owner ${fallbackId}` : "Pet Owner";
+  }
+
+  const fullName = `${owner.po_fname || ""} ${
+    owner.po_lname || ""
+  }`.trim();
+
+  return (
+    fullName ||
+    owner.po_username ||
+    (fallbackId ? `Pet Owner ${fallbackId}` : "Pet Owner")
+  );
+}
+
+function getSitterName(sitter, fallbackId) {
+  if (!sitter) {
+    return fallbackId ? `Pet Sitter ${fallbackId}` : "Pet Sitter";
+  }
+
+  const fullName = `${sitter.ps_fname || ""} ${
+    sitter.ps_lname || ""
+  }`.trim();
+
+  return (
+    fullName ||
+    sitter.ps_username ||
+    (fallbackId ? `Pet Sitter ${fallbackId}` : "Pet Sitter")
   );
 }
 
@@ -957,10 +1216,6 @@ function normalizeRole(value) {
     return "Pet Sitter";
   }
 
-  if (text === "admin" || text === "administrator") {
-    return "Administrator";
-  }
-
   return text.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
@@ -970,6 +1225,36 @@ function isOwnerRole(value) {
 
 function isSitterRole(value) {
   return normalizeRole(value) === "Pet Sitter";
+}
+
+function compareMessagesAscending(a, b) {
+  return getComparableTimestamp(a) - getComparableTimestamp(b);
+}
+
+function getComparableTimestamp(message) {
+  if (!message) return 0;
+
+  if (message.created_at) {
+    const created = new Date(message.created_at).getTime();
+
+    if (!Number.isNaN(created)) {
+      return created;
+    }
+  }
+
+  const fallback = buildMessageDateTime(message);
+  const parsed = fallback ? new Date(fallback).getTime() : 0;
+
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function buildMessageDateTime(message) {
+  const date = String(message?.message_date || "").trim();
+  const time = String(message?.message_time || "").trim();
+
+  if (!date) return "";
+
+  return `${date}T${time || "00:00:00"}`;
 }
 
 function formatMessageId(id) {
@@ -1074,26 +1359,6 @@ function formatDate(value) {
     month: "short",
     day: "2-digit",
     year: "numeric",
-  }).format(date);
-}
-
-function formatDateTime(value) {
-  if (!value) return "Not set";
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(value);
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila",
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
   }).format(date);
 }
 
@@ -1243,6 +1508,7 @@ const styles = {
     margin: 0,
     fontSize: 12,
     color: "var(--msg-muted)",
+    lineHeight: 1.35,
   },
 
   errorBox: {
@@ -1270,6 +1536,20 @@ const styles = {
     cursor: "pointer",
     display: "flex",
     padding: 0,
+  },
+
+  noticeBox: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: "12px 14px",
+    marginBottom: 18,
+    borderRadius: 10,
+    border: "1px solid #F0D6A9",
+    background: "#FFF8E9",
+    color: "#8A5712",
+    fontSize: 12.5,
+    lineHeight: 1.5,
   },
 
   tableCard: {
@@ -1308,8 +1588,8 @@ const styles = {
 
   searchBox: {
     flex: 1,
-    maxWidth: 500,
-    minWidth: 280,
+    maxWidth: 520,
+    minWidth: 300,
     height: 48,
     border: "1px solid var(--msg-border-strong)",
     borderRadius: 7,
@@ -1416,7 +1696,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1120,
+    minWidth: 1150,
     borderCollapse: "collapse",
     tableLayout: "fixed",
   },
@@ -1465,7 +1745,23 @@ const styles = {
     minWidth: 0,
   },
 
-  messageText: {
+  primaryText: {
+    display: "block",
+    color: "var(--msg-text)",
+    fontSize: 13,
+    fontWeight: 900,
+    lineHeight: 1.4,
+  },
+
+  secondaryText: {
+    display: "block",
+    marginTop: 5,
+    color: "var(--msg-muted)",
+    fontSize: 10.5,
+    fontWeight: 700,
+  },
+
+  messagePreview: {
     display: "-webkit-box",
     WebkitLineClamp: 2,
     WebkitBoxOrient: "vertical",
@@ -1477,39 +1773,18 @@ const styles = {
     overflowWrap: "anywhere",
   },
 
-  secondaryText: {
-    display: "block",
-    marginTop: 5,
-    color: "var(--msg-muted)",
-    fontSize: 10.5,
-    fontWeight: 700,
-  },
-
-  roleBadge: {
+  countBadge: {
+    minWidth: 34,
+    height: 28,
+    padding: "0 9px",
+    borderRadius: 999,
+    background: BRAND.softPink,
+    color: BRAND.pink,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 27,
-    borderRadius: 8,
-    padding: "0 9px",
-    fontSize: 11.5,
+    fontSize: 12,
     fontWeight: 900,
-    whiteSpace: "nowrap",
-  },
-
-  ownerBadge: {
-    background: "#FDEBED",
-    color: "#C7355A",
-  },
-
-  sitterBadge: {
-    background: "#DDF3E7",
-    color: "#0D8B48",
-  },
-
-  otherRoleBadge: {
-    background: "#EEE9E7",
-    color: "#655955",
   },
 
   emptyCell: {
@@ -1592,8 +1867,8 @@ const styles = {
   },
 
   modal: {
-    width: "min(760px, 100%)",
-    maxHeight: "90vh",
+    width: "min(900px, 100%)",
+    height: "min(88vh, 820px)",
     background: "var(--msg-card)",
     borderRadius: 18,
     border: "1px solid var(--msg-border)",
@@ -1608,23 +1883,36 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 16,
-    padding: "22px 22px 16px",
+    padding: "20px 22px 15px",
     borderBottom: "1px solid var(--msg-border)",
     flexShrink: 0,
   },
 
-  modalTitle: {
+  modalEyebrow: {
     margin: 0,
-    color: "var(--msg-strong)",
-    fontSize: 24,
+    color: BRAND.pink,
+    fontSize: 10,
     fontWeight: 900,
+    letterSpacing: "0.8px",
+  },
+
+  modalTitle: {
+    margin: "4px 0 0",
+    color: "var(--msg-strong)",
+    fontSize: 22,
+    fontWeight: 900,
+    lineHeight: 1.3,
+  },
+
+  modalTitleArrow: {
+    color: BRAND.pink,
   },
 
   modalReference: {
     margin: "5px 0 0",
     color: "var(--msg-muted)",
-    fontSize: 12,
-    fontWeight: 800,
+    fontSize: 11.5,
+    fontWeight: 700,
   },
 
   modalCloseBtn: {
@@ -1640,35 +1928,28 @@ const styles = {
     justifyContent: "center",
   },
 
-  modalBody: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: "auto",
-    padding: "18px 22px 22px",
-  },
-
-  directionCard: {
-    border: "1px solid var(--msg-border)",
-    borderRadius: 12,
-    padding: 16,
-    background: "var(--msg-card-soft)",
+  participantStrip: {
+    padding: "12px 22px",
+    borderBottom: "1px solid var(--msg-border)",
+    background: "var(--msg-head)",
     display: "grid",
     gridTemplateColumns: "1fr auto 1fr",
     alignItems: "center",
     gap: 16,
-    marginBottom: 12,
+    flexShrink: 0,
   },
 
-  rolePerson: {
+  participant: {
     display: "flex",
     alignItems: "center",
     gap: 10,
+    minWidth: 0,
   },
 
   avatar: {
-    width: 42,
-    height: 42,
-    minWidth: 42,
+    width: 40,
+    height: 40,
+    minWidth: 40,
     borderRadius: "50%",
     background: BRAND.softPink,
     color: BRAND.pink,
@@ -1677,78 +1958,124 @@ const styles = {
     justifyContent: "center",
   },
 
-  detailTitleRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 7,
-    marginBottom: 8,
-  },
-
-  detailLabel: {
+  participantLabel: {
     margin: 0,
     color: "var(--msg-muted)",
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: 900,
   },
 
-  messageDetailCard: {
-    border: "1px solid var(--msg-border)",
-    borderRadius: 12,
-    padding: 16,
+  participantName: {
+    margin: "2px 0 0",
+    color: "var(--msg-text)",
+    fontSize: 13.5,
+    fontWeight: 900,
+    overflowWrap: "anywhere",
+  },
+
+  participantId: {
+    margin: "2px 0 0",
+    color: "var(--msg-muted)",
+    fontSize: 10,
+    fontWeight: 700,
+  },
+
+  chatBody: {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "20px 22px",
     background: "var(--msg-card-soft)",
+  },
+
+  chatRow: {
+    display: "flex",
+    width: "100%",
     marginBottom: 12,
   },
 
-  fullMessage: {
+  chatBubble: {
+    width: "fit-content",
+    maxWidth: "72%",
+    borderRadius: 14,
+    padding: "11px 13px",
+    border: "1px solid var(--msg-border)",
+    boxSizing: "border-box",
+  },
+
+  ownerChatBubble: {
+    background: "var(--msg-card)",
+    borderTopLeftRadius: 5,
+  },
+
+  sitterChatBubble: {
+    background: BRAND.softPink,
+    borderColor: "#F1C9D4",
+    borderTopRightRadius: 5,
+  },
+
+  chatBubbleHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    flexWrap: "wrap",
+    marginBottom: 6,
+  },
+
+  chatSender: {
+    color: "var(--msg-strong)",
+    fontSize: 11.5,
+    fontWeight: 900,
+  },
+
+  chatRole: {
+    padding: "2px 6px",
+    borderRadius: 999,
+    background: "rgba(217, 67, 104, 0.10)",
+    color: BRAND.pink,
+    fontSize: 9.5,
+    fontWeight: 900,
+  },
+
+  chatMessage: {
     margin: 0,
     color: "var(--msg-text)",
-    fontSize: 14,
-    lineHeight: 1.65,
-    overflowWrap: "anywhere",
+    fontSize: 13.5,
+    lineHeight: 1.55,
     whiteSpace: "pre-wrap",
-  },
-
-  modalInfoGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-
-  detailItem: {
-    border: "1px solid var(--msg-border)",
-    borderRadius: 12,
-    padding: 14,
-    background: "var(--msg-card-soft)",
-  },
-
-  detailValue: {
-    margin: "7px 0 0",
-    color: "var(--msg-text)",
-    fontSize: 14,
-    fontWeight: 900,
     overflowWrap: "anywhere",
   },
 
-  futureNote: {
-    marginTop: 12,
-    border: "1px solid #F0D6A9",
-    borderRadius: 12,
-    padding: 14,
-    background: "#FFF8E9",
-    color: "#8A5712",
+  chatMeta: {
+    marginTop: 7,
     display: "flex",
-    flexDirection: "column",
+    alignItems: "center",
     gap: 5,
-    fontSize: 12,
-    lineHeight: 1.5,
+    flexWrap: "wrap",
+    color: "var(--msg-muted)",
+    fontSize: 9.5,
+    fontWeight: 700,
   },
 
   modalActions: {
-    padding: "14px 22px",
+    minHeight: 64,
+    padding: "12px 22px",
     borderTop: "1px solid var(--msg-border)",
-    display: "flex",
-    justifyContent: "flex-end",
     background: "var(--msg-card)",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    flexShrink: 0,
+  },
+
+  messageCountText: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    color: "var(--msg-muted)",
+    fontSize: 12,
+    fontWeight: 800,
   },
 
   closeModalBtn: {
