@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
-import { useAdminSettings } from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -43,32 +42,21 @@ const FEEDBACK_INTERACTION_CSS = `
 
   .feedback-interactive:not(:disabled):hover {
     transform: translateY(-2px);
-    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.12);
+    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.11);
   }
 
   .feedback-interactive:not(:disabled):active {
     transform: translateY(0) scale(0.975);
-    box-shadow: 0 3px 8px rgba(58, 30, 20, 0.10);
+    box-shadow: 0 3px 8px rgba(58, 30, 20, 0.09);
   }
 
   .feedback-interactive:focus-visible {
-    outline: 2px solid rgba(217, 67, 104, 0.52);
+    outline: 2px solid rgba(217, 67, 104, 0.50);
     outline-offset: 2px;
   }
 
-  .feedback-stat-card:not(:disabled):hover {
-    transform: translateY(-4px) !important;
-    border-color: rgba(217, 67, 104, 0.55) !important;
-    box-shadow:
-      0 12px 24px rgba(58, 30, 20, 0.12),
-      0 0 0 2px rgba(217, 67, 104, 0.07) !important;
-  }
-
-  .feedback-stat-card:not(:disabled):active {
-    transform: translateY(-1px) scale(0.985) !important;
-  }
-
-  .feedback-search-box {
+  .feedback-stat-card {
+    cursor: pointer;
     transition:
       transform 0.16s ease,
       box-shadow 0.18s ease,
@@ -76,79 +64,99 @@ const FEEDBACK_INTERACTION_CSS = `
       background-color 0.18s ease;
   }
 
+  .feedback-stat-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(217, 67, 104, 0.52) !important;
+    box-shadow:
+      0 12px 24px rgba(58, 30, 20, 0.11),
+      0 0 0 2px rgba(217, 67, 104, 0.06) !important;
+  }
+
+  .feedback-stat-card:active {
+    transform: translateY(-1px) scale(0.985);
+  }
+
+  .feedback-stat-card.is-active {
+    border-color: #D94368 !important;
+    box-shadow:
+      0 8px 18px rgba(217, 67, 104, 0.14),
+      0 0 0 2px rgba(217, 67, 104, 0.08) !important;
+  }
+
+  .feedback-search-box {
+    transition:
+      transform 0.16s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease;
+  }
+
   .feedback-search-box:hover {
     border-color: rgba(217, 67, 104, 0.38) !important;
-    box-shadow: 0 5px 14px rgba(58, 30, 20, 0.08);
+    box-shadow: 0 5px 14px rgba(58, 30, 20, 0.07);
   }
 
   .feedback-search-box:focus-within {
     border-color: rgba(217, 67, 104, 0.72) !important;
     box-shadow:
-      0 0 0 3px var(--feedback-focus-ring),
+      0 0 0 3px rgba(217, 67, 104, 0.10),
       0 6px 16px rgba(58, 30, 20, 0.08);
     transform: translateY(-1px);
   }
 
   .feedback-search-box.has-value {
-    box-shadow: inset 0 0 0 1px rgba(217, 67, 104, 0.15);
+    box-shadow: inset 0 0 0 1px rgba(217, 67, 104, 0.13);
   }
 
-  .feedback-input-interactive {
+  .feedback-input {
     transition:
       border-color 0.18s ease,
-      box-shadow 0.18s ease,
-      background-color 0.18s ease;
+      box-shadow 0.18s ease;
   }
 
-  .feedback-input-interactive:not(:disabled):hover {
+  .feedback-input:hover {
     border-color: rgba(217, 67, 104, 0.42) !important;
   }
 
-  .feedback-input-interactive:not(:disabled):focus {
-    outline: none;
-    border-color: rgba(217, 67, 104, 0.74) !important;
-    box-shadow: 0 0 0 3px var(--feedback-focus-ring);
+  .feedback-input:focus {
+    border-color: rgba(217, 67, 104, 0.72) !important;
+    box-shadow: 0 0 0 3px rgba(217, 67, 104, 0.10);
   }
 
-  .feedback-table-row {
+  .feedback-row {
     transition:
       background-color 0.16s ease,
-      box-shadow 0.16s ease,
-      filter 0.16s ease;
+      box-shadow 0.16s ease;
   }
 
-  .feedback-table-row:hover {
-    background: var(--feedback-hover) !important;
+  .feedback-row:hover {
+    background: #FFF7F9 !important;
     box-shadow: inset 3px 0 0 #D94368;
   }
 
-  .feedback-table-row:active {
-    background: var(--feedback-hover-strong) !important;
+  .feedback-row:active {
+    background: #FDEBED !important;
   }
 
-  .feedback-table-row:focus-visible {
-    outline: 2px solid rgba(217, 67, 104, 0.48);
+  .feedback-row:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.45);
     outline-offset: -2px;
-    background: var(--feedback-hover) !important;
+    background: #FFF7F9 !important;
   }
 
-  .feedback-close-button:not(:disabled):hover {
+  .feedback-close:not(:disabled):hover {
     color: #D94368 !important;
-    border-color: rgba(217, 67, 104, 0.48) !important;
-    background: var(--feedback-hover) !important;
+    border-color: rgba(217, 67, 104, 0.45) !important;
+    background: #FFF7F9 !important;
   }
 
-  .feedback-delete-button:not(:disabled):hover {
-    color: #B42335 !important;
-    background: #FFF0F2 !important;
-    box-shadow: 0 7px 16px rgba(180, 35, 53, 0.14);
+  .feedback-danger:not(:disabled):hover {
+    box-shadow: 0 7px 16px rgba(196, 36, 53, 0.16);
+    filter: brightness(0.98);
   }
 
-  .feedback-primary-button:not(:disabled):hover {
+  .feedback-primary:not(:disabled):hover {
+    box-shadow: 0 7px 16px rgba(217, 67, 104, 0.20);
     filter: brightness(1.04);
-    box-shadow:
-      0 8px 18px rgba(217, 67, 104, 0.20),
-      0 0 0 2px rgba(217, 67, 104, 0.06);
   }
 
   .feedback-alert {
@@ -171,36 +179,6 @@ const ROWS_PER_PAGE = 6;
 
 export default function FeedbackPage() {
   const requestConfirmation = useConfirmation();
-  const { settings, fontScale } = useAdminSettings();
-  const darkMode = Boolean(settings?.darkMode);
-
-  const pageThemeStyle = useMemo(
-    () => ({
-      "--feedback-page": darkMode ? "#171311" : "#FFF9F8",
-      "--feedback-card": darkMode ? "#241D1A" : "#FFFFFF",
-      "--feedback-card-soft": darkMode ? "#2B2320" : "#FFFCFB",
-      "--feedback-table-head": darkMode ? "#2B2320" : "#FFFBFA",
-      "--feedback-input": darkMode ? "#2B2320" : "#FFFFFF",
-      "--feedback-text": darkMode ? "#FFF7F4" : "#1F1714",
-      "--feedback-strong": darkMode ? "#FFF7F4" : "#3A1E14",
-      "--feedback-muted": darkMode ? "#CFC2BE" : "#6D5F5B",
-      "--feedback-border": darkMode ? "#443934" : "#EEE2DF",
-      "--feedback-border-strong": darkMode ? "#5A4B45" : "#E2D5D3",
-      "--feedback-hover": darkMode ? "#34282C" : "#FFF7F9",
-      "--feedback-hover-strong": darkMode ? "#412E35" : "#FDEBED",
-      "--feedback-focus-ring": "rgba(217, 67, 104, 0.10)",
-      "--feedback-shadow": darkMode
-        ? "0 8px 18px rgba(0,0,0,0.24)"
-        : "0 8px 18px rgba(51,26,18,0.07)",
-      width: "100%",
-      minHeight: "100%",
-      zoom: Number(fontScale || 1),
-      color: "var(--feedback-text)",
-      background: "var(--feedback-page)",
-      transition: "background 0.2s ease, color 0.2s ease",
-    }),
-    [darkMode, fontScale]
-  );
 
   const [feedbacks, setFeedbacks] = useState([]);
   const [owners, setOwners] = useState([]);
@@ -323,17 +301,31 @@ export default function FeedbackPage() {
     }
   }
 
+  function applyCardFilter(filterType) {
+    if (filterType === "all") {
+      setRatingFilter("All Ratings");
+    } else if (filterType === "average") {
+      const roundedAverage = Math.round(Number(stats.average) || 0);
+
+      setRatingFilter(
+        roundedAverage >= 1 && roundedAverage <= 5
+          ? String(roundedAverage)
+          : "All Ratings"
+      );
+    } else if (filterType === "positive") {
+      setRatingFilter("Positive");
+    } else if (filterType === "negative") {
+      setRatingFilter("Negative");
+    }
+
+    setCurrentPage(1);
+  }
+
   function clearFilters() {
     setSearch("");
     setRatingFilter("All Ratings");
     setDateFrom("");
     setDateTo("");
-    setShowDateFilter(false);
-    setCurrentPage(1);
-  }
-
-  function applyCardFilter(nextFilter) {
-    setRatingFilter(nextFilter);
     setCurrentPage(1);
   }
 
@@ -484,8 +476,8 @@ export default function FeedbackPage() {
   );
 
   return (
-    <div style={pageThemeStyle}>
-      <style>{FEEDBACK_INTERACTION_CSS}</style>
+    <>
+        <style>{FEEDBACK_INTERACTION_CSS}</style>
 
         <header style={styles.header}>
           <div>
@@ -510,7 +502,7 @@ export default function FeedbackPage() {
             value={stats.total}
             desc="All feedback records"
             active={ratingFilter === "All Ratings"}
-            onClick={() => applyCardFilter("All Ratings")}
+            onClick={() => applyCardFilter("all")}
           />
 
           <StatCard
@@ -518,7 +510,12 @@ export default function FeedbackPage() {
             iconStyle={styles.statGreen}
             title="Average Rating"
             value={stats.average}
-            desc="Overall rating out of 5"
+            desc={`View ${Math.round(Number(stats.average) || 0) || "-"}-star feedbacks`}
+            active={
+              Number(ratingFilter) === Math.round(Number(stats.average) || 0) &&
+              !["All Ratings", "Positive", "Negative"].includes(ratingFilter)
+            }
+            onClick={() => applyCardFilter("average")}
           />
 
           <StatCard
@@ -526,19 +523,19 @@ export default function FeedbackPage() {
             iconStyle={styles.statOrange}
             title="Positive Feedbacks"
             value={stats.positive}
-            desc={`${stats.positivePercent}% rated 4–5 stars`}
+            desc={`${stats.positivePercent}% of rated feedbacks`}
             active={ratingFilter === "Positive"}
-            onClick={() => applyCardFilter("Positive")}
+            onClick={() => applyCardFilter("positive")}
           />
 
           <StatCard
             icon={<ThumbsDown size={30} />}
-            iconStyle={styles.statRed}
+            iconStyle={styles.statBlue}
             title="Negative Feedbacks"
             value={stats.negative}
-            desc={`${stats.negativePercent}% rated below 4 stars`}
+            desc={`${stats.negativePercent}% of rated feedbacks`}
             active={ratingFilter === "Negative"}
-            onClick={() => applyCardFilter("Negative")}
+            onClick={() => applyCardFilter("negative")}
           />
         </section>
 
@@ -556,7 +553,7 @@ export default function FeedbackPage() {
           <div className="feedback-alert" style={styles.successBox}>
             <CheckCircle2 size={20} />
             <span style={styles.successText}>{success}</span>
-            <button className="feedback-interactive"
+            <button className="feedback-interactive feedback-close"
               style={styles.successClose}
               onClick={() => setSuccess("")}
             >
@@ -572,42 +569,54 @@ export default function FeedbackPage() {
                 className={`feedback-search-box${search ? " has-value" : ""}`}
                 style={styles.searchBox}
               >
-                <Search size={22} color="#5E4B45" />
+                <Search size={20} color="#5E4B45" />
                 <input
-                  className="feedback-input-interactive"
+                  className="feedback-input"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search feedback ID, owner, sitter, rating, or comment"
+                  placeholder="Search owner, sitter, comment, rating, or ID..."
                   style={styles.searchInput}
                 />
               </div>
 
-              <button
-                className="feedback-interactive"
-                type="button"
+              <select
+                className="feedback-input"
+                value={ratingFilter}
+                onChange={(event) => setRatingFilter(event.target.value)}
+                style={styles.ratingSelect}
+              >
+                <option value="All Ratings">All Ratings</option>
+                <option value="Positive">Positive (4-5 Stars)</option>
+                <option value="Negative">Negative (1-3 Stars)</option>
+                <option value="5">5 Stars</option>
+                <option value="4">4 Stars</option>
+                <option value="3">3 Stars</option>
+                <option value="2">2 Stars</option>
+                <option value="1">1 Star</option>
+              </select>
+
+            </div>
+
+            <div style={styles.filterActions}>
+              <button className="feedback-interactive"
+                style={styles.refreshBtn}
+                onClick={fetchFeedbackData}
+                disabled={loading}
+              >
+                <RefreshCw size={18} />
+                <span>{loading ? "Loading..." : "Refresh"}</span>
+              </button>
+
+              <button className="feedback-interactive"
                 style={styles.dateBtn}
                 onClick={() =>
                   setShowDateFilter((previous) => !previous)
                 }
               >
-                <Calendar size={20} />
+                <Calendar size={18} />
                 <span>
                   {showDateFilter ? "Hide date range" : "Select date range"}
                 </span>
-              </button>
-            </div>
-
-            <div style={styles.filterActions}>
-              <button
-                className="feedback-interactive"
-                type="button"
-                style={styles.refreshBtn}
-                onClick={fetchFeedbackData}
-                disabled={loading}
-                title="Refresh feedbacks"
-              >
-                <RefreshCw size={19} />
-                <span>{loading ? "Loading..." : "Refresh"}</span>
               </button>
             </div>
           </div>
@@ -617,7 +626,7 @@ export default function FeedbackPage() {
               <label style={styles.filterLabel}>
                 From
                 <input
-                  className="feedback-input-interactive"
+                  className="feedback-input"
                   type="date"
                   value={dateFrom}
                   onChange={(event) => setDateFrom(event.target.value)}
@@ -628,7 +637,7 @@ export default function FeedbackPage() {
               <label style={styles.filterLabel}>
                 To
                 <input
-                  className="feedback-input-interactive"
+                  className="feedback-input"
                   type="date"
                   value={dateTo}
                   min={dateFrom || undefined}
@@ -637,7 +646,7 @@ export default function FeedbackPage() {
                 />
               </label>
 
-              <button className="feedback-interactive" type="button" style={styles.clearBtn} onClick={clearFilters}>
+              <button className="feedback-interactive" style={styles.clearBtn} onClick={clearFilters}>
                 Clear filters
               </button>
             </div>
@@ -645,15 +654,6 @@ export default function FeedbackPage() {
 
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
-              <colgroup>
-                <col style={{ width: "6%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "12%" }} />
-                <col style={{ width: "28%" }} />
-                <col style={{ width: "18%" }} />
-              </colgroup>
-
               <thead>
                 <tr style={styles.tableHeadRow}>
                   <Th>No.</Th>
@@ -679,13 +679,16 @@ export default function FeedbackPage() {
                   paginatedFeedbacks.map((item, index) => (
                     <tr
                       key={item.feedback_id}
-                      className="feedback-table-row"
+                      className="feedback-row"
                       role="button"
                       tabIndex={0}
                       style={{ ...styles.tableRow, cursor: "pointer" }}
                       onClick={() => setSelectedFeedback(item)}
                       onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
+                        if (
+                          event.key === "Enter" ||
+                          event.key === " "
+                        ) {
                           event.preventDefault();
                           setSelectedFeedback(item);
                         }
@@ -814,7 +817,7 @@ export default function FeedbackPage() {
           onClose={() => setSelectedFeedback(null)}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -827,8 +830,14 @@ function StatCard({
   active = false,
   onClick,
 }) {
-  const content = (
-    <>
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={`feedback-stat-card${active ? " is-active" : ""}`}
+      style={styles.statCard}
+      onClick={onClick}
+    >
       <div style={{ ...styles.statIcon, ...iconStyle }}>{icon}</div>
 
       <div>
@@ -836,26 +845,6 @@ function StatCard({
         <h2 style={styles.statValue}>{value}</h2>
         <p style={styles.statDesc}>{desc}</p>
       </div>
-    </>
-  );
-
-  if (!onClick) {
-    return <div style={{ ...styles.statCard, cursor: "default" }}>{content}</div>;
-  }
-
-  return (
-    <button
-      className="feedback-interactive feedback-stat-card"
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      style={{
-        ...styles.statCard,
-        ...(active ? styles.statCardActive : {}),
-        cursor: "pointer",
-      }}
-    >
-      {content}
     </button>
   );
 }
@@ -900,7 +889,7 @@ function FeedbackDetailsModal({
             <h2 style={styles.modalTitle}>Feedback Details</h2>
           </div>
 
-          <button className="feedback-interactive feedback-close-button"
+          <button className="feedback-interactive feedback-close"
             type="button"
             style={{
               ...styles.modalCloseBtn,
@@ -986,7 +975,7 @@ function FeedbackDetailsModal({
         </div>
 
         <div style={styles.modalActions}>
-          <button className="feedback-interactive feedback-delete-button"
+          <button className="feedback-interactive feedback-danger"
             type="button"
             style={{
               ...styles.deleteModalBtn,
@@ -1000,7 +989,7 @@ function FeedbackDetailsModal({
           </button>
 
           <div style={styles.modalActionsRight}>
-            <button className="feedback-interactive feedback-primary-button"
+            <button className="feedback-interactive feedback-primary"
               type="button"
               style={{
                 ...styles.closeModalBtn,
@@ -1140,7 +1129,6 @@ function formatDateTime(dateTimeValue) {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-    timeZone: "Asia/Manila",
   }).format(date);
 }
 
@@ -1186,7 +1174,7 @@ const styles = {
 
   title: {
     margin: 0,
-    color: "var(--feedback-strong)",
+    color: BRAND.brown,
     fontSize: 34,
     fontWeight: 900,
     letterSpacing: "-1px",
@@ -1194,7 +1182,7 @@ const styles = {
 
   subtitle: {
     margin: "8px 0 0",
-    color: "var(--feedback-muted)",
+    color: "#5D5351",
     fontSize: 15,
   },
 
@@ -1202,14 +1190,14 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 14,
-    color: "var(--feedback-strong)",
+    color: BRAND.brown,
     fontSize: 14,
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
-    color: "var(--feedback-muted)",
+    color: "#9A8C89",
     fontSize: 22,
   },
 
@@ -1223,10 +1211,10 @@ const styles = {
   statCard: {
     width: "100%",
     height: 118,
-    background: "var(--feedback-card)",
+    background: "#fff",
     borderRadius: 16,
-    border: "1px solid var(--feedback-border)",
-    boxShadow: "var(--feedback-shadow)",
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 8px 16px rgba(51,26,18,0.07)",
     padding: 18,
     display: "flex",
     alignItems: "center",
@@ -1235,16 +1223,9 @@ const styles = {
     boxSizing: "border-box",
     textAlign: "left",
     fontFamily: "inherit",
-    color: "inherit",
+    cursor: "pointer",
     transition:
-      "transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease",
-  },
-
-  statCardActive: {
-    borderColor: BRAND.pink,
-    boxShadow:
-      "0 8px 18px rgba(217,67,104,0.12), 0 0 0 2px rgba(217,67,104,0.08)",
-    transform: "translateY(-1px)",
+      "transform 0.16s ease, border-color 0.18s ease, box-shadow 0.18s ease",
   },
 
   statIcon: {
@@ -1272,29 +1253,29 @@ const styles = {
     color: "#F16C08",
   },
 
-  statRed: {
-    background: "#FCE2E8",
-    color: "#E11D48",
+  statBlue: {
+    background: "#E4ECFF",
+    color: "#236EEA",
   },
 
   statTitle: {
     margin: 0,
     fontSize: 14,
     fontWeight: 800,
-    color: "var(--feedback-text)",
+    color: "#1F1714",
   },
 
   statValue: {
     margin: "4px 0 2px",
     fontSize: 28,
     fontWeight: 900,
-    color: "var(--feedback-strong)",
+    color: BRAND.brown,
   },
 
   statDesc: {
     margin: 0,
     fontSize: 12,
-    color: "var(--feedback-muted)",
+    color: "#6D5F5B",
   },
 
   errorBox: {
@@ -1353,10 +1334,10 @@ const styles = {
 
   tableCard: {
     width: "100%",
-    background: "var(--feedback-card)",
+    background: "#fff",
     borderRadius: 16,
-    border: "1px solid var(--feedback-border)",
-    boxShadow: "var(--feedback-shadow)",
+    border: "1px solid #EEE2DF",
+    boxShadow: "0 8px 18px rgba(51,26,18,0.07)",
     padding: "22px 14px 16px",
     boxSizing: "border-box",
   },
@@ -1373,30 +1354,28 @@ const styles = {
   leftFilters: {
     display: "flex",
     alignItems: "center",
-    gap: 16,
+    gap: 12,
     flex: 1,
-    minWidth: 430,
+    minWidth: 460,
   },
 
   filterActions: {
-    marginLeft: "auto",
     display: "flex",
     alignItems: "center",
-    justifyContent: "flex-end",
     gap: 10,
   },
 
   searchBox: {
     flex: 1,
-    maxWidth: 520,
-    minWidth: 280,
+    maxWidth: 460,
+    minWidth: 260,
     height: 48,
-    border: "1px solid var(--feedback-border-strong)",
+    border: "1px solid #E2D5D3",
     borderRadius: 7,
     display: "flex",
     alignItems: "center",
     padding: "0 14px",
-    background: "var(--feedback-card)",
+    background: "#fff",
     boxSizing: "border-box",
     transition:
       "transform 0.16s ease, box-shadow 0.18s ease, border-color 0.18s ease",
@@ -1408,7 +1387,7 @@ const styles = {
     outline: "none",
     marginLeft: 12,
     fontSize: 14,
-    color: "var(--feedback-text)",
+    color: BRAND.text,
     background: "transparent",
     minWidth: 0,
   },
@@ -1422,17 +1401,17 @@ const styles = {
     padding: "0 12px",
     fontSize: 13,
     fontWeight: 700,
-    color: "var(--feedback-text)",
+    color: BRAND.text,
     outline: "none",
   },
 
   refreshBtn: {
     height: 48,
-    padding: "0 16px",
-    border: "1px solid var(--feedback-border-strong)",
+    padding: "0 14px",
+    border: "1px solid #E2D5D3",
     borderRadius: 7,
-    background: "var(--feedback-card)",
-    color: "var(--feedback-strong)",
+    background: "#fff",
+    color: BRAND.brown,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -1440,36 +1419,31 @@ const styles = {
     fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
-    transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
   },
 
   dateBtn: {
-    width: 210,
     height: 48,
     padding: "0 16px",
-    border: "1px solid var(--feedback-border-strong)",
+    border: "1px solid #E2D5D3",
     borderRadius: 7,
-    background: "var(--feedback-card)",
+    background: "#fff",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
     fontSize: 13,
     fontWeight: 700,
-    color: "var(--feedback-muted)",
+    color: BRAND.text,
     whiteSpace: "nowrap",
     cursor: "pointer",
-    transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
   },
 
   filterPanel: {
-    margin: "0 12px 18px",
+    margin: "0 12px 16px",
     padding: 14,
-    border: "1px solid var(--feedback-border)",
+    border: "1px solid #EEE2DF",
     borderRadius: 10,
-    background: "var(--feedback-table-head)",
+    background: "#FFFBFA",
     display: "flex",
     alignItems: "center",
     gap: 12,
@@ -1482,31 +1456,28 @@ const styles = {
     gap: 8,
     fontSize: 13,
     fontWeight: 800,
-    color: "var(--feedback-strong)",
+    color: BRAND.brown,
   },
 
   dateInput: {
     height: 38,
-    border: "1px solid var(--feedback-border-strong)",
+    border: "1px solid #E2D5D3",
     borderRadius: 7,
     padding: "0 10px",
-    color: "var(--feedback-text)",
-    background: "var(--feedback-input)",
+    color: BRAND.text,
     outline: "none",
   },
 
   clearBtn: {
     height: 38,
-    border: "1px solid var(--feedback-border-strong)",
+    border: "1px solid #E2D5D3",
     borderRadius: 7,
-    background: "var(--feedback-card)",
-    color: "var(--feedback-strong)",
+    background: "#fff",
+    color: BRAND.brown,
     padding: "0 14px",
     fontSize: 13,
     fontWeight: 800,
     cursor: "pointer",
-    transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
   },
 
   tableWrapper: {
@@ -1516,35 +1487,35 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1120,
+    minWidth: 1040,
     borderCollapse: "collapse",
-    tableLayout: "fixed",
   },
 
   tableHeadRow: {
-    background: "var(--feedback-table-head)",
-    borderTop: "1px solid var(--feedback-border)",
-    borderBottom: "1px solid var(--feedback-border)",
+    background: "#FFFBFA",
+    borderTop: "1px solid #EEE2DF",
+    borderBottom: "1px solid #E7DAD7",
   },
 
   th: {
     textAlign: "left",
     padding: "14px 12px",
-    color: "var(--feedback-text)",
+    color: "#16100E",
     fontSize: 13,
     fontWeight: 900,
     whiteSpace: "nowrap",
   },
 
   tableRow: {
-    borderBottom: "1px solid var(--feedback-border)",
-    transition: "background 0.16s ease, box-shadow 0.16s ease",
+    borderBottom: "1px solid #E7DAD7",
+    transition:
+      "background 0.16s ease, box-shadow 0.16s ease",
   },
 
   numberCell: {
     width: 54,
     padding: "14px 12px",
-    color: "var(--feedback-muted)",
+    color: BRAND.muted,
     fontSize: 13,
     fontWeight: 800,
     whiteSpace: "nowrap",
@@ -1554,16 +1525,15 @@ const styles = {
   normalCell: {
     padding: "14px 12px",
     fontSize: 13,
-    color: "var(--feedback-text)",
-    whiteSpace: "normal",
-    overflowWrap: "anywhere",
+    color: "#1F1714",
+    whiteSpace: "nowrap",
     verticalAlign: "middle",
   },
 
   primaryText: {
     display: "block",
     fontSize: 13,
-    color: "var(--feedback-text)",
+    color: "#1B1412",
     fontWeight: 800,
   },
 
@@ -1571,13 +1541,13 @@ const styles = {
     display: "block",
     marginTop: 4,
     fontSize: 11,
-    color: "var(--feedback-muted)",
+    color: "#645854",
   },
 
   ratingNumber: {
     display: "block",
     fontSize: 13,
-    color: "var(--feedback-text)",
+    color: "#1B1412",
     fontWeight: 700,
     marginBottom: 3,
   },
@@ -1590,7 +1560,7 @@ const styles = {
   commentCell: {
     padding: "14px 12px",
     fontSize: 13,
-    color: "var(--feedback-text)",
+    color: "#1F1714",
     lineHeight: 1.45,
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -1601,7 +1571,7 @@ const styles = {
   emptyCell: {
     padding: 28,
     textAlign: "center",
-    color: "var(--feedback-muted)",
+    color: BRAND.muted,
     fontSize: 14,
     fontWeight: 700,
   },
@@ -1623,7 +1593,7 @@ const styles = {
   pageText: {
     margin: 0,
     fontSize: 13,
-    color: "var(--feedback-text)",
+    color: "#1F1714",
   },
 
   pages: {
@@ -1636,9 +1606,9 @@ const styles = {
     width: 34,
     height: 34,
     borderRadius: 7,
-    border: "1px solid var(--feedback-border-strong)",
-    background: "var(--feedback-card)",
-    color: "var(--feedback-text)",
+    border: "1px solid #E6D9D7",
+    background: "#fff",
+    color: "#1F1714",
     fontSize: 13,
     fontWeight: 700,
     cursor: "pointer",
@@ -1646,7 +1616,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
+      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease",
   },
 
   activePage: {
@@ -1663,7 +1633,7 @@ const styles = {
   ellipsis: {
     width: 24,
     textAlign: "center",
-    color: "var(--feedback-muted)",
+    color: BRAND.muted,
     fontWeight: 800,
   },
 
@@ -1681,9 +1651,9 @@ const styles = {
   modal: {
     width: "min(720px, 100%)",
     maxHeight: "90vh",
-    background: "var(--feedback-card)",
+    background: "#fff",
     borderRadius: 18,
-    border: "1px solid var(--feedback-border)",
+    border: "1px solid #EEE2DF",
     boxShadow: "0 22px 50px rgba(51,26,18,0.22)",
     boxSizing: "border-box",
     display: "flex",
@@ -1696,7 +1666,7 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 16,
-    borderBottom: "1px solid var(--feedback-border)",
+    borderBottom: "1px solid #EEE2DF",
     padding: "22px 22px 16px",
     flexShrink: 0,
   },
@@ -1710,7 +1680,7 @@ const styles = {
 
   modalTitle: {
     margin: 0,
-    color: "var(--feedback-strong)",
+    color: BRAND.brown,
     fontSize: 24,
     fontWeight: 900,
   },
@@ -1719,15 +1689,13 @@ const styles = {
     width: 36,
     height: 36,
     borderRadius: 9,
-    border: "1px solid var(--feedback-border-strong)",
-    background: "var(--feedback-card)",
-    color: "var(--feedback-strong)",
+    border: "1px solid #E6D9D7",
+    background: "#fff",
+    color: BRAND.brown,
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
   },
 
   modalGrid: {
@@ -1738,10 +1706,10 @@ const styles = {
   },
 
   personBox: {
-    border: "1px solid var(--feedback-border)",
+    border: "1px solid #EEE2DF",
     borderRadius: 12,
     padding: 14,
-    background: "var(--feedback-card-soft)",
+    background: "#FFFCFB",
     display: "flex",
     alignItems: "center",
     gap: 12,
@@ -1761,29 +1729,29 @@ const styles = {
 
   detailLabel: {
     margin: "0 0 7px",
-    color: "var(--feedback-muted)",
+    color: "#6D5F5B",
     fontSize: 12,
     fontWeight: 900,
   },
 
   detailName: {
     margin: 0,
-    color: "var(--feedback-text)",
+    color: BRAND.text,
     fontSize: 15,
     fontWeight: 900,
   },
 
   detailSub: {
     margin: "5px 0 0",
-    color: "var(--feedback-muted)",
+    color: "#6D5F5B",
     fontSize: 12,
   },
 
   ratingBox: {
-    border: "1px solid var(--feedback-border)",
+    border: "1px solid #EEE2DF",
     borderRadius: 12,
     padding: 14,
-    background: "var(--feedback-card-soft)",
+    background: "#FFFCFB",
     marginBottom: 12,
   },
 
@@ -1795,21 +1763,21 @@ const styles = {
 
   modalRating: {
     fontSize: 24,
-    color: "var(--feedback-strong)",
+    color: BRAND.brown,
     fontWeight: 900,
   },
 
   commentBox: {
-    border: "1px solid var(--feedback-border)",
+    border: "1px solid #EEE2DF",
     borderRadius: 12,
     padding: 14,
-    background: "var(--feedback-card-soft)",
+    background: "#FFFCFB",
     marginBottom: 12,
   },
 
   fullComment: {
     margin: 0,
-    color: "var(--feedback-text)",
+    color: BRAND.text,
     fontSize: 14,
     lineHeight: 1.55,
     overflowWrap: "anywhere",
@@ -1817,20 +1785,20 @@ const styles = {
 
   modalInfoGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(1, minmax(0, 1fr))",
     gap: 12,
   },
 
   detailItem: {
-    border: "1px solid var(--feedback-border)",
+    border: "1px solid #EEE2DF",
     borderRadius: 12,
     padding: 14,
-    background: "var(--feedback-card-soft)",
+    background: "#FFFCFB",
   },
 
   detailValue: {
     margin: 0,
-    color: "var(--feedback-text)",
+    color: BRAND.text,
     fontSize: 14,
     fontWeight: 900,
   },
@@ -1838,8 +1806,8 @@ const styles = {
   modalActions: {
     minHeight: 72,
     padding: "14px 22px",
-    borderTop: "1px solid var(--feedback-border)",
-    background: "var(--feedback-card)",
+    borderTop: "1px solid #EEE2DF",
+    background: "#FFFFFF",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1873,8 +1841,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
   },
 
   closeModalBtn: {
@@ -1887,8 +1853,6 @@ const styles = {
     fontSize: 13,
     fontWeight: 900,
     cursor: "pointer",
-    transition:
-      "transform 0.14s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
   },
 
   disabledModalAction: {
