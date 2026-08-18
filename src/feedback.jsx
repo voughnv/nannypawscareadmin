@@ -186,6 +186,7 @@ export default function FeedbackPage() {
 
   const [search, setSearch] = useState("");
   const [ratingFilter, setRatingFilter] = useState("All Ratings");
+  const [cardFilter, setCardFilter] = useState("all");
   const [showDateFilter, setShowDateFilter] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -203,7 +204,7 @@ export default function FeedbackPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, ratingFilter, dateFrom, dateTo]);
+  }, [search, ratingFilter, cardFilter, dateFrom, dateTo]);
 
 
   async function fetchFeedbackData() {
@@ -302,28 +303,15 @@ export default function FeedbackPage() {
   }
 
   function applyCardFilter(filterType) {
-    if (filterType === "all") {
-      setRatingFilter("All Ratings");
-    } else if (filterType === "average") {
-      const roundedAverage = Math.round(Number(stats.average) || 0);
-
-      setRatingFilter(
-        roundedAverage >= 1 && roundedAverage <= 5
-          ? String(roundedAverage)
-          : "All Ratings"
-      );
-    } else if (filterType === "positive") {
-      setRatingFilter("Positive");
-    } else if (filterType === "negative") {
-      setRatingFilter("Negative");
-    }
-
+    setCardFilter(filterType);
+    setRatingFilter("All Ratings");
     setCurrentPage(1);
   }
 
   function clearFilters() {
     setSearch("");
     setRatingFilter("All Ratings");
+    setCardFilter("all");
     setDateFrom("");
     setDateTo("");
     setCurrentPage(1);
@@ -364,6 +352,19 @@ export default function FeedbackPage() {
     });
   }, [feedbacks, ownerMap, sitterMap]);
 
+  const roundedAverageRating = useMemo(() => {
+    const validRatings = feedbacks
+      .map((item) => Number(item.rating))
+      .filter((rating) => Number.isFinite(rating));
+
+    if (!validRatings.length) return 0;
+
+    return Math.round(
+      validRatings.reduce((sum, rating) => sum + rating, 0) /
+        validRatings.length
+    );
+  }, [feedbacks]);
+
   const filteredFeedbacks = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
@@ -387,12 +388,20 @@ export default function FeedbackPage() {
         searchableValues.some((value) => value.includes(keyword));
 
       const numericRating = Number(item.rating);
+      const roundedAverage = roundedAverageRating;
 
       const matchesRating =
         ratingFilter === "All Ratings" ||
-        (ratingFilter === "Positive" && numericRating >= 4) ||
-        (ratingFilter === "Negative" && numericRating < 4) ||
-        Number(item.rating) === Number(ratingFilter);
+        numericRating === Number(ratingFilter);
+
+      const matchesCard =
+        cardFilter === "all" ||
+        (cardFilter === "average" &&
+          roundedAverage >= 1 &&
+          roundedAverage <= 5 &&
+          Math.round(numericRating) === roundedAverage) ||
+        (cardFilter === "positive" && numericRating >= 4) ||
+        (cardFilter === "negative" && numericRating < 4);
 
       const rawDate =
         item.feedback_date || item.created_at?.slice(0, 10) || "";
@@ -403,6 +412,7 @@ export default function FeedbackPage() {
       return (
         matchesSearch &&
         matchesRating &&
+        matchesCard &&
         matchesDateFrom &&
         matchesDateTo
       );
@@ -411,8 +421,10 @@ export default function FeedbackPage() {
     enrichedFeedbacks,
     search,
     ratingFilter,
+    cardFilter,
     dateFrom,
     dateTo,
+    roundedAverageRating,
   ]);
 
   const totalPages = Math.max(
@@ -501,7 +513,10 @@ export default function FeedbackPage() {
             title="Total Feedbacks"
             value={stats.total}
             desc="All feedback records"
-            active={ratingFilter === "All Ratings"}
+            active={
+              cardFilter === "all" &&
+              ratingFilter === "All Ratings"
+            }
             onClick={() => applyCardFilter("all")}
           />
 
@@ -511,10 +526,7 @@ export default function FeedbackPage() {
             title="Average Rating"
             value={stats.average}
             desc={`View ${Math.round(Number(stats.average) || 0) || "-"}-star feedbacks`}
-            active={
-              Number(ratingFilter) === Math.round(Number(stats.average) || 0) &&
-              !["All Ratings", "Positive", "Negative"].includes(ratingFilter)
-            }
+            active={cardFilter === "average"}
             onClick={() => applyCardFilter("average")}
           />
 
@@ -524,7 +536,7 @@ export default function FeedbackPage() {
             title="Positive Feedbacks"
             value={stats.positive}
             desc={`${stats.positivePercent}% of rated feedbacks`}
-            active={ratingFilter === "Positive"}
+            active={cardFilter === "positive"}
             onClick={() => applyCardFilter("positive")}
           />
 
@@ -534,7 +546,7 @@ export default function FeedbackPage() {
             title="Negative Feedbacks"
             value={stats.negative}
             desc={`${stats.negativePercent}% of rated feedbacks`}
-            active={ratingFilter === "Negative"}
+            active={cardFilter === "negative"}
             onClick={() => applyCardFilter("negative")}
           />
         </section>
@@ -582,12 +594,13 @@ export default function FeedbackPage() {
               <select
                 className="feedback-input"
                 value={ratingFilter}
-                onChange={(event) => setRatingFilter(event.target.value)}
+                onChange={(event) => {
+                  setRatingFilter(event.target.value);
+                  setCardFilter("all");
+                }}
                 style={styles.ratingSelect}
               >
                 <option value="All Ratings">All Ratings</option>
-                <option value="Positive">Positive (4-5 Stars)</option>
-                <option value="Negative">Negative (1-3 Stars)</option>
                 <option value="5">5 Stars</option>
                 <option value="4">4 Stars</option>
                 <option value="3">3 Stars</option>
