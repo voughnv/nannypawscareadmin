@@ -32,6 +32,8 @@ export default function AdminSidebar() {
   const [admin, setAdmin] = useState(() => getStoredAdmin());
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const [logoHovered, setLogoHovered] = useState(false);
+  const [logoPressed, setLogoPressed] = useState(false);
   const [profileHovered, setProfileHovered] = useState(false);
   const [profilePressed, setProfilePressed] = useState(false);
   const [logoutHovered, setLogoutHovered] = useState(false);
@@ -106,24 +108,52 @@ export default function AdminSidebar() {
           : "transparent",
       }}
     >
-      <div
+      <NavLink
+        to="/bookings"
+        aria-label="Go to Bookings"
+        onMouseEnter={() => setLogoHovered(true)}
+        onMouseLeave={() => {
+          setLogoHovered(false);
+          setLogoPressed(false);
+        }}
+        onMouseDown={() => setLogoPressed(true)}
+        onMouseUp={() => setLogoPressed(false)}
+        onFocus={() => setLogoHovered(true)}
+        onBlur={() => {
+          setLogoHovered(false);
+          setLogoPressed(false);
+        }}
         style={{
           ...styles.logoBox,
           background: "#FFFFFF",
-          borderColor: darkMode
+          borderColor: logoHovered
+            ? BRAND.pink
+            : darkMode
             ? "#5A4B45"
             : "#E8DAD7",
-          boxShadow: darkMode
+          boxShadow: logoHovered
+            ? darkMode
+              ? "0 10px 22px rgba(0, 0, 0, 0.30), 0 0 0 3px rgba(217, 67, 104, 0.10)"
+              : "0 10px 22px rgba(85,54,48,0.16), 0 0 0 3px rgba(217, 67, 104, 0.10)"
+            : darkMode
             ? "0 8px 18px rgba(0, 0, 0, 0.28)"
             : "0 8px 18px rgba(85,54,48,0.12)",
+          transform: logoPressed
+            ? "scale(0.96)"
+            : logoHovered
+            ? "translateY(-2px) scale(1.03)"
+            : "translateY(0) scale(1)",
         }}
       >
         <img
           src="/nannylogo.png"
           alt="Nanny Paws"
-          style={styles.logo}
+          style={{
+            ...styles.logo,
+            transform: logoHovered ? "scale(1.03)" : "scale(1)",
+          }}
         />
-      </div>
+      </NavLink>
 
       <nav style={styles.nav}>
         {MENU_ITEMS.map(({ to, text, icon: Icon }) => (
@@ -429,8 +459,13 @@ const styles = {
     overflow: "hidden",
     flexShrink: 0,
     boxSizing: "border-box",
+    textDecoration: "none",
+    cursor: "pointer",
+    outline: "none",
+    transformOrigin: "center",
+    willChange: "transform",
     transition:
-      "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease",
+      "background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.16s ease",
   },
 
   logo: {
@@ -441,6 +476,7 @@ const styles = {
     objectFit: "contain",
     objectPosition: "center",
     flexShrink: 0,
+    transition: "transform 0.18s ease",
   },
 
   nav: {
