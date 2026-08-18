@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
+import { Menu } from "lucide-react";
 import AdminSidebar from "../components/layout/AdminSidebar";
 import {
   AdminSettingsProvider,
@@ -14,8 +16,9 @@ export default function AdminLayout() {
 }
 
 function AdminLayoutContent() {
-  const { settings } = useAdminSettings();
+  const { settings, fontScale } = useAdminSettings();
   const darkMode = settings.darkMode;
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <>
@@ -28,16 +31,62 @@ function AdminLayoutContent() {
           color: darkMode ? "#FFF7F4" : "#2E1B16",
         }}
       >
-        <AdminSidebar />
+        <div
+          style={{
+            ...styles.sidebarShell,
+            width: sidebarOpen ? 250 : 0,
+            minWidth: sidebarOpen ? 250 : 0,
+          }}
+        >
+          <div
+            style={{
+              ...styles.sidebarInner,
+              transform: sidebarOpen
+                ? "translateX(0)"
+                : "translateX(-100%)",
+              opacity: sidebarOpen ? 1 : 0,
+              pointerEvents: sidebarOpen ? "auto" : "none",
+            }}
+          >
+            <AdminSidebar
+              onCollapse={() => setSidebarOpen(false)}
+            />
+          </div>
+        </div>
+
+        {!sidebarOpen && (
+          <button
+            type="button"
+            aria-label="Show sidebar"
+            title="Show sidebar"
+            className="admin-sidebar-reopen"
+            onClick={() => setSidebarOpen(true)}
+            style={{
+              ...styles.reopenButton,
+              background: darkMode ? "#2B2320" : "#FFFFFF",
+              color: darkMode ? "#FFF7F4" : "#3A1E14",
+              borderColor: darkMode ? "#514540" : "#E6D9D7",
+            }}
+          >
+            <Menu size={21} />
+          </button>
+        )}
 
         <main
           data-admin-content="true"
           style={{
             ...styles.main,
             background: darkMode ? "#201A18" : "#FFFCFB",
+            paddingLeft: sidebarOpen ? 32 : 76,
           }}
         >
-          <div style={styles.scaledContent}>
+          <div
+            style={{
+              ...styles.scaledContent,
+              width: `${100 / fontScale}%`,
+              zoom: fontScale,
+            }}
+          >
             <Outlet />
           </div>
         </main>
@@ -156,177 +205,37 @@ const GLOBAL_ADMIN_THEME_CSS = `
     border-radius: 999px;
   }
 
-  /* Keep Lucide icons and images crisp while font size changes. */
-  [data-admin-content="true"] svg,
-  [role="dialog"] svg {
-    flex-shrink: 0;
-    shape-rendering: geometricPrecision;
+  .admin-sidebar-reopen {
+    transition:
+      transform 0.14s ease,
+      box-shadow 0.18s ease,
+      border-color 0.18s ease,
+      color 0.18s ease,
+      background 0.18s ease;
   }
 
-  [data-admin-content="true"] svg *,
-  [role="dialog"] svg * {
-    vector-effect: non-scaling-stroke;
+  .admin-sidebar-reopen:hover {
+    transform: translateY(-1px);
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.55) !important;
+    box-shadow:
+      0 7px 16px rgba(58, 30, 20, 0.11),
+      0 0 0 2px rgba(217, 67, 104, 0.06);
   }
 
-  [data-admin-content="true"] img,
-  [role="dialog"] img {
-    image-rendering: auto;
+  .admin-sidebar-reopen:active {
+    transform: translateY(0) scale(0.96);
   }
 
-  /* Scale text only. Do not zoom cards, logos, images, or SVG icons. */
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 10px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 10px"] {
-    font-size: calc(10px * var(--admin-font-scale, 1)) !important;
+  .admin-sidebar-reopen:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.45);
+    outline-offset: 2px;
   }
 
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 11px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 11px"] {
-    font-size: calc(11px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 12px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 12px"] {
-    font-size: calc(12px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 13px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 13px"] {
-    font-size: calc(13px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 14px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 14px"] {
-    font-size: calc(14px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 15px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 15px"] {
-    font-size: calc(15px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 16px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 16px"] {
-    font-size: calc(16px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 17px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 17px"] {
-    font-size: calc(17px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 18px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 18px"] {
-    font-size: calc(18px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 19px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 19px"] {
-    font-size: calc(19px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 20px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 20px"] {
-    font-size: calc(20px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 21px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 21px"] {
-    font-size: calc(21px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 22px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 22px"] {
-    font-size: calc(22px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 23px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 23px"] {
-    font-size: calc(23px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 24px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 24px"] {
-    font-size: calc(24px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 25px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 25px"] {
-    font-size: calc(25px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 26px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 26px"] {
-    font-size: calc(26px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 27px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 27px"] {
-    font-size: calc(27px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 28px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 28px"] {
-    font-size: calc(28px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 29px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 29px"] {
-    font-size: calc(29px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 30px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 30px"] {
-    font-size: calc(30px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 31px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 31px"] {
-    font-size: calc(31px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 32px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 32px"] {
-    font-size: calc(32px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 33px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 33px"] {
-    font-size: calc(33px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 34px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 34px"] {
-    font-size: calc(34px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 35px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 35px"] {
-    font-size: calc(35px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 36px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 36px"] {
-    font-size: calc(36px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 37px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 37px"] {
-    font-size: calc(37px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 38px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 38px"] {
-    font-size: calc(38px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 39px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 39px"] {
-    font-size: calc(39px * var(--admin-font-scale, 1)) !important;
-  }
-
-  [data-admin-content="true"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 40px"],
-  [role="dialog"] :is(h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, textarea, label, th, td, small, strong)[style*="font-size: 40px"] {
-    font-size: calc(40px * var(--admin-font-scale, 1)) !important;
+  @media (prefers-reduced-motion: reduce) {
+    .admin-sidebar-reopen {
+      transition-duration: 0.01ms !important;
+    }
   }
 `;
 
@@ -341,6 +250,38 @@ const styles = {
     transition: "background 0.2s ease, color 0.2s ease",
   },
 
+  sidebarShell: {
+    height: "100vh",
+    flexShrink: 0,
+    overflow: "hidden",
+    transition:
+      "width 0.24s ease, min-width 0.24s ease",
+  },
+
+  sidebarInner: {
+    width: 250,
+    height: "100vh",
+    transition:
+      "transform 0.24s ease, opacity 0.18s ease",
+    willChange: "transform",
+  },
+
+  reopenButton: {
+    position: "fixed",
+    top: 20,
+    left: 18,
+    zIndex: 1000,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    border: "1px solid",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontFamily: "inherit",
+  },
+
   main: {
     flex: 1,
     height: "100vh",
@@ -349,11 +290,12 @@ const styles = {
     overflowX: "hidden",
     minWidth: 0,
     boxSizing: "border-box",
-    transition: "background 0.2s ease",
+    transition:
+      "background 0.2s ease, padding-left 0.24s ease",
   },
 
   scaledContent: {
     minHeight: "100%",
-    fontSize: "calc(16px * var(--admin-font-scale, 1))",
+    transformOrigin: "top left",
   },
 };
