@@ -5,7 +5,7 @@ import {
   claimAdminSession,
   clearLocalAdminSession,
   hasLocalAdminSession,
-  releaseAdminSession,
+  refreshAdminSession,
 } from "./utils/adminSession";
 
 const BRAND = {
@@ -315,53 +315,48 @@ export default function Auth() {
 
     async function handleLoginPageEntry() {
       /*
-        SECURITY RULE:
-        /login acts as a logout boundary.
+        SAME-BROWSER MULTI-TAB RULE:
 
-        If an authenticated Admin returns to the login page through
-        browser Back/Forward history (or manually opens /login), the
-        current Admin session is released instead of silently sending
-        the Admin back into the protected area.
+        localStorage is shared by tabs from the same website.
+        If this browser already owns a valid Admin session, opening
+        the website or /login in another tab should reuse that same
+        session instead of logging the Admin out.
 
-        Result:
-        Admin page -> browser Back -> /login -> automatic logout.
-        Browser Forward can no longer restore an authenticated page.
+        A different browser/device will not have the same local Admin
+        session token, so it still has to log in normally and is still
+        blocked by claimAdminSession() while another device owns the lock.
       */
       if (!hasLocalAdminSession()) {
         return;
       }
 
       try {
+        const validSession =
+          await refreshAdminSession();
+
+        if (cancelled) return;
+
+        if (validSession) {
+          navigate("/bookings", {
+            replace: true,
+          });
+
+          return;
+        }
+
         /*
-          releaseAdminSession() captures the current Admin/token before
-          its first database await. Clear the local session immediately
-          after starting it so pressing Forward very quickly cannot
-          restore a protected page while the Supabase logout request is
-          still finishing.
+          The browser had stale local data but the database lock is no
+          longer valid. Clear only the stale local values and show login.
         */
-        const releasePromise =
-          releaseAdminSession();
-
         clearLocalAdminSession();
-
-        await releasePromise;
       } catch (error) {
         console.error(
-          "Unable to release administrator session after returning to login:",
+          "Unable to restore the existing administrator session:",
           error
         );
 
         clearLocalAdminSession();
       }
-
-      if (cancelled) return;
-
-      setSubmitted(false);
-      setSuccessText("");
-      setLoginPass("");
-      setMessage(
-        "Your administrator session has ended. Please sign in again to continue."
-      );
     }
 
     handleLoginPageEntry();
@@ -369,7 +364,7 @@ export default function Auth() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [navigate]);
 
 
   function validateEmail(email) {
@@ -441,7 +436,7 @@ export default function Auth() {
         });
 
         setMessage(
-          "This administrator account is currently active on another device or browser. Please sign out from the active session or wait a few minutes before trying again."
+          "This administrator account is already active in another browser or device. Log out there first. If that browser was closed unexpectedly, wait a few minutes and try again."
         );
         return;
       }
@@ -460,7 +455,9 @@ export default function Auth() {
           releases the Admin session. Browser Forward can then no
           longer restore authenticated Admin access.
         */
-        navigate("/bookings");
+        navigate("/bookings", {
+          replace: true,
+        });
       }, 600);
     } catch (error) {
       setMessage(error?.message || "Unable to log in.");
