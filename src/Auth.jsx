@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { supabase } from "./lib/supabase";
 import {
   claimAdminSession,
   clearLocalAdminSession,
   hasLocalAdminSession,
   refreshAdminSession,
+  releaseAdminSession,
 } from "./utils/adminSession";
+
+const ADMIN_LOGIN_HISTORY_KEY =
+  "adminLoginHistoryBoundaryKey";
 
 const BRAND = {
   maroon: "#7A1F3D",
@@ -299,6 +306,7 @@ function Field({ label, error, children }) {
 
 export default function Auth() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [submitted, setSubmitted] = useState(false);
   const [successText, setSuccessText] = useState("");
@@ -314,17 +322,77 @@ export default function Auth() {
     let cancelled = false;
 
     async function handleLoginPageEntry() {
+      const boundaryKey =
+        sessionStorage.getItem(
+          ADMIN_LOGIN_HISTORY_KEY
+        );
+
+      const returnedToOriginalLogin =
+        Boolean(
+          hasLocalAdminSession() &&
+            boundaryKey &&
+            boundaryKey === location.key
+        );
+
+      /*
+        BACK-BUTTON SECURITY RULE:
+
+        The login page used to authenticate is kept in this tab's browser
+        history. If the Admin later presses browser Back and returns to
+        that exact login history entry, treat it as an intentional exit
+        from the Admin area and end the shared browser session.
+
+        sessionStorage is tab-specific, so a NEW TAB does not inherit this
+        history-boundary key. That means another tab in the SAME browser
+        can still reuse the active Admin session.
+      */
+      if (returnedToOriginalLogin) {
+        try {
+          /*
+            releaseAdminSession() reads the Admin/session token before its
+            first database await. Clear the shared local session immediately
+            so browser Forward cannot briefly restore a protected page.
+          */
+          const releasePromise =
+            releaseAdminSession();
+
+          clearLocalAdminSession();
+
+          sessionStorage.removeItem(
+            ADMIN_LOGIN_HISTORY_KEY
+          );
+
+          await releasePromise;
+        } catch (error) {
+          console.error(
+            "Unable to release administrator session after browser Back:",
+            error
+          );
+
+          clearLocalAdminSession();
+
+          sessionStorage.removeItem(
+            ADMIN_LOGIN_HISTORY_KEY
+          );
+        }
+
+        if (cancelled) return;
+
+        setSubmitted(false);
+        setSuccessText("");
+        setLoginPass("");
+        setMessage(
+          "Your administrator session ended after returning to the login page."
+        );
+
+        return;
+      }
+
       /*
         SAME-BROWSER MULTI-TAB RULE:
 
-        localStorage is shared by tabs from the same website.
-        If this browser already owns a valid Admin session, opening
-        the website or /login in another tab should reuse that same
-        session instead of logging the Admin out.
-
-        A different browser/device will not have the same local Admin
-        session token, so it still has to log in normally and is still
-        blocked by claimAdminSession() while another device owns the lock.
+        A fresh /login opened in another tab should reuse the existing
+        browser session instead of logging the Admin out.
       */
       if (!hasLocalAdminSession()) {
         return;
@@ -344,10 +412,6 @@ export default function Auth() {
           return;
         }
 
-        /*
-          The browser had stale local data but the database lock is no
-          longer valid. Clear only the stale local values and show login.
-        */
         clearLocalAdminSession();
       } catch (error) {
         console.error(
@@ -364,7 +428,7 @@ export default function Auth() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [location.key, navigate]);
 
 
   function validateEmail(email) {
@@ -446,18 +510,19 @@ export default function Auth() {
 
       window.setTimeout(() => {
         /*
-          Keep /login in browser history.
+          Remember this tab's exact login history entry.
 
-          This is intentional:
-          Login -> Bookings -> browser Back -> /login.
-
-          Once /login is reached, the effect above automatically
-          releases the Admin session. Browser Forward can then no
-          longer restore authenticated Admin access.
+          Login -> Bookings keeps /login behind it in browser history.
+          If this same tab later goes Back to that entry, the effect above
+          logs the Admin out. Other tabs do not share this sessionStorage
+          marker, so they can open the website without ending the session.
         */
-        navigate("/bookings", {
-          replace: true,
-        });
+        sessionStorage.setItem(
+          ADMIN_LOGIN_HISTORY_KEY,
+          location.key
+        );
+
+        navigate("/bookings");
       }, 600);
     } catch (error) {
       setMessage(error?.message || "Unable to log in.");
