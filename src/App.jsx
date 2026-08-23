@@ -16,6 +16,20 @@ import FeedbackPage from "./feedback";
 import SettingPage from "./setting";
 import ProfilePage from "./profile";
 import { ConfirmationProvider } from "./context/ConfirmationProvider";
+import { hasLocalAdminSession } from "./utils/adminSession";
+
+function RootRedirect() {
+  return (
+    <Navigate
+      to={
+        hasLocalAdminSession()
+          ? "/bookings"
+          : "/login"
+      }
+      replace
+    />
+  );
+}
 
 function App() {
   return (
@@ -38,12 +52,12 @@ function App() {
 
           <Route
             path="/"
-            element={<Navigate to="/login" replace />}
+            element={<RootRedirect />}
           />
 
           <Route
             path="*"
-            element={<Navigate to="/login" replace />}
+            element={<RootRedirect />}
           />
         </Routes>
       </BrowserRouter>
