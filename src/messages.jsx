@@ -670,12 +670,12 @@ export default function MessagesPage() {
                 setShowDateFilter((previous) => !previous)
               }
             >
-              <Calendar size={19} />
+              <Calendar size={20} />
 
               <span>
                 {showDateFilter
-                  ? "Hide dates"
-                  : "Date range"}
+                  ? "Hide date range"
+                  : "Select date range"}
               </span>
             </button>
           </div>
@@ -2060,6 +2060,7 @@ const styles = {
   },
 
   dateBtn: {
+    width: 210,
     height: 48,
     border: "1px solid var(--msg-border-strong)",
     borderRadius: 7,
@@ -2067,11 +2068,11 @@ const styles = {
     color: "var(--msg-muted)",
     display: "flex",
     alignItems: "center",
-    gap: 9,
-    padding: "0 15px",
+    gap: 12,
+    padding: "0 16px",
     fontFamily: "inherit",
-    fontSize: 13,
-    fontWeight: 700,
+    fontSize: 14,
+    fontWeight: 400,
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
