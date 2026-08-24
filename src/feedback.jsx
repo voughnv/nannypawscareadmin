@@ -608,28 +608,34 @@ export default function FeedbackPage() {
                 <option value="1">1 Star</option>
               </select>
 
+              <button
+                type="button"
+                className="feedback-interactive"
+                style={styles.dateBtn}
+                onClick={() =>
+                  setShowDateFilter((previous) => !previous)
+                }
+              >
+                <Calendar size={20} />
+
+                <span>
+                  {showDateFilter
+                    ? "Hide date range"
+                    : "Select date range"}
+                </span>
+              </button>
             </div>
 
             <div style={styles.filterActions}>
-              <button className="feedback-interactive"
+              <button
+                type="button"
+                className="feedback-interactive"
                 style={styles.refreshBtn}
                 onClick={fetchFeedbackData}
                 disabled={loading}
               >
                 <RefreshCw size={18} />
                 <span>{loading ? "Loading..." : "Refresh"}</span>
-              </button>
-
-              <button className="feedback-interactive"
-                style={styles.dateBtn}
-                onClick={() =>
-                  setShowDateFilter((previous) => !previous)
-                }
-              >
-                <Calendar size={18} />
-                <span>
-                  {showDateFilter ? "Hide date range" : "Select date range"}
-                </span>
               </button>
             </div>
           </div>
@@ -1369,13 +1375,14 @@ const styles = {
     alignItems: "center",
     gap: 12,
     flex: 1,
-    minWidth: 460,
+    minWidth: 720,
   },
 
   filterActions: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "flex-end",
+    marginLeft: "auto",
   },
 
   searchBox: {
@@ -1435,6 +1442,7 @@ const styles = {
   },
 
   dateBtn: {
+    width: 210,
     height: 48,
     padding: "0 16px",
     border: "1px solid #E2D5D3",
@@ -1442,11 +1450,12 @@ const styles = {
     background: "#fff",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    fontSize: 13,
-    fontWeight: 700,
-    color: BRAND.text,
+    justifyContent: "flex-start",
+    gap: 12,
+    fontFamily: "inherit",
+    fontSize: 14,
+    fontWeight: 400,
+    color: BRAND.muted,
     whiteSpace: "nowrap",
     cursor: "pointer",
   },
