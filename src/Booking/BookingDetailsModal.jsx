@@ -932,7 +932,7 @@ function PaymentStatusBadge({ state }) {
   return (
     <span
       style={{
-        ...styles.badge,
+        ...styles.paymentStatusBadge,
         ...badgeStyle,
       }}
     >
@@ -1476,24 +1476,43 @@ const styles = {
     color: "#DF101D",
   },
 
+  paymentStatusBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 86,
+    height: 28,
+    padding: "0 10px",
+    borderRadius: 7,
+    border: "1px solid transparent",
+    fontSize: 11.5,
+    fontWeight: 850,
+    boxSizing: "border-box",
+    whiteSpace: "nowrap",
+  },
+
   paymentPaid: {
-    background: "#DDF3E7",
-    color: "#0D8B48",
+    background: "#E7F6ED",
+    color: "#167545",
+    borderColor: "#D3ECDD",
   },
 
   paymentUnpaid: {
-    background: "#FFF0D8",
-    color: "#B35A00",
+    background: "#FFF2E1",
+    color: "#B45B08",
+    borderColor: "#F5DFC2",
   },
 
   paymentNotDue: {
-    background: "#EEE9E7",
-    color: "#645854",
+    background: "#F1EEED",
+    color: "#6F625F",
+    borderColor: "#E7E1DF",
   },
 
   paymentNotRequired: {
-    background: "#F4EFEF",
-    color: "#847572",
+    background: "#F5F2F1",
+    color: "#877874",
+    borderColor: "#EAE4E2",
   },
 
   statusDefault: {
@@ -1503,14 +1522,14 @@ const styles = {
 
   paymentFlowNote: {
     marginTop: 12,
-    padding: "12px 14px",
-    borderRadius: 10,
-    border: "1px solid #EEE2DF",
-    background: "#FFF9FA",
+    padding: "11px 13px",
+    borderRadius: 9,
+    border: "1px solid #EEE5E2",
+    background: "#FCFAF9",
     color: BRAND.muted,
-    fontSize: 12.5,
-    fontWeight: 700,
-    lineHeight: 1.55,
+    fontSize: 12,
+    fontWeight: 650,
+    lineHeight: 1.5,
   },
 
   paymentMessage: {
