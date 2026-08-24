@@ -13,6 +13,8 @@ import {
   MessageCircleMore,
   CircleUserRound,
   ArrowRight,
+  Image as ImageIcon,
+  ZoomIn,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useAdminSettings } from "./context/AdminSettingsContext";
@@ -27,6 +29,24 @@ const BRAND = {
 };
 
 const ROWS_PER_PAGE = 6;
+
+const MESSAGE_IMAGE_BUCKET =
+  import.meta.env.VITE_MESSAGE_IMAGE_BUCKET ||
+  "MESSAGE_IMAGES";
+
+const MESSAGE_IMAGE_BUCKET_CANDIDATES = Array.from(
+  new Set([
+    MESSAGE_IMAGE_BUCKET,
+    "MESSAGE_IMAGES",
+    "MESSAGE IMAGES",
+    "message-images",
+    "message_images",
+    "messages",
+    "chat-images",
+    "chat_images",
+    "MESSAGE_ATTACHMENTS",
+  ])
+);
 
 const MESSAGE_INTERACTION_CSS = `
   .messages-page button:not(:disabled) {
@@ -164,6 +184,22 @@ const MESSAGE_INTERACTION_CSS = `
   .messages-page .chat-bubble:hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 12px rgba(58, 30, 20, 0.07);
+  }
+
+  .messages-page .message-image-button:not(:disabled):hover {
+    transform: none;
+    filter: none;
+    border-color: rgba(217, 67, 104, 0.58) !important;
+    box-shadow: 0 7px 16px rgba(58, 30, 20, 0.10);
+  }
+
+  .messages-page .message-image-button:not(:disabled):hover img {
+    transform: scale(1.015);
+  }
+
+  .messages-page .message-image-preview-close:not(:disabled):hover {
+    color: #D94368 !important;
+    border-color: rgba(217, 67, 104, 0.55) !important;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -432,6 +468,9 @@ export default function MessagesPage() {
         conversation.ownerName,
         conversation.sitterName,
         conversation.lastMessage?.message_content,
+        getMessageImageValue(
+          conversation.lastMessage
+        ),
       ]
         .filter(
           (value) =>
@@ -823,8 +862,9 @@ export default function MessagesPage() {
 
                       <td style={styles.messageCell}>
                         <strong style={styles.messagePreview}>
-                          {conversation.lastMessage?.message_content ||
-                            "No message content."}
+                          {getMessagePreview(
+                            conversation.lastMessage
+                          )}
                         </strong>
 
                         <span style={styles.secondaryText}>
@@ -1072,9 +1112,32 @@ function ConversationModal({ conversation, onClose }) {
                     </span>
                   </div>
 
-                  <p style={styles.chatMessage}>
-                    {message.message_content || "No message content."}
-                  </p>
+                  {String(
+                    message.message_content || ""
+                  ).trim() && (
+                    <p style={styles.chatMessage}>
+                      {message.message_content}
+                    </p>
+                  )}
+
+                  {getMessageImageValue(
+                    message
+                  ) && (
+                    <MessageImage
+                      message={message}
+                    />
+                  )}
+
+                  {!String(
+                    message.message_content || ""
+                  ).trim() &&
+                    !getMessageImageValue(
+                      message
+                    ) && (
+                      <p style={styles.chatEmptyMessage}>
+                        No message content.
+                      </p>
+                    )}
 
                   <div style={styles.chatMeta}>
                     <span>
@@ -1117,6 +1180,265 @@ function ConversationModal({ conversation, onClose }) {
   );
 }
 
+function MessageImage({ message }) {
+  const imageValue =
+    getMessageImageValue(message);
+
+  const [imageUrl, setImageUrl] =
+    useState("");
+
+  const [loadingImage, setLoadingImage] =
+    useState(Boolean(imageValue));
+
+  const [imageError, setImageError] =
+    useState("");
+
+  const [previewOpen, setPreviewOpen] =
+    useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveImage() {
+      const storedValue =
+        String(imageValue || "").trim();
+
+      setImageUrl("");
+      setImageError("");
+
+      if (!storedValue) {
+        setLoadingImage(false);
+        return;
+      }
+
+      if (isDirectImageUrl(storedValue)) {
+        setImageUrl(storedValue);
+        setLoadingImage(false);
+        return;
+      }
+
+      setLoadingImage(true);
+
+      for (
+        const bucketName of
+        MESSAGE_IMAGE_BUCKET_CANDIDATES
+      ) {
+        const storagePath =
+          getMessageImageStoragePath(
+            storedValue,
+            bucketName
+          );
+
+        if (!storagePath) {
+          continue;
+        }
+
+        const {
+          data,
+          error,
+        } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(
+            storagePath,
+            60 * 60
+          );
+
+        if (
+          !error &&
+          data?.signedUrl
+        ) {
+          if (!cancelled) {
+            setImageUrl(
+              data.signedUrl
+            );
+
+            setImageError("");
+            setLoadingImage(false);
+          }
+
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setImageError(
+          "Unable to display this image. Check the message image Storage bucket and read policy."
+        );
+
+        setLoadingImage(false);
+      }
+    }
+
+    resolveImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [imageValue]);
+
+  if (!imageValue) {
+    return null;
+  }
+
+  if (loadingImage) {
+    return (
+      <div style={styles.messageImageState}>
+        <ImageIcon size={17} />
+        <span>Loading image...</span>
+      </div>
+    );
+  }
+
+  if (
+    imageError ||
+    !imageUrl
+  ) {
+    return (
+      <div
+        style={{
+          ...styles.messageImageState,
+          ...styles.messageImageError,
+        }}
+      >
+        <AlertCircle size={17} />
+
+        <div>
+          <strong>
+            Image could not be displayed.
+          </strong>
+
+          <span
+            style={
+              styles.messageImageErrorText
+            }
+          >
+            {imageError}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="message-image-button"
+        aria-label={`View image sent in ${formatMessageId(
+          message?.message_id
+        )}`}
+        title="Click to view full image"
+        style={styles.messageImageButton}
+        onClick={() =>
+          setPreviewOpen(true)
+        }
+      >
+        <img
+          src={imageUrl}
+          alt={`Image sent in ${formatMessageId(
+            message?.message_id
+          )}`}
+          style={styles.messageImage}
+          onError={() =>
+            setImageError(
+              "The image link was resolved, but the image could not be loaded."
+            )
+          }
+        />
+
+        <span
+          style={
+            styles.messageImageHint
+          }
+        >
+          <ZoomIn size={14} />
+          View image
+        </span>
+      </button>
+
+      {previewOpen && (
+        <div
+          style={
+            styles.messageImagePreviewOverlay
+          }
+          onClick={(event) => {
+            event.stopPropagation();
+            setPreviewOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Message image preview"
+            style={
+              styles.messageImagePreviewModal
+            }
+            onClick={(event) =>
+              event.stopPropagation()
+            }
+          >
+            <div
+              style={
+                styles.messageImagePreviewHeader
+              }
+            >
+              <div>
+                <p
+                  style={
+                    styles.messageImagePreviewEyebrow
+                  }
+                >
+                  MESSAGE IMAGE
+                </p>
+
+                <h3
+                  style={
+                    styles.messageImagePreviewTitle
+                  }
+                >
+                  {formatMessageId(
+                    message?.message_id
+                  )}
+                </h3>
+              </div>
+
+              <button
+                type="button"
+                aria-label="Close image preview"
+                className="message-image-preview-close"
+                style={
+                  styles.messageImagePreviewClose
+                }
+                onClick={() =>
+                  setPreviewOpen(false)
+                }
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div
+              style={
+                styles.messageImagePreviewBody
+              }
+            >
+              <img
+                src={imageUrl}
+                alt={`Full image sent in ${formatMessageId(
+                  message?.message_id
+                )}`}
+                style={
+                  styles.messageImagePreview
+                }
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function Participant({ label, name, idLabel }) {
   return (
     <div style={styles.participant}>
@@ -1131,6 +1453,150 @@ function Participant({ label, name, idLabel }) {
       </div>
     </div>
   );
+}
+
+function getMessageImageValue(message) {
+  if (!message) {
+    return "";
+  }
+
+  const candidates = [
+    message.message_image,
+    message.message_image_url,
+    message.message_image_path,
+    message.image_url,
+    message.image_path,
+    message.attachment_url,
+    message.attachment_path,
+    message.media_url,
+    message.media_path,
+    message.message_attachment,
+  ];
+
+  const firstValue =
+    candidates.find(
+      (value) =>
+        value !== null &&
+        value !== undefined &&
+        String(value).trim() !== ""
+    );
+
+  if (firstValue) {
+    return String(firstValue).trim();
+  }
+
+  const content =
+    String(
+      message.message_content || ""
+    ).trim();
+
+  if (
+    isLikelyImageUrl(content)
+  ) {
+    return content;
+  }
+
+  return "";
+}
+
+function getMessagePreview(message) {
+  if (!message) {
+    return "No message content.";
+  }
+
+  const content =
+    String(
+      message.message_content || ""
+    ).trim();
+
+  const imageValue =
+    getMessageImageValue(message);
+
+  if (
+    content &&
+    !(
+      imageValue === content &&
+      isLikelyImageUrl(content)
+    )
+  ) {
+    return content;
+  }
+
+  if (imageValue) {
+    return "📷 Image";
+  }
+
+  return "No message content.";
+}
+
+function isDirectImageUrl(value) {
+  const text =
+    String(value || "").trim();
+
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://") ||
+    text.startsWith("data:image/") ||
+    text.startsWith("blob:")
+  );
+}
+
+function isLikelyImageUrl(value) {
+  const text =
+    String(value || "")
+      .trim()
+      .toLowerCase();
+
+  if (!text) {
+    return false;
+  }
+
+  if (
+    text.startsWith("data:image/")
+  ) {
+    return true;
+  }
+
+  const withoutQuery =
+    text.split("?")[0];
+
+  return (
+    (text.startsWith("http://") ||
+      text.startsWith("https://")) &&
+    /\.(png|jpe?g|webp|gif|heic|heif)$/i.test(
+      withoutQuery
+    )
+  );
+}
+
+function getMessageImageStoragePath(
+  value,
+  bucketName
+) {
+  const text =
+    String(value || "")
+      .trim()
+      .replace(/^\/+/, "");
+
+  if (
+    !text ||
+    isDirectImageUrl(text)
+  ) {
+    return "";
+  }
+
+  const bucketPrefix =
+    `${bucketName}/`;
+
+  return text
+    .toLowerCase()
+    .startsWith(
+      bucketPrefix.toLowerCase()
+    )
+    ? text.slice(
+        bucketPrefix.length
+      )
+    : text;
 }
 
 function getMessageOwnerId(message) {
@@ -2044,6 +2510,162 @@ const styles = {
     lineHeight: 1.55,
     whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
+  },
+
+  chatEmptyMessage: {
+    margin: 0,
+    color: "var(--msg-muted)",
+    fontSize: 12.5,
+    fontStyle: "italic",
+    lineHeight: 1.5,
+  },
+
+  messageImageButton: {
+    width: "min(320px, 100%)",
+    marginTop: 8,
+    padding: 0,
+    borderRadius: 11,
+    border: "1px solid var(--msg-border-strong)",
+    background: "var(--msg-card)",
+    overflow: "hidden",
+    cursor: "pointer",
+    display: "block",
+    textAlign: "left",
+    fontFamily: "inherit",
+  },
+
+  messageImage: {
+    width: "100%",
+    maxHeight: 280,
+    display: "block",
+    objectFit: "cover",
+    background: "var(--msg-head)",
+    transition: "transform 180ms ease",
+  },
+
+  messageImageHint: {
+    minHeight: 34,
+    padding: "0 10px",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    color: "var(--msg-muted)",
+    fontSize: 10.5,
+    fontWeight: 800,
+    boxSizing: "border-box",
+  },
+
+  messageImageState: {
+    marginTop: 8,
+    width: "min(320px, 100%)",
+    minHeight: 54,
+    padding: "10px 12px",
+    borderRadius: 10,
+    border: "1px solid var(--msg-border)",
+    background: "var(--msg-head)",
+    color: "var(--msg-muted)",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 11.5,
+    fontWeight: 800,
+    boxSizing: "border-box",
+  },
+
+  messageImageError: {
+    borderColor: "#F0C7CD",
+    background: "#FFF4F5",
+    color: "#A53A49",
+    alignItems: "flex-start",
+  },
+
+  messageImageErrorText: {
+    display: "block",
+    marginTop: 3,
+    fontSize: 10,
+    fontWeight: 700,
+    lineHeight: 1.4,
+  },
+
+  messageImagePreviewOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 520,
+    padding: 20,
+    background: "rgba(22, 13, 11, 0.72)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+  },
+
+  messageImagePreviewModal: {
+    width: "min(920px, 100%)",
+    maxHeight: "92vh",
+    background: "var(--msg-card)",
+    borderRadius: 16,
+    border: "1px solid var(--msg-border)",
+    boxShadow: "0 24px 64px rgba(0,0,0,0.32)",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+
+  messageImagePreviewHeader: {
+    minHeight: 64,
+    padding: "12px 16px",
+    borderBottom: "1px solid var(--msg-border)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexShrink: 0,
+  },
+
+  messageImagePreviewEyebrow: {
+    margin: 0,
+    color: BRAND.pink,
+    fontSize: 9.5,
+    fontWeight: 900,
+    letterSpacing: "0.7px",
+  },
+
+  messageImagePreviewTitle: {
+    margin: "3px 0 0",
+    color: "var(--msg-strong)",
+    fontSize: 16,
+    fontWeight: 900,
+  },
+
+  messageImagePreviewClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    border: "1px solid var(--msg-border-strong)",
+    background: "var(--msg-card)",
+    color: "var(--msg-strong)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+  },
+
+  messageImagePreviewBody: {
+    minHeight: 0,
+    padding: 16,
+    overflow: "auto",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--msg-card-soft)",
+  },
+
+  messageImagePreview: {
+    display: "block",
+    maxWidth: "100%",
+    maxHeight: "calc(92vh - 98px)",
+    objectFit: "contain",
+    borderRadius: 10,
   },
 
   chatMeta: {
