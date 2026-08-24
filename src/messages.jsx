@@ -32,11 +32,12 @@ const ROWS_PER_PAGE = 6;
 
 const MESSAGE_IMAGE_BUCKET =
   import.meta.env.VITE_MESSAGE_IMAGE_BUCKET ||
-  "MESSAGE_IMAGES";
+  "message-photos";
 
 const MESSAGE_IMAGE_BUCKET_CANDIDATES = Array.from(
   new Set([
     MESSAGE_IMAGE_BUCKET,
+    "message-photos",
     "MESSAGE_IMAGES",
     "MESSAGE IMAGES",
     "message-images",
@@ -1262,7 +1263,7 @@ function MessageImage({ message }) {
 
       if (!cancelled) {
         setImageError(
-          "Unable to display this image. Check the message image Storage bucket and read policy."
+          'Unable to display this image from the "message-photos" bucket. The file path may be invalid or Storage SELECT access may be blocked for the Admin website.'
         );
 
         setLoadingImage(false);
