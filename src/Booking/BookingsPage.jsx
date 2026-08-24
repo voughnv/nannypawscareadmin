@@ -42,10 +42,10 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
 );
 
 const ALLOWED_STATUS_TRANSITIONS = {
-  Pending: ["Confirmed", "Rejected"],
+  Pending: ["Confirmed", "Cancelled"],
   Confirmed: [],
   Completed: [],
-  Rejected: [],
+  Cancelled: [],
   "Not Set": ["Pending"],
 };
 
@@ -559,32 +559,161 @@ export default function BookingsPage() {
     await updateBookingStatus(booking, "Confirmed");
   }
 
-  async function rejectBooking(booking, reviewRemarks) {
+  async function cancelBooking(booking, reviewRemarks) {
     const cleanRemarks = String(reviewRemarks || "").trim();
 
     if (!cleanRemarks) {
       setError(
-        "Review remarks are required before rejecting a booking."
+        "Cancellation remarks are required before cancelling a booking."
       );
       return false;
     }
 
     const confirmed = await requestConfirmation({
-      title: "Reject booking?",
-      message: `Are you sure you want to reject booking ${formatBookingId(
+      title: "Cancel booking?",
+      message: `Are you sure you want to cancel booking ${formatBookingId(
         booking.booking_id
-      )}? The review remarks will be saved and this status cannot be changed afterward.`,
-      confirmText: "Reject Booking",
+      )}? The cancellation remarks will be saved and the booking itself can no longer be reactivated.`,
+      confirmText: "Cancel Booking",
       variant: "danger",
     });
 
     if (!confirmed) return false;
 
-    await updateBookingStatus(booking, "Rejected", {
+    await updateBookingStatus(booking, "Cancelled", {
       admin_review_remarks: cleanRemarks,
     });
 
     return true;
+  }
+
+  async function markBookingPaid(booking) {
+    const currentStatus = normalizeStatus(
+      booking.booking_status
+    );
+
+    const paymentState =
+      getBookingPaymentState(booking);
+
+    if (currentStatus !== "Completed") {
+      setError(
+        "Payment can only be marked as paid after the service is completed."
+      );
+      return false;
+    }
+
+    if (paymentState === "Paid") {
+      return true;
+    }
+
+    const isCash =
+      isCashPaymentMethod(
+        booking.payment_method
+      );
+
+    const hasProof =
+      Boolean(
+        String(
+          booking.payment_proof || ""
+        ).trim()
+      );
+
+    if (!isCash && !hasProof) {
+      setError(
+        "Proof of payment must be uploaded before a non-cash payment can be marked as paid."
+      );
+      return false;
+    }
+
+    const confirmed =
+      await requestConfirmation({
+        title: "Mark payment as paid?",
+        message: isCash
+          ? `Confirm that the cash payment for booking ${formatBookingId(
+              booking.booking_id
+            )} has been received by the business.`
+          : `Confirm that the payment proof for booking ${formatBookingId(
+              booking.booking_id
+            )} has been reviewed and the payment has been received.`,
+        confirmText: "Mark as Paid",
+        variant: "info",
+      });
+
+    if (!confirmed) {
+      return false;
+    }
+
+    setUpdatingId(
+      booking.booking_id
+    );
+
+    setError("");
+
+    try {
+      const paidAt =
+        new Date().toISOString();
+
+      const {
+        data,
+        error: updateError,
+      } = await supabase
+        .from("BOOKING")
+        .update({
+          payment_status: "Paid",
+          paid_at: paidAt,
+        })
+        .eq(
+          "booking_id",
+          booking.booking_id
+        )
+        .select(BOOKING_FIELDS)
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      const updatedBooking = {
+        ...booking,
+        ...data,
+      };
+
+      setBookings((previous) =>
+        previous.map((item) =>
+          item.booking_id ===
+          booking.booking_id
+            ? {
+                ...item,
+                ...data,
+              }
+            : item
+        )
+      );
+
+      setSelectedBooking(
+        (previous) =>
+          previous?.booking_id ===
+          booking.booking_id
+            ? updatedBooking
+            : previous
+      );
+
+      return true;
+    } catch (updateError) {
+      console.error(
+        "Unable to record booking payment:",
+        updateError
+      );
+
+      setError(
+        updateError?.message ||
+          "Unable to mark the payment as paid. Please try again."
+      );
+
+      return false;
+    } finally {
+      setUpdatingId(null);
+    }
   }
 
   async function setPendingBooking(booking) {
@@ -693,8 +822,8 @@ export default function BookingsPage() {
       completed: normalizedBookings.filter(
         (booking) => booking.normalizedStatus === "Completed"
       ).length,
-      rejected: normalizedBookings.filter(
-        (booking) => booking.normalizedStatus === "Rejected"
+      cancelled: normalizedBookings.filter(
+        (booking) => booking.normalizedStatus === "Cancelled"
       ).length,
     };
   }, [bookings, normalizedBookings]);
@@ -808,12 +937,12 @@ export default function BookingsPage() {
           <StatCard
             icon={<XCircle size={30} />}
             iconStyle={styles.statRed}
-            title="Rejected"
-            value={stats.rejected}
-            desc="Rejected bookings"
-            active={status === "Rejected"}
+            title="Cancelled"
+            value={stats.cancelled}
+            desc="Cancelled bookings"
+            active={status === "Cancelled"}
             onClick={() =>
-              openReportCard("Rejected", "Rejected Bookings")
+              openReportCard("Cancelled", "Cancelled Bookings")
             }
           />
         </section>
@@ -1037,30 +1166,31 @@ export default function BookingsPage() {
                       </td>
 
                       <td style={styles.normalCell}>
-                        {booking.payment_proof ? (
-                          <button
-                            type="button"
-                            className="booking-proof-button"
-                            style={styles.proofTableBtn}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              setSelectedProofBooking(booking);
-                            }}
-                            onKeyDown={(event) => {
-                              event.stopPropagation();
-                            }}
-                          >
-                            View Proof
-                          </button>
-                        ) : (
-                          <span style={styles.mutedTableText}>
-                            Not uploaded
-                          </span>
-                        )}
+                        <div style={styles.paymentTableCell}>
+                          {renderTablePaymentProof(
+                            booking,
+                            () =>
+                              setSelectedProofBooking(
+                                booking
+                              )
+                          )}
+
+                          <PaymentStatusBadge
+                            state={
+                              getBookingPaymentState(
+                                booking
+                              )
+                            }
+                          />
+                        </div>
                       </td>
 
                       <td style={styles.normalCell}>
-                        <StatusBadge status={booking.booking_status} />
+                        <StatusBadge
+                          status={
+                            booking.booking_status
+                          }
+                        />
                       </td>
                     </tr>
                   ))
@@ -1176,7 +1306,8 @@ export default function BookingsPage() {
           }
           onPending={setPendingBooking}
           onApprove={approveBooking}
-          onReject={rejectBooking}
+          onCancel={cancelBooking}
+          onPaid={markBookingPaid}
         />
       )}
     </div>
@@ -1519,8 +1650,8 @@ function StatusBadge({ status }) {
       ? styles.statusConfirmed
       : normalizedStatus === "Completed"
       ? styles.statusCompleted
-      : normalizedStatus === "Rejected"
-      ? styles.statusRejected
+      : normalizedStatus === "Cancelled"
+      ? styles.statusCancelled
       : styles.statusDefault;
 
   const displayStatus =
@@ -1541,10 +1672,172 @@ function normalizeStatus(status) {
   if (cleaned === "pending") return "Pending";
   if (cleaned === "confirmed" || cleaned === "approved") return "Confirmed";
   if (cleaned === "completed" || cleaned === "complete") return "Completed";
-  if (cleaned === "rejected" || cleaned === "cancelled" || cleaned === "canceled")
-    return "Rejected";
+  if (
+    cleaned === "rejected" ||
+    cleaned === "cancelled" ||
+    cleaned === "canceled"
+  ) {
+    return "Cancelled";
+  }
 
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function normalizePaymentStatus(status) {
+  const cleaned = String(status || "")
+    .trim()
+    .toLowerCase();
+
+  if (cleaned === "paid") {
+    return "Paid";
+  }
+
+  if (cleaned === "unpaid") {
+    return "Unpaid";
+  }
+
+  return "";
+}
+
+function getBookingPaymentState(booking) {
+  const bookingStatus =
+    normalizeStatus(
+      booking?.booking_status
+    );
+
+  const storedPaymentStatus =
+    normalizePaymentStatus(
+      booking?.payment_status
+    );
+
+  if (bookingStatus === "Cancelled") {
+    return "Not Required";
+  }
+
+  if (bookingStatus !== "Completed") {
+    return "Not Due";
+  }
+
+  if (storedPaymentStatus === "Paid") {
+    return "Paid";
+  }
+
+  return "Unpaid";
+}
+
+function isCashPaymentMethod(method) {
+  const cleaned =
+    String(method || "")
+      .trim()
+      .toLowerCase();
+
+  return (
+    cleaned === "cash" ||
+    cleaned.includes("cash")
+  );
+}
+
+function PaymentStatusBadge({ state }) {
+  const badgeStyle =
+    state === "Paid"
+      ? styles.paymentPaid
+      : state === "Unpaid"
+      ? styles.paymentUnpaid
+      : state === "Not Required"
+      ? styles.paymentNotRequired
+      : styles.paymentNotDue;
+
+  return (
+    <span
+      style={{
+        ...styles.paymentBadge,
+        ...badgeStyle,
+      }}
+    >
+      {state}
+    </span>
+  );
+}
+
+function renderTablePaymentProof(
+  booking,
+  openProof
+) {
+  const bookingStatus =
+    normalizeStatus(
+      booking?.booking_status
+    );
+
+  const paymentState =
+    getBookingPaymentState(
+      booking
+    );
+
+  const hasProof =
+    Boolean(
+      String(
+        booking?.payment_proof || ""
+      ).trim()
+    );
+
+  const isCash =
+    isCashPaymentMethod(
+      booking?.payment_method
+    );
+
+  if (bookingStatus === "Cancelled") {
+    return (
+      <span style={styles.mutedTableText}>
+        Not required
+      </span>
+    );
+  }
+
+  if (bookingStatus !== "Completed") {
+    return (
+      <span style={styles.mutedTableText}>
+        After service
+      </span>
+    );
+  }
+
+  if (hasProof) {
+    return (
+      <button
+        type="button"
+        className="booking-proof-button"
+        style={styles.proofTableBtn}
+        onClick={(event) => {
+          event.stopPropagation();
+          openProof();
+        }}
+        onKeyDown={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        View Proof
+      </button>
+    );
+  }
+
+  if (
+    isCash &&
+    paymentState === "Paid"
+  ) {
+    return (
+      <span style={styles.cashRecordedText}>
+        Cash recorded
+      </span>
+    );
+  }
+
+  return (
+    <span style={styles.mutedTableText}>
+      {isCash
+        ? "Awaiting cash"
+        : "Awaiting proof"}
+    </span>
+  );
 }
 
 function getUniqueIds(records, field) {
@@ -2491,9 +2784,55 @@ const styles = {
     color: "#0C4BB3",
   },
 
-  statusRejected: {
+  statusCancelled: {
     background: "#F8D8DB",
     color: "#DF101D",
+  },
+
+  paymentTableCell: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 6,
+  },
+
+  paymentBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 72,
+    height: 22,
+    padding: "0 8px",
+    borderRadius: 999,
+    fontSize: 10.5,
+    fontWeight: 900,
+    boxSizing: "border-box",
+  },
+
+  paymentPaid: {
+    background: "#DDF3E7",
+    color: "#0D8B48",
+  },
+
+  paymentUnpaid: {
+    background: "#FFF0D8",
+    color: "#B35A00",
+  },
+
+  paymentNotDue: {
+    background: "#EEE9E7",
+    color: "#645854",
+  },
+
+  paymentNotRequired: {
+    background: "#F4EFEF",
+    color: "#847572",
+  },
+
+  cashRecordedText: {
+    color: "#0D8B48",
+    fontSize: 12,
+    fontWeight: 800,
   },
 
   statusDefault: {
