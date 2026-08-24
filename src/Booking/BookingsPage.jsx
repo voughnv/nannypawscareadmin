@@ -1741,29 +1741,14 @@ function normalizePaymentStatus(status) {
 }
 
 function getBookingPaymentState(booking) {
-  const bookingStatus =
-    normalizeStatus(
-      booking?.booking_status
-    );
-
   const storedPaymentStatus =
     normalizePaymentStatus(
       booking?.payment_status
     );
 
-  if (bookingStatus === "Cancelled") {
-    return "Not Required";
-  }
-
-  if (bookingStatus !== "Completed") {
-    return "Not Due";
-  }
-
-  if (storedPaymentStatus === "Paid") {
-    return "Paid";
-  }
-
-  return "Unpaid";
+  return storedPaymentStatus === "Paid"
+    ? "Paid"
+    : "Unpaid";
 }
 
 function isCashPaymentMethod(method) {
@@ -1779,23 +1764,19 @@ function isCashPaymentMethod(method) {
 }
 
 function PaymentStatusBadge({ state }) {
-  const badgeStyle =
-    state === "Paid"
-      ? styles.paymentPaid
-      : state === "Unpaid"
-      ? styles.paymentUnpaid
-      : state === "Not Required"
-      ? styles.paymentNotRequired
-      : styles.paymentNotDue;
+  const isPaid =
+    state === "Paid";
 
   return (
     <span
       style={{
         ...styles.paymentBadge,
-        ...badgeStyle,
+        ...(isPaid
+          ? styles.paymentPaid
+          : styles.paymentUnpaid),
       }}
     >
-      {state}
+      {isPaid ? "Paid" : "Unpaid"}
     </span>
   );
 }
@@ -2851,21 +2832,9 @@ const styles = {
   },
 
   paymentUnpaid: {
-    background: "#FFF2E1",
-    color: "#B45B08",
-    borderColor: "#F5DFC2",
-  },
-
-  paymentNotDue: {
-    background: "#F1EEED",
-    color: "#6F625F",
-    borderColor: "#E7E1DF",
-  },
-
-  paymentNotRequired: {
-    background: "#F5F2F1",
-    color: "#877874",
-    borderColor: "#EAE4E2",
+    background: "#FFF1DF",
+    color: "#A9570A",
+    borderColor: "#F2DDBF",
   },
 
   awaitingProofText: {
