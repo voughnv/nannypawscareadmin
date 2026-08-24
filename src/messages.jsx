@@ -715,7 +715,7 @@ export default function MessagesPage() {
               <span>
                 {showDateFilter
                   ? "Hide dates"
-                  : "Date range"}
+                  : "Select date range"}
               </span>
             </button>
           </div>
