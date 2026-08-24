@@ -370,11 +370,6 @@ export default function FeedbackPage() {
 
     return enrichedFeedbacks.filter((item) => {
       const searchableValues = [
-        item.feedback_id,
-        formatFeedbackId(item.feedback_id),
-        item.comments,
-        item.rating,
-        item.feedback_date,
         item.po_id,
         item.petsitter_id,
         item.ownerName,
@@ -586,7 +581,7 @@ export default function FeedbackPage() {
                   className="feedback-input"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search owner, sitter, comment, rating, or ID..."
+                  placeholder="Search pet owner, pet sitter, or ID"
                   style={styles.searchInput}
                 />
               </div>
