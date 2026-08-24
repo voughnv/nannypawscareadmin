@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MessagesSquare,
   Search,
@@ -34,20 +35,9 @@ const MESSAGE_IMAGE_BUCKET =
   import.meta.env.VITE_MESSAGE_IMAGE_BUCKET ||
   "message-photos";
 
-const MESSAGE_IMAGE_BUCKET_CANDIDATES = Array.from(
-  new Set([
-    MESSAGE_IMAGE_BUCKET,
-    "message-photos",
-    "MESSAGE_IMAGES",
-    "MESSAGE IMAGES",
-    "message-images",
-    "message_images",
-    "messages",
-    "chat-images",
-    "chat_images",
-    "MESSAGE_ATTACHMENTS",
-  ])
-);
+const MESSAGE_IMAGE_BUCKET_CANDIDATES = [
+  MESSAGE_IMAGE_BUCKET,
+];
 
 const MESSAGE_INTERACTION_CSS = `
   .messages-page button:not(:disabled) {
@@ -1220,50 +1210,54 @@ function MessageImage({ message }) {
 
       setLoadingImage(true);
 
-      for (
-        const bucketName of
-        MESSAGE_IMAGE_BUCKET_CANDIDATES
+      const bucketName =
+        MESSAGE_IMAGE_BUCKET_CANDIDATES[0];
+
+      const storagePath =
+        getMessageImageStoragePath(
+          storedValue,
+          bucketName
+        );
+
+      if (!storagePath) {
+        if (!cancelled) {
+          setImageError(
+            "No valid image path was stored for this message."
+          );
+          setLoadingImage(false);
+        }
+
+        return;
+      }
+
+      const {
+        data,
+        error,
+      } = await supabase.storage
+        .from(bucketName)
+        .createSignedUrl(
+          storagePath,
+          60 * 60
+        );
+
+      if (
+        !error &&
+        data?.signedUrl
       ) {
-        const storagePath =
-          getMessageImageStoragePath(
-            storedValue,
-            bucketName
+        if (!cancelled) {
+          setImageUrl(
+            data.signedUrl
           );
-
-        if (!storagePath) {
-          continue;
+          setImageError("");
+          setLoadingImage(false);
         }
 
-        const {
-          data,
-          error,
-        } = await supabase.storage
-          .from(bucketName)
-          .createSignedUrl(
-            storagePath,
-            60 * 60
-          );
-
-        if (
-          !error &&
-          data?.signedUrl
-        ) {
-          if (!cancelled) {
-            setImageUrl(
-              data.signedUrl
-            );
-
-            setImageError("");
-            setLoadingImage(false);
-          }
-
-          return;
-        }
+        return;
       }
 
       if (!cancelled) {
         setImageError(
-          'Unable to display this image from the "message-photos" bucket. The file path may be invalid or Storage SELECT access may be blocked for the Admin website.'
+          'The Admin website does not currently have permission to read this private message photo.'
         );
 
         setLoadingImage(false);
@@ -1330,9 +1324,10 @@ function MessageImage({ message }) {
         )}`}
         title="Click to view full image"
         style={styles.messageImageButton}
-        onClick={() =>
-          setPreviewOpen(true)
-        }
+        onClick={(event) => {
+          event.stopPropagation();
+          setPreviewOpen(true);
+        }}
       >
         <img
           src={imageUrl}
@@ -1357,85 +1352,87 @@ function MessageImage({ message }) {
         </span>
       </button>
 
-      {previewOpen && (
-        <div
-          style={
-            styles.messageImagePreviewOverlay
-          }
-          onClick={(event) => {
-            event.stopPropagation();
-            setPreviewOpen(false);
-          }}
-        >
+      {previewOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Message image preview"
             style={
-              styles.messageImagePreviewModal
+              styles.messageImagePreviewOverlay
             }
-            onClick={(event) =>
-              event.stopPropagation()
+            onClick={() =>
+              setPreviewOpen(false)
             }
           >
             <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Message image preview"
               style={
-                styles.messageImagePreviewHeader
+                styles.messageImagePreviewModal
+              }
+              onClick={(event) =>
+                event.stopPropagation()
               }
             >
-              <div>
-                <p
-                  style={
-                    styles.messageImagePreviewEyebrow
-                  }
-                >
-                  MESSAGE IMAGE
-                </p>
-
-                <h3
-                  style={
-                    styles.messageImagePreviewTitle
-                  }
-                >
-                  {formatMessageId(
-                    message?.message_id
-                  )}
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                aria-label="Close image preview"
-                className="message-image-preview-close"
+              <div
                 style={
-                  styles.messageImagePreviewClose
-                }
-                onClick={() =>
-                  setPreviewOpen(false)
+                  styles.messageImagePreviewHeader
                 }
               >
-                <X size={20} />
-              </button>
-            </div>
+                <div>
+                  <p
+                    style={
+                      styles.messageImagePreviewEyebrow
+                    }
+                  >
+                    MESSAGE IMAGE
+                  </p>
 
-            <div
-              style={
-                styles.messageImagePreviewBody
-              }
-            >
-              <img
-                src={imageUrl}
-                alt={`Full image sent in ${formatMessageId(
-                  message?.message_id
-                )}`}
+                  <h3
+                    style={
+                      styles.messageImagePreviewTitle
+                    }
+                  >
+                    {formatMessageId(
+                      message?.message_id
+                    )}
+                  </h3>
+                </div>
+
+                <button
+                  type="button"
+                  aria-label="Close image preview"
+                  className="message-image-preview-close"
+                  style={
+                    styles.messageImagePreviewClose
+                  }
+                  onClick={() =>
+                    setPreviewOpen(false)
+                  }
+                >
+                  <X size={22} />
+                </button>
+              </div>
+
+              <div
                 style={
-                  styles.messageImagePreview
+                  styles.messageImagePreviewBody
                 }
-              />
+              >
+                <img
+                  src={imageUrl}
+                  alt={`Full image sent in ${formatMessageId(
+                    message?.message_id
+                  )}`}
+                  style={
+                    styles.messageImagePreview
+                  }
+                />
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </>
   );
 }
@@ -1461,43 +1458,9 @@ function getMessageImageValue(message) {
     return "";
   }
 
-  const candidates = [
-    message.message_image,
-    message.message_image_url,
-    message.message_image_path,
-    message.image_url,
-    message.image_path,
-    message.attachment_url,
-    message.attachment_path,
-    message.media_url,
-    message.media_path,
-    message.message_attachment,
-  ];
-
-  const firstValue =
-    candidates.find(
-      (value) =>
-        value !== null &&
-        value !== undefined &&
-        String(value).trim() !== ""
-    );
-
-  if (firstValue) {
-    return String(firstValue).trim();
-  }
-
-  const content =
-    String(
-      message.message_content || ""
-    ).trim();
-
-  if (
-    isLikelyImageUrl(content)
-  ) {
-    return content;
-  }
-
-  return "";
+  return String(
+    message.image_path || ""
+  ).trim();
 }
 
 function getMessagePreview(message) {
@@ -1574,30 +1537,30 @@ function getMessageImageStoragePath(
   value,
   bucketName
 ) {
-  const text =
-    String(value || "")
-      .trim()
-      .replace(/^\/+/, "");
+  const text = String(value || "")
+    .trim()
+    .replace(/^\/+/, "");
 
-  if (
-    !text ||
-    isDirectImageUrl(text)
-  ) {
+  if (!text) {
     return "";
   }
 
   const bucketPrefix =
     `${bucketName}/`;
 
-  return text
-    .toLowerCase()
-    .startsWith(
-      bucketPrefix.toLowerCase()
-    )
-    ? text.slice(
-        bucketPrefix.length
+  if (
+    text
+      .toLowerCase()
+      .startsWith(
+        bucketPrefix.toLowerCase()
       )
-    : text;
+  ) {
+    return text.slice(
+      bucketPrefix.length
+    );
+  }
+
+  return text;
 }
 
 function getMessageOwnerId(message) {
@@ -2591,9 +2554,11 @@ const styles = {
   messageImagePreviewOverlay: {
     position: "fixed",
     inset: 0,
-    zIndex: 520,
-    padding: 20,
-    background: "rgba(22, 13, 11, 0.72)",
+    zIndex: 9999,
+    padding: 24,
+    background: "rgba(22, 13, 11, 0.78)",
+    backdropFilter: "blur(2px)",
+    WebkitBackdropFilter: "blur(2px)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2601,12 +2566,12 @@ const styles = {
   },
 
   messageImagePreviewModal: {
-    width: "min(920px, 100%)",
+    width: "min(1000px, 94vw)",
     maxHeight: "92vh",
     background: "var(--msg-card)",
     borderRadius: 16,
     border: "1px solid var(--msg-border)",
-    boxShadow: "0 24px 64px rgba(0,0,0,0.32)",
+    boxShadow: "0 28px 80px rgba(0,0,0,0.40)",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
@@ -2653,20 +2618,23 @@ const styles = {
 
   messageImagePreviewBody: {
     minHeight: 0,
-    padding: 16,
+    padding: 18,
     overflow: "auto",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "var(--msg-card-soft)",
+    background: "#151110",
   },
 
   messageImagePreview: {
     display: "block",
+    width: "auto",
+    height: "auto",
     maxWidth: "100%",
-    maxHeight: "calc(92vh - 98px)",
+    maxHeight: "calc(92vh - 104px)",
     objectFit: "contain",
     borderRadius: 10,
+    boxShadow: "0 10px 30px rgba(0,0,0,0.24)",
   },
 
   chatMeta: {
