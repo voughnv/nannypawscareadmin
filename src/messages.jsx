@@ -337,7 +337,7 @@ export default function MessagesPage() {
 
       setError(
         fetchError?.message ||
-          "Unable to load message records. Check the MESSAGES table and its RLS policies."
+          "Messages could not be loaded. Please refresh the page and try again."
       );
     } finally {
       if (showLoading) {
@@ -594,7 +594,7 @@ export default function MessagesPage() {
           <h1 style={styles.title}>Messages</h1>
 
           <p style={styles.subtitle}>
-            Monitor conversations between pet owners and pet sitters.
+            View messages exchanged between pet owners and pet sitters.
           </p>
         </div>
 
@@ -611,7 +611,7 @@ export default function MessagesPage() {
           iconStyle={styles.statPink}
           title="All Conversations"
           value={stats.total}
-          desc="Owner and sitter threads"
+          desc="All owner and sitter conversations"
           active={cardFilter === "all"}
           onClick={() => applyCardFilter("all")}
         />
@@ -621,7 +621,7 @@ export default function MessagesPage() {
           iconStyle={styles.statBlue}
           title="Active Today"
           value={stats.activeToday}
-          desc="Recent conversation activity"
+          desc="Conversations updated today"
           active={cardFilter === "today"}
           onClick={() => applyCardFilter("today")}
         />
@@ -629,9 +629,9 @@ export default function MessagesPage() {
         <StatCard
           icon={<CircleUserRound size={30} />}
           iconStyle={styles.statOrange}
-          title="Waiting on Sitter"
+          title="Owner Sent Last"
           value={stats.waitingOnSitter}
-          desc="Owner sent the last message"
+          desc="Latest message was from the owner"
           active={cardFilter === "waiting-sitter"}
           onClick={() => applyCardFilter("waiting-sitter")}
         />
@@ -639,9 +639,9 @@ export default function MessagesPage() {
         <StatCard
           icon={<UserRound size={30} />}
           iconStyle={styles.statGreen}
-          title="Waiting on Owner"
+          title="Sitter Sent Last"
           value={stats.waitingOnOwner}
-          desc="Sitter sent the last message"
+          desc="Latest message was from the sitter"
           active={cardFilter === "waiting-owner"}
           onClick={() => applyCardFilter("waiting-owner")}
         />
@@ -671,11 +671,11 @@ export default function MessagesPage() {
           <div>
             <strong>
               {unlinkedCount} message
-              {unlinkedCount === 1 ? "" : "s"} cannot be grouped yet.
+              {unlinkedCount === 1 ? "" : "s"} cannot be shown in a conversation.
             </strong>
 
             <span>
-              Those records do not contain both po_id and petsitter_id.
+              Some messages are missing Pet Owner or Pet Sitter information.
             </span>
           </div>
         </div>
@@ -698,7 +698,7 @@ export default function MessagesPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search pet owner, pet sitter, ID, or last message"
+                placeholder="Search owner, sitter, ID, or message"
                 style={styles.searchInput}
               />
             </div>
@@ -714,8 +714,8 @@ export default function MessagesPage() {
 
               <span>
                 {showDateFilter
-                  ? "Hide date range"
-                  : "Select date range"}
+                  ? "Hide dates"
+                  : "Date range"}
               </span>
             </button>
           </div>
@@ -726,7 +726,7 @@ export default function MessagesPage() {
               style={styles.refreshBtn}
               onClick={() => fetchMessageData()}
               disabled={loading}
-              title="Refresh conversations"
+              title="Refresh messages"
             >
               <RefreshCw size={18} />
 
@@ -798,8 +798,8 @@ export default function MessagesPage() {
                 <Th>Pet Owner</Th>
                 <Th>Pet Sitter</Th>
                 <Th>Last Message</Th>
-                <Th>Last Activity</Th>
-                <Th>Messages</Th>
+                <Th>Last Updated</Th>
+                <Th>Total Messages</Th>
               </tr>
             </thead>
 
@@ -875,7 +875,7 @@ export default function MessagesPage() {
                         </strong>
 
                         <span style={styles.secondaryText}>
-                          Last sender: {conversation.lastSender}
+                          Latest from: {conversation.lastSender}
                         </span>
                       </td>
 
@@ -1045,7 +1045,7 @@ function ConversationModal({ conversation, onClose }) {
       >
         <div style={styles.modalHeader}>
           <div>
-            <p style={styles.modalEyebrow}>CONVERSATION TRACKER</p>
+            <p style={styles.modalEyebrow}>MESSAGE HISTORY</p>
 
             <h2 id="conversation-title" style={styles.modalTitle}>
               {conversation.ownerName}
@@ -1054,7 +1054,7 @@ function ConversationModal({ conversation, onClose }) {
             </h2>
 
             <p style={styles.modalReference}>
-              Owner ID: {conversation.po_id} • Sitter ID:{" "}
+              Conversation between Owner ID {conversation.po_id} and Sitter ID{" "}
               {conversation.petsitter_id}
             </p>
           </div>
@@ -1147,7 +1147,7 @@ function ConversationModal({ conversation, onClose }) {
                       message
                     ) && (
                       <p style={styles.chatEmptyMessage}>
-                        No message content.
+                        No text message.
                       </p>
                     )}
 
@@ -1175,7 +1175,7 @@ function ConversationModal({ conversation, onClose }) {
         <div style={styles.modalActions}>
           <div style={styles.messageCountText}>
             <MessageCircleMore size={16} />
-            {conversation.messages.length} message
+            {conversation.messages.length} total message
             {conversation.messages.length === 1 ? "" : "s"}
           </div>
 
@@ -1243,7 +1243,7 @@ function MessageImage({ message, senderName }) {
       if (!storagePath) {
         if (!cancelled) {
           setImageError(
-            "No valid image path was stored for this message."
+            "No photo is available for this message."
           );
           setLoadingImage(false);
         }
@@ -1300,7 +1300,7 @@ function MessageImage({ message, senderName }) {
     return (
       <div style={styles.messageImageState}>
         <ImageIcon size={17} />
-        <span>Loading image...</span>
+        <span>Loading photo...</span>
       </div>
     );
   }
@@ -1320,7 +1320,7 @@ function MessageImage({ message, senderName }) {
 
         <div>
           <strong>
-            Image could not be displayed.
+            Photo could not be displayed.
           </strong>
 
           <span
@@ -1340,10 +1340,10 @@ function MessageImage({ message, senderName }) {
       <button
         type="button"
         className="message-image-button"
-        aria-label={`View image sent in ${formatMessageId(
+        aria-label={`View photo sent in ${formatMessageId(
           message?.message_id
         )}`}
-        title="Click to view full image"
+        title="Click to view full photo"
         style={styles.messageImageButton}
         onClick={(event) => {
           event.stopPropagation();
@@ -1369,7 +1369,7 @@ function MessageImage({ message, senderName }) {
           }
         >
           <ZoomIn size={14} />
-          View image
+          View photo
         </span>
       </button>
 
@@ -1387,7 +1387,7 @@ function MessageImage({ message, senderName }) {
             <div
               role="dialog"
               aria-modal="true"
-              aria-label="Message image preview"
+              aria-label="Shared photo preview"
               style={
                 styles.messageImagePreviewModal
               }
@@ -1410,7 +1410,7 @@ function MessageImage({ message, senderName }) {
                       styles.messageImagePreviewEyebrow
                     }
                   >
-                    MESSAGE IMAGE
+                    SHARED PHOTO
                   </p>
 
                   <h2
@@ -1448,7 +1448,7 @@ function MessageImage({ message, senderName }) {
 
                 <button
                   type="button"
-                  aria-label="Close image preview"
+                  aria-label="Close photo preview"
                   className="message-image-preview-close"
                   style={
                     styles.messageImagePreviewClose
@@ -1518,7 +1518,7 @@ function getMessageImageValue(message) {
 
 function getMessagePreview(message) {
   if (!message) {
-    return "No message content.";
+    return "No text message.";
   }
 
   const content =
@@ -1543,7 +1543,7 @@ function getMessagePreview(message) {
     return "📷 Image";
   }
 
-  return "No message content.";
+  return "No text message.";
 }
 
 function isDirectImageUrl(value) {
