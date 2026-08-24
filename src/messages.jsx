@@ -188,9 +188,25 @@ const MESSAGE_INTERACTION_CSS = `
     transform: scale(1.015);
   }
 
-  .messages-page .message-image-preview-close:not(:disabled):hover {
+  .message-image-preview-close:not(:disabled) {
+    transition:
+      transform 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease,
+      box-shadow 160ms ease,
+      background-color 160ms ease;
+  }
+
+  .message-image-preview-close:not(:disabled):hover {
     color: #D94368 !important;
     border-color: rgba(217, 67, 104, 0.55) !important;
+    background: #FFF7F9 !important;
+    box-shadow: 0 5px 12px rgba(58, 30, 20, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .message-image-preview-close:not(:disabled):active {
+    transform: scale(0.96);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1116,6 +1132,11 @@ function ConversationModal({ conversation, onClose }) {
                   ) && (
                     <MessageImage
                       message={message}
+                      senderName={
+                        fromOwner
+                          ? conversation.ownerName
+                          : conversation.sitterName
+                      }
                     />
                   )}
 
@@ -1171,7 +1192,7 @@ function ConversationModal({ conversation, onClose }) {
   );
 }
 
-function MessageImage({ message }) {
+function MessageImage({ message, senderName }) {
   const imageValue =
     getMessageImageValue(message);
 
@@ -1379,7 +1400,11 @@ function MessageImage({ message }) {
                   styles.messageImagePreviewHeader
                 }
               >
-                <div>
+                <div
+                  style={
+                    styles.messageImagePreviewHeading
+                  }
+                >
                   <p
                     style={
                       styles.messageImagePreviewEyebrow
@@ -1388,15 +1413,37 @@ function MessageImage({ message }) {
                     MESSAGE IMAGE
                   </p>
 
-                  <h3
+                  <h2
                     style={
                       styles.messageImagePreviewTitle
                     }
                   >
+                    {senderName ||
+                      normalizeRole(
+                        message?.sender_role
+                      )}{" "}
+                    - Message Photo
+                  </h2>
+
+                  <p
+                    style={
+                      styles.messageImagePreviewMeta
+                    }
+                  >
                     {formatMessageId(
                       message?.message_id
+                    )}{" "}
+                    •{" "}
+                    {formatDate(
+                      getMessageDate(
+                        message
+                      )
+                    )}{" "}
+                    •{" "}
+                    {formatMessageTime(
+                      message
                     )}
-                  </h3>
+                  </p>
                 </div>
 
                 <button
@@ -1410,7 +1457,7 @@ function MessageImage({ message }) {
                     setPreviewOpen(false)
                   }
                 >
-                  <X size={22} />
+                  <X size={23} />
                 </button>
               </div>
 
@@ -1419,15 +1466,21 @@ function MessageImage({ message }) {
                   styles.messageImagePreviewBody
                 }
               >
-                <img
-                  src={imageUrl}
-                  alt={`Full image sent in ${formatMessageId(
-                    message?.message_id
-                  )}`}
+                <div
                   style={
-                    styles.messageImagePreview
+                    styles.messageImageStage
                   }
-                />
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`Full image sent in ${formatMessageId(
+                      message?.message_id
+                    )}`}
+                    style={
+                      styles.messageImagePreview
+                    }
+                  />
+                </div>
               </div>
             </div>
           </div>,
@@ -2556,9 +2609,7 @@ const styles = {
     inset: 0,
     zIndex: 9999,
     padding: 24,
-    background: "rgba(22, 13, 11, 0.78)",
-    backdropFilter: "blur(2px)",
-    WebkitBackdropFilter: "blur(2px)",
+    background: "rgba(47, 31, 27, 0.58)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -2566,75 +2617,103 @@ const styles = {
   },
 
   messageImagePreviewModal: {
-    width: "min(1000px, 94vw)",
-    maxHeight: "92vh",
-    background: "var(--msg-card)",
-    borderRadius: 16,
-    border: "1px solid var(--msg-border)",
-    boxShadow: "0 28px 80px rgba(0,0,0,0.40)",
+    width: "min(1200px, 94vw)",
+    height: "min(86vh, 760px)",
+    background: "#FFFFFF",
+    borderRadius: 18,
+    border: "1px solid #EADDD9",
+    boxShadow: "0 24px 64px rgba(51, 26, 18, 0.24)",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
   },
 
   messageImagePreviewHeader: {
-    minHeight: 64,
-    padding: "12px 16px",
-    borderBottom: "1px solid var(--msg-border)",
+    minHeight: 92,
+    padding: "16px 20px 15px",
+    borderBottom: "1px solid #EEE2E0",
+    background: "#FFFFFF",
     display: "flex",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 14,
+    gap: 18,
     flexShrink: 0,
+    boxSizing: "border-box",
+  },
+
+  messageImagePreviewHeading: {
+    minWidth: 0,
   },
 
   messageImagePreviewEyebrow: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: 9.5,
+    fontSize: 10.5,
     fontWeight: 900,
     letterSpacing: "0.7px",
   },
 
   messageImagePreviewTitle: {
-    margin: "3px 0 0",
-    color: "var(--msg-strong)",
-    fontSize: 16,
+    margin: "4px 0 0",
+    color: BRAND.brown,
+    fontSize: 21,
     fontWeight: 900,
+    lineHeight: 1.25,
+    overflowWrap: "anywhere",
+  },
+
+  messageImagePreviewMeta: {
+    margin: "5px 0 0",
+    color: BRAND.muted,
+    fontSize: 11.5,
+    fontWeight: 750,
   },
 
   messageImagePreviewClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    border: "1px solid var(--msg-border-strong)",
-    background: "var(--msg-card)",
-    color: "var(--msg-strong)",
+    width: 42,
+    height: 42,
+    minWidth: 42,
+    borderRadius: 11,
+    border: "1px solid #E7DAD7",
+    background: "#FFFFFF",
+    color: BRAND.brown,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
+    flexShrink: 0,
   },
 
   messageImagePreviewBody: {
+    flex: 1,
     minHeight: 0,
-    padding: 18,
+    padding: "28px 32px 32px",
     overflow: "auto",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "#151110",
+    background: "#FFF9F8",
+    boxSizing: "border-box",
+  },
+
+  messageImageStage: {
+    width: "100%",
+    height: "100%",
+    minHeight: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   messageImagePreview: {
     display: "block",
     width: "auto",
     height: "auto",
-    maxWidth: "100%",
-    maxHeight: "calc(92vh - 104px)",
+    maxWidth: "88%",
+    maxHeight: "100%",
     objectFit: "contain",
-    borderRadius: 10,
-    boxShadow: "0 10px 30px rgba(0,0,0,0.24)",
+    borderRadius: 12,
+    boxShadow: "0 10px 26px rgba(58, 30, 20, 0.12)",
   },
 
   chatMeta: {
