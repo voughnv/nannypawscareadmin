@@ -122,7 +122,8 @@ export default function BookingDetailsModal({
   onClose,
   onPending,
   onApprove,
-  onReject,
+  onCancel,
+  onPaid,
 }) {
   const [reviewRemarks, setReviewRemarks] = useState(
     booking?.admin_review_remarks || ""
@@ -140,12 +141,22 @@ export default function BookingDetailsModal({
   const isPending = normalizedStatus === "Pending";
   const isConfirmed = normalizedStatus === "Confirmed";
   const isCompleted = normalizedStatus === "Completed";
-  const isRejected = normalizedStatus === "Rejected";
+  const isCancelled = normalizedStatus === "Cancelled";
+  const paymentState = getBookingPaymentState(booking);
+  const isPaid = paymentState === "Paid";
+  const isCash = isCashPaymentMethod(
+    booking.payment_method
+  );
   const hasUnknownStatus =
-    !isPending && !isConfirmed && !isCompleted && !isRejected;
+    !isPending && !isConfirmed && !isCompleted && !isCancelled;
 
   const startTime = booking.start_time || booking.booking_time;
   const paymentProof = String(booking.payment_proof || "").trim();
+  const hasPaymentProof = Boolean(paymentProof);
+  const canMarkPaid =
+    isCompleted &&
+    !isPaid &&
+    (isCash || hasPaymentProof);
 
   return (
     <div
@@ -249,24 +260,55 @@ export default function BookingDetailsModal({
         <div style={styles.modalGrid}>
           <DetailItem
             label="Payment Method"
-            value={booking.payment_method || "Not specified"}
+            value={
+              booking.payment_method ||
+              "Not specified"
+            }
           />
 
           <DetailItem
             label="Amount"
-            value={formatAmount(booking.amount)}
+            value={
+              formatAmount(
+                booking.amount
+              )
+            }
+          />
+
+          <DetailItem
+            label="Payment Status"
+            custom={
+              <PaymentStatusBadge
+                state={paymentState}
+              />
+            }
           />
 
           <DetailItem
             label="Proof of Payment"
             custom={
-              <PaymentProof
+              <PaymentProofForBooking
+                booking={booking}
                 value={paymentProof}
-                bookingId={booking.booking_id}
+                paymentState={paymentState}
               />
             }
             fullWidth
           />
+        </div>
+
+        <div style={styles.paymentFlowNote}>
+          {isCancelled
+            ? "No payment is required because this booking was cancelled before the service was completed."
+            : !isCompleted
+            ? "Payment is collected only after the Pet Sitter completes the service."
+            : isPaid
+            ? "The service is completed and the payment has been recorded."
+            : isCash
+            ? "The service is completed. Record the cash payment after the business receives it."
+            : hasPaymentProof
+            ? "The Pet Owner uploaded proof after service completion. Review it before marking the payment as Paid."
+            : "The service is completed. Waiting for the Pet Owner to pay and upload proof of payment."}
         </div>
 
         <h3 style={styles.sectionTitle}>Additional Information</h3>
@@ -282,20 +324,20 @@ export default function BookingDetailsModal({
           />
         </div>
 
-        {(isPending || isRejected) && (
+        {(isPending || isCancelled) && (
           <>
-            <h3 style={styles.sectionTitle}>Admin Review</h3>
+            <h3 style={styles.sectionTitle}>Cancellation Review</h3>
 
             <div style={styles.reviewRemarksCard}>
               <div style={styles.reviewRemarksHeader}>
                 <div>
                   <p style={styles.reviewRemarksLabel}>
-                    Review Remarks
+                    Cancellation Remarks
                   </p>
                   <p style={styles.reviewRemarksHelp}>
                     {isPending
-                      ? "Required only when rejecting this booking."
-                      : "Reason recorded by the administrator when the booking was rejected."}
+                      ? "Required only when cancelling this booking."
+                      : "Reason recorded by the administrator when the booking was cancelled."}
                   </p>
                 </div>
               </div>
@@ -309,11 +351,11 @@ export default function BookingDetailsModal({
                     setRemarksError("");
                   }
                 }}
-                readOnly={isRejected}
-                placeholder="Enter the reason for rejecting this booking..."
+                readOnly={isCancelled}
+                placeholder="Enter the reason for cancelling this booking..."
                 style={{
                   ...styles.reviewRemarksInput,
-                  ...(isRejected
+                  ...(isCancelled
                     ? styles.reviewRemarksReadOnly
                     : {}),
                   ...(remarksError
@@ -333,17 +375,21 @@ export default function BookingDetailsModal({
 
         </div>
 
-        {(isConfirmed || isCompleted || isRejected) && (
+        {(isConfirmed ||
+          isCancelled ||
+          (isCompleted && isPaid)) && (
           <div style={styles.stickyReadOnlyFooter}>
-            {isCompleted
-              ? "This booking has been completed by the Pet Sitter and can no longer be changed."
-              : isRejected
-              ? "This booking has been rejected and can no longer be changed."
-              : "This booking is approved. The assigned Pet Sitter will mark it as completed after the service is finished."}
+            {isCancelled
+              ? "This booking is cancelled. Payment is not required."
+              : isCompleted
+              ? "This booking has been completed by the Pet Sitter and the payment has been recorded."
+              : "This booking is approved. The Pet Sitter will mark it as completed after the service, then payment becomes due."}
           </div>
         )}
 
-        {(isPending || hasUnknownStatus) && (
+        {(isPending ||
+          hasUnknownStatus ||
+          (isCompleted && !isPaid)) && (
           <div style={styles.modalActions}>
             {hasUnknownStatus && (
               <button
@@ -351,12 +397,18 @@ export default function BookingDetailsModal({
                 style={{
                   ...styles.actionButton,
                   ...styles.pendingButton,
-                  ...(updating ? styles.disabledButton : {}),
+                  ...(updating
+                    ? styles.disabledButton
+                    : {}),
                 }}
                 disabled={updating}
-                onClick={() => onPending(booking)}
+                onClick={() =>
+                  onPending(booking)
+                }
               >
-                {updating ? "Updating..." : "Set Pending"}
+                {updating
+                  ? "Updating..."
+                  : "Set Pending"}
               </button>
             )}
 
@@ -367,8 +419,10 @@ export default function BookingDetailsModal({
                   className="booking-action-button"
                   style={{
                     ...styles.actionButton,
-                    ...styles.rejectButton,
-                    ...(updating ? styles.disabledButton : {}),
+                    ...styles.cancelButton,
+                    ...(updating
+                      ? styles.disabledButton
+                      : {}),
                   }}
                   disabled={updating}
                   onClick={async () => {
@@ -377,20 +431,20 @@ export default function BookingDetailsModal({
 
                     if (!cleanRemarks) {
                       setRemarksError(
-                        "Please enter review remarks before rejecting this booking."
+                        "Please enter cancellation remarks before cancelling this booking."
                       );
                       return;
                     }
 
                     setRemarksError("");
 
-                    await onReject(
+                    await onCancel?.(
                       booking,
                       cleanRemarks
                     );
                   }}
                 >
-                  Reject
+                  Cancel Booking
                 </button>
 
                 <button
@@ -399,14 +453,55 @@ export default function BookingDetailsModal({
                   style={{
                     ...styles.actionButton,
                     ...styles.confirmButton,
-                    ...(updating ? styles.disabledButton : {}),
+                    ...(updating
+                      ? styles.disabledButton
+                      : {}),
                   }}
                   disabled={updating}
-                  onClick={() => onApprove?.(booking)}
+                  onClick={() =>
+                    onApprove?.(booking)
+                  }
                 >
-                  {updating ? "Updating..." : "Approve"}
+                  {updating
+                    ? "Updating..."
+                    : "Approve"}
                 </button>
               </>
+            )}
+
+            {isCompleted && !isPaid && (
+              <button
+                type="button"
+                className="booking-action-button"
+                style={{
+                  ...styles.actionButton,
+                  ...styles.paidButton,
+                  ...(!canMarkPaid ||
+                  updating
+                    ? styles.disabledButton
+                    : {}),
+                }}
+                disabled={
+                  updating ||
+                  !canMarkPaid
+                }
+                onClick={() =>
+                  onPaid?.(booking)
+                }
+                title={
+                  canMarkPaid
+                    ? isCash
+                      ? "Confirm that the cash payment was received."
+                      : "Confirm that the uploaded payment proof was reviewed."
+                    : "Waiting for proof of payment from the Pet Owner."
+                }
+              >
+                {updating
+                  ? "Updating..."
+                  : canMarkPaid
+                  ? "Mark as Paid"
+                  : "Awaiting Payment Proof"}
+              </button>
             )}
           </div>
         )}
@@ -439,6 +534,91 @@ function DetailItem({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function PaymentProofForBooking({
+  booking,
+  value,
+  paymentState,
+}) {
+  const normalizedStatus =
+    normalizeStatus(
+      booking?.booking_status
+    );
+
+  const isCash =
+    isCashPaymentMethod(
+      booking?.payment_method
+    );
+
+  const hasProof =
+    Boolean(
+      String(value || "").trim()
+    );
+
+  if (normalizedStatus === "Cancelled") {
+    return (
+      <PaymentMessage>
+        Not required for a cancelled booking.
+      </PaymentMessage>
+    );
+  }
+
+  if (normalizedStatus !== "Completed") {
+    return (
+      <PaymentMessage>
+        Available after service completion and payment.
+      </PaymentMessage>
+    );
+  }
+
+  if (hasProof) {
+    return (
+      <PaymentProof
+        value={value}
+        bookingId={
+          booking?.booking_id
+        }
+      />
+    );
+  }
+
+  if (
+    isCash &&
+    paymentState === "Paid"
+  ) {
+    return (
+      <PaymentMessage positive>
+        Cash payment recorded. No proof image is required.
+      </PaymentMessage>
+    );
+  }
+
+  return (
+    <PaymentMessage>
+      {isCash
+        ? "Waiting for the business to receive the cash payment."
+        : "Waiting for the Pet Owner to upload proof of payment."}
+    </PaymentMessage>
+  );
+}
+
+function PaymentMessage({
+  children,
+  positive = false,
+}) {
+  return (
+    <div
+      style={{
+        ...styles.paymentMessage,
+        ...(positive
+          ? styles.paymentMessagePositive
+          : {}),
+      }}
+    >
+      {children}
     </div>
   );
 }
@@ -648,8 +828,8 @@ function StatusBadge({ status }) {
       ? styles.statusConfirmed
       : normalizedStatus === "Completed"
       ? styles.statusCompleted
-      : normalizedStatus === "Rejected"
-      ? styles.statusRejected
+      : normalizedStatus === "Cancelled"
+      ? styles.statusCancelled
       : styles.statusDefault;
 
   const displayStatus =
@@ -679,10 +859,86 @@ function normalizeStatus(status) {
     cleaned === "cancelled" ||
     cleaned === "canceled"
   ) {
-    return "Rejected";
+    return "Cancelled";
   }
 
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+}
+
+function normalizePaymentStatus(status) {
+  const cleaned = String(status || "")
+    .trim()
+    .toLowerCase();
+
+  if (cleaned === "paid") {
+    return "Paid";
+  }
+
+  if (cleaned === "unpaid") {
+    return "Unpaid";
+  }
+
+  return "";
+}
+
+function getBookingPaymentState(booking) {
+  const bookingStatus =
+    normalizeStatus(
+      booking?.booking_status
+    );
+
+  const storedStatus =
+    normalizePaymentStatus(
+      booking?.payment_status
+    );
+
+  if (bookingStatus === "Cancelled") {
+    return "Not Required";
+  }
+
+  if (bookingStatus !== "Completed") {
+    return "Not Due";
+  }
+
+  if (storedStatus === "Paid") {
+    return "Paid";
+  }
+
+  return "Unpaid";
+}
+
+function isCashPaymentMethod(method) {
+  const cleaned =
+    String(method || "")
+      .trim()
+      .toLowerCase();
+
+  return (
+    cleaned === "cash" ||
+    cleaned.includes("cash")
+  );
+}
+
+function PaymentStatusBadge({ state }) {
+  const badgeStyle =
+    state === "Paid"
+      ? styles.paymentPaid
+      : state === "Unpaid"
+      ? styles.paymentUnpaid
+      : state === "Not Required"
+      ? styles.paymentNotRequired
+      : styles.paymentNotDue;
+
+  return (
+    <span
+      style={{
+        ...styles.badge,
+        ...badgeStyle,
+      }}
+    >
+      {state}
+    </span>
+  );
 }
 
 function getPetName(booking) {
@@ -768,8 +1024,8 @@ function getSitterAssignmentStatusText(
     return `${sitterReference} • Service completed`;
   }
 
-  if (normalizedStatus === "Rejected") {
-    return `${sitterReference} • Booking rejected`;
+  if (normalizedStatus === "Cancelled") {
+    return `${sitterReference} • Booking cancelled`;
   }
 
   return booking.ps_id
@@ -1215,14 +1471,65 @@ const styles = {
     color: "#0C4BB3",
   },
 
-  statusRejected: {
+  statusCancelled: {
     background: "#F8D8DB",
     color: "#DF101D",
+  },
+
+  paymentPaid: {
+    background: "#DDF3E7",
+    color: "#0D8B48",
+  },
+
+  paymentUnpaid: {
+    background: "#FFF0D8",
+    color: "#B35A00",
+  },
+
+  paymentNotDue: {
+    background: "#EEE9E7",
+    color: "#645854",
+  },
+
+  paymentNotRequired: {
+    background: "#F4EFEF",
+    color: "#847572",
   },
 
   statusDefault: {
     background: "#EEE9E7",
     color: "#645854",
+  },
+
+  paymentFlowNote: {
+    marginTop: 12,
+    padding: "12px 14px",
+    borderRadius: 10,
+    border: "1px solid #EEE2DF",
+    background: "#FFF9FA",
+    color: BRAND.muted,
+    fontSize: 12.5,
+    fontWeight: 700,
+    lineHeight: 1.55,
+  },
+
+  paymentMessage: {
+    width: "100%",
+    padding: "11px 12px",
+    borderRadius: 9,
+    border: "1px solid #E8DDDA",
+    background: "#FAF7F6",
+    color: BRAND.muted,
+    fontSize: 12.5,
+    fontWeight: 700,
+    lineHeight: 1.45,
+    boxSizing: "border-box",
+  },
+
+  paymentMessagePositive: {
+    borderColor: "#CDE9D9",
+    background: "#EFF9F3",
+    color: "#0D7C44",
   },
 
   modalActions: {
@@ -1267,10 +1574,17 @@ const styles = {
     color: BRAND.brown,
   },
 
-  rejectButton: {
+  cancelButton: {
     border: "none",
     background: "#F8D8DB",
     color: "#DF101D",
+  },
+
+  paidButton: {
+    border: "none",
+    background: "#DDF3E7",
+    color: "#0D8B48",
+    padding: "0 16px",
   },
 
   confirmButton: {
