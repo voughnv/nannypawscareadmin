@@ -282,6 +282,7 @@ export default function BookingDetailsModal({
                 state={paymentState}
               />
             }
+            fullWidth
           />
 
           <DetailItem
@@ -299,16 +300,16 @@ export default function BookingDetailsModal({
 
         <div style={styles.paymentFlowNote}>
           {isCancelled
-            ? "No payment is required because this booking was cancelled before the service was completed."
+            ? "This booking was cancelled, so no payment action is required."
             : !isCompleted
-            ? "Payment is collected only after the Pet Sitter completes the service."
+            ? "Payment remains Unpaid until the service is completed and payment is received."
             : isPaid
-            ? "The service is completed and the payment has been recorded."
+            ? "The service is completed and the payment has been recorded as Paid."
             : isCash
-            ? "The service is completed. Record the cash payment after the business receives it."
+            ? "The service is completed. Mark the payment as Paid after the business receives the cash."
             : hasPaymentProof
-            ? "The Pet Owner uploaded proof after service completion. Review it before marking the payment as Paid."
-            : "The service is completed. Waiting for the Pet Owner to pay and upload proof of payment."}
+            ? "The Pet Owner uploaded proof of payment. Review it before marking the payment as Paid."
+            : "The service is completed and payment is still Unpaid. Waiting for the Pet Owner to upload proof of payment."}
         </div>
 
         <h3 style={styles.sectionTitle}>Additional Information</h3>
@@ -882,29 +883,14 @@ function normalizePaymentStatus(status) {
 }
 
 function getBookingPaymentState(booking) {
-  const bookingStatus =
-    normalizeStatus(
-      booking?.booking_status
-    );
-
   const storedStatus =
     normalizePaymentStatus(
       booking?.payment_status
     );
 
-  if (bookingStatus === "Cancelled") {
-    return "Not Required";
-  }
-
-  if (bookingStatus !== "Completed") {
-    return "Not Due";
-  }
-
-  if (storedStatus === "Paid") {
-    return "Paid";
-  }
-
-  return "Unpaid";
+  return storedStatus === "Paid"
+    ? "Paid"
+    : "Unpaid";
 }
 
 function isCashPaymentMethod(method) {
@@ -920,23 +906,19 @@ function isCashPaymentMethod(method) {
 }
 
 function PaymentStatusBadge({ state }) {
-  const badgeStyle =
-    state === "Paid"
-      ? styles.paymentPaid
-      : state === "Unpaid"
-      ? styles.paymentUnpaid
-      : state === "Not Required"
-      ? styles.paymentNotRequired
-      : styles.paymentNotDue;
+  const isPaid =
+    state === "Paid";
 
   return (
     <span
       style={{
         ...styles.paymentStatusBadge,
-        ...badgeStyle,
+        ...(isPaid
+          ? styles.paymentPaid
+          : styles.paymentUnpaid),
       }}
     >
-      {state}
+      {isPaid ? "Paid" : "Unpaid"}
     </span>
   );
 }
@@ -1498,21 +1480,9 @@ const styles = {
   },
 
   paymentUnpaid: {
-    background: "#FFF2E1",
-    color: "#B45B08",
-    borderColor: "#F5DFC2",
-  },
-
-  paymentNotDue: {
-    background: "#F1EEED",
-    color: "#6F625F",
-    borderColor: "#E7E1DF",
-  },
-
-  paymentNotRequired: {
-    background: "#F5F2F1",
-    color: "#877874",
-    borderColor: "#EAE4E2",
+    background: "#FFF1DF",
+    color: "#A9570A",
+    borderColor: "#F2DDBF",
   },
 
   statusDefault: {
