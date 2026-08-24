@@ -300,16 +300,16 @@ export default function BookingDetailsModal({
 
         <div style={styles.paymentFlowNote}>
           {isCancelled
-            ? "This booking was cancelled, so no payment action is required."
+            ? "No payment is required for this cancelled booking."
             : !isCompleted
-            ? "Payment remains Unpaid until the service is completed and payment is received."
+            ? "Payment is pending until the service is completed."
             : isPaid
-            ? "The service is completed and the payment has been recorded as Paid."
+            ? "Payment has been received and recorded."
             : isCash
-            ? "The service is completed. Mark the payment as Paid after the business receives the cash."
+            ? "Service completed. Cash payment is awaiting confirmation."
             : hasPaymentProof
-            ? "The Pet Owner uploaded proof of payment. Review it before marking the payment as Paid."
-            : "The service is completed and payment is still Unpaid. Waiting for the Pet Owner to upload proof of payment."}
+            ? "Payment proof has been submitted and is awaiting Admin verification."
+            : "Service completed. Proof of payment has not yet been submitted."}
         </div>
 
         <h3 style={styles.sectionTitle}>Additional Information</h3>
@@ -324,55 +324,60 @@ export default function BookingDetailsModal({
             fullWidth
           />
         </div>
+        <>
+          <h3 style={styles.sectionTitle}>Admin Review</h3>
 
-        {(isPending || isCancelled) && (
-          <>
-            <h3 style={styles.sectionTitle}>Cancellation Review</h3>
-
-            <div style={styles.reviewRemarksCard}>
-              <div style={styles.reviewRemarksHeader}>
-                <div>
-                  <p style={styles.reviewRemarksLabel}>
-                    Cancellation Remarks
-                  </p>
-                  <p style={styles.reviewRemarksHelp}>
-                    {isPending
-                      ? "Required only when cancelling this booking."
-                      : "Reason recorded by the administrator when the booking was cancelled."}
-                  </p>
-                </div>
-              </div>
-
-              <textarea
-                className="booking-review-textarea"
-                value={reviewRemarks}
-                onChange={(event) => {
-                  setReviewRemarks(event.target.value);
-                  if (remarksError) {
-                    setRemarksError("");
-                  }
-                }}
-                readOnly={isCancelled}
-                placeholder="Enter the reason for cancelling this booking..."
-                style={{
-                  ...styles.reviewRemarksInput,
-                  ...(isCancelled
-                    ? styles.reviewRemarksReadOnly
-                    : {}),
-                  ...(remarksError
-                    ? styles.reviewRemarksInputError
-                    : {}),
-                }}
-              />
-
-              {remarksError && (
-                <p style={styles.reviewRemarksError}>
-                  {remarksError}
+          <div style={styles.reviewRemarksCard}>
+            <div style={styles.reviewRemarksHeader}>
+              <div>
+                <p style={styles.reviewRemarksLabel}>
+                  Review Notes
                 </p>
-              )}
+
+                <p style={styles.reviewRemarksHelp}>
+                  {isPending
+                    ? "Add notes relevant to the booking review. Review notes are required if the booking is cancelled."
+                    : reviewRemarks.trim()
+                    ? "Review notes recorded by the Admin for this booking."
+                    : "No Admin review notes were recorded for this booking."}
+                </p>
+              </div>
             </div>
-          </>
-        )}
+
+            <textarea
+              className="booking-review-textarea"
+              value={reviewRemarks}
+              onChange={(event) => {
+                setReviewRemarks(event.target.value);
+
+                if (remarksError) {
+                  setRemarksError("");
+                }
+              }}
+              readOnly={!isPending}
+              placeholder={
+                isPending
+                  ? "Enter review notes for this booking..."
+                  : "No review notes recorded."
+              }
+              style={{
+                ...styles.reviewRemarksInput,
+                ...(!isPending
+                  ? styles.reviewRemarksReadOnly
+                  : {}),
+                ...(remarksError
+                  ? styles.reviewRemarksInputError
+                  : {}),
+              }}
+            />
+
+            {remarksError && (
+              <p style={styles.reviewRemarksError}>
+                {remarksError}
+              </p>
+            )}
+          </div>
+        </>
 
         </div>
 
@@ -381,10 +386,10 @@ export default function BookingDetailsModal({
           (isCompleted && isPaid)) && (
           <div style={styles.stickyReadOnlyFooter}>
             {isCancelled
-              ? "This booking is cancelled. Payment is not required."
+              ? "Booking cancelled. No payment is required."
               : isCompleted
-              ? "This booking has been completed by the Pet Sitter and the payment has been recorded."
-              : "This booking is approved. The Pet Sitter will mark it as completed after the service, then payment becomes due."}
+              ? "Service completed. Payment has been received and recorded."
+              : "Booking approved. Service completion will be recorded by the assigned Pet Sitter."}
           </div>
         )}
 
@@ -432,7 +437,7 @@ export default function BookingDetailsModal({
 
                     if (!cleanRemarks) {
                       setRemarksError(
-                        "Please enter cancellation remarks before cancelling this booking."
+                        "Review notes are required before cancelling this booking."
                       );
                       return;
                     }
@@ -492,16 +497,16 @@ export default function BookingDetailsModal({
                 title={
                   canMarkPaid
                     ? isCash
-                      ? "Confirm that the cash payment was received."
-                      : "Confirm that the uploaded payment proof was reviewed."
-                    : "Waiting for proof of payment from the Pet Owner."
+                      ? "Confirm receipt of the cash payment."
+                      : "Confirm that the submitted payment proof has been verified."
+                    : "Payment proof has not yet been submitted."
                 }
               >
                 {updating
                   ? "Updating..."
                   : canMarkPaid
                   ? "Mark as Paid"
-                  : "Awaiting Payment Proof"}
+                  : "Payment Proof Pending"}
               </button>
             )}
           </div>
@@ -562,7 +567,7 @@ function PaymentProofForBooking({
   if (normalizedStatus === "Cancelled") {
     return (
       <PaymentMessage>
-        Not required for a cancelled booking.
+        No proof of payment is required.
       </PaymentMessage>
     );
   }
@@ -570,7 +575,7 @@ function PaymentProofForBooking({
   if (normalizedStatus !== "Completed") {
     return (
       <PaymentMessage>
-        Available after service completion and payment.
+        Proof of payment is submitted after service completion.
       </PaymentMessage>
     );
   }
@@ -592,7 +597,7 @@ function PaymentProofForBooking({
   ) {
     return (
       <PaymentMessage positive>
-        Cash payment recorded. No proof image is required.
+        Cash payment has been recorded. No proof image is required.
       </PaymentMessage>
     );
   }
@@ -600,8 +605,8 @@ function PaymentProofForBooking({
   return (
     <PaymentMessage>
       {isCash
-        ? "Waiting for the business to receive the cash payment."
-        : "Waiting for the Pet Owner to upload proof of payment."}
+        ? "Cash payment has not yet been recorded."
+        : "Proof of payment has not yet been submitted."}
     </PaymentMessage>
   );
 }
