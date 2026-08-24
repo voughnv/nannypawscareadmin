@@ -1014,12 +1014,8 @@ function ConversationModal({ conversation, onClose }) {
             </h2>
 
             <p style={styles.modalReference}>
-              Owner ID: {conversation.po_id}
-              <span style={styles.modalMetaDot}> • </span>
-              Sitter ID: {conversation.petsitter_id}
-              <span style={styles.modalMetaDot}> • </span>
               {conversation.messages.length} message
-              {conversation.messages.length === 1 ? "" : "s"}
+              {conversation.messages.length === 1 ? "" : "s"} in this conversation
             </p>
           </div>
 
@@ -1036,7 +1032,7 @@ function ConversationModal({ conversation, onClose }) {
 
         <div style={styles.participantStrip}>
           <p style={styles.participantStripTitle}>
-            Conversation Participants
+            Participants
           </p>
 
           <div style={styles.participantGrid}>
@@ -1045,20 +1041,6 @@ function ConversationModal({ conversation, onClose }) {
               name={conversation.ownerName}
               idLabel={`Owner ID: ${conversation.po_id}`}
             />
-
-            <div
-              style={styles.conversationConnector}
-              aria-hidden="true"
-            >
-              <span style={styles.connectorLine} />
-
-              <div style={styles.connectorBadge}>
-                <MessagesSquare size={18} />
-                <span>Messages</span>
-              </div>
-
-              <span style={styles.connectorLine} />
-            </div>
 
             <Participant
               label="Pet Sitter"
@@ -1901,7 +1883,7 @@ const styles = {
   },
 
   statsGrid: {
-    width: "min(760px, 100%)",
+    width: "100%",
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 18,
@@ -2375,11 +2357,6 @@ const styles = {
     fontWeight: 900,
   },
 
-  modalMetaDot: {
-    color: BRAND.pink,
-    padding: "0 2px",
-  },
-
   modalReference: {
     margin: "5px 0 0",
     color: "var(--msg-muted)",
@@ -2418,8 +2395,8 @@ const styles = {
 
   participantGrid: {
     display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
-    alignItems: "center",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    alignItems: "stretch",
     gap: 14,
   },
 
@@ -2434,37 +2411,6 @@ const styles = {
     gap: 10,
     minWidth: 0,
     boxSizing: "border-box",
-  },
-
-  conversationConnector: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-    minWidth: 150,
-  },
-
-  connectorLine: {
-    width: 24,
-    height: 1,
-    background: "var(--msg-border-strong)",
-    display: "block",
-  },
-
-  connectorBadge: {
-    minHeight: 34,
-    padding: "0 10px",
-    borderRadius: 999,
-    border: "1px solid #F1C9D4",
-    background: BRAND.softPink,
-    color: BRAND.pink,
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    fontSize: 10.5,
-    fontWeight: 900,
-    whiteSpace: "nowrap",
   },
 
   avatar: {
