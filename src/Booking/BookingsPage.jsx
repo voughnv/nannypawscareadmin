@@ -1080,24 +1080,38 @@ export default function BookingsPage() {
 
           <div style={styles.tableWrapper}>
             <table style={styles.table}>
+              <colgroup>
+                <col style={{ width: 52 }} />
+                <col style={{ width: 122 }} />
+                <col style={{ width: 122 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 96 }} />
+                <col style={{ width: 160 }} />
+                <col style={{ width: 122 }} />
+                <col style={{ width: 138 }} />
+                <col style={{ width: 118 }} />
+                <col style={{ width: 118 }} />
+              </colgroup>
+
               <thead>
                 <tr style={styles.tableHeadRow}>
-                  <Th>No.</Th>
+                  <Th align="center">No.</Th>
                   <Th>Booking Date</Th>
                   <Th>End Date</Th>
                   <Th>Start Time</Th>
                   <Th>End Time</Th>
                   <Th>Service Type</Th>
                   <Th>Pet</Th>
-                  <Th>Proof of Payment</Th>
-                  <Th>Status</Th>
+                  <Th align="center">Proof of Payment</Th>
+                  <Th align="center">Payment Status</Th>
+                  <Th align="center">Booking Status</Th>
                 </tr>
               </thead>
 
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" style={styles.emptyCell}>
+                    <td colSpan="10" style={styles.emptyCell}>
                       <div style={styles.loadingContent}>
                         <RefreshCw size={22} />
                         <span>Loading booking records...</span>
@@ -1165,27 +1179,42 @@ export default function BookingsPage() {
                         </span>
                       </td>
 
-                      <td style={styles.normalCell}>
-                        <div style={styles.paymentTableCell}>
-                          {renderTablePaymentProof(
-                            booking,
-                            () =>
-                              setSelectedProofBooking(
-                                booking
-                              )
-                          )}
-
-                          <PaymentStatusBadge
-                            state={
-                              getBookingPaymentState(
-                                booking
-                              )
-                            }
-                          />
-                        </div>
+                      <td
+                        style={{
+                          ...styles.normalCell,
+                          ...styles.centerCell,
+                        }}
+                      >
+                        {renderTablePaymentProof(
+                          booking,
+                          () =>
+                            setSelectedProofBooking(
+                              booking
+                            )
+                        )}
                       </td>
 
-                      <td style={styles.normalCell}>
+                      <td
+                        style={{
+                          ...styles.normalCell,
+                          ...styles.centerCell,
+                        }}
+                      >
+                        <PaymentStatusBadge
+                          state={
+                            getBookingPaymentState(
+                              booking
+                            )
+                          }
+                        />
+                      </td>
+
+                      <td
+                        style={{
+                          ...styles.normalCell,
+                          ...styles.centerCell,
+                        }}
+                      >
                         <StatusBadge
                           status={
                             booking.booking_status
@@ -1196,7 +1225,7 @@ export default function BookingsPage() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="9" style={styles.emptyCell}>
+                    <td colSpan="10" style={styles.emptyCell}>
                       No bookings found.
                     </td>
                   </tr>
@@ -1636,8 +1665,20 @@ function getPaymentProofStoragePath(value, bucketName) {
     : text;
 }
 
-function Th({ children }) {
-  return <th style={styles.th}>{children}</th>;
+function Th({
+  children,
+  align = "left",
+}) {
+  return (
+    <th
+      style={{
+        ...styles.th,
+        textAlign: align,
+      }}
+    >
+      {children}
+    </th>
+  );
 }
 
 function StatusBadge({ status }) {
@@ -1768,11 +1809,6 @@ function renderTablePaymentProof(
       booking?.booking_status
     );
 
-  const paymentState =
-    getBookingPaymentState(
-      booking
-    );
-
   const hasProof =
     Boolean(
       String(
@@ -1820,22 +1856,17 @@ function renderTablePaymentProof(
     );
   }
 
-  if (
-    isCash &&
-    paymentState === "Paid"
-  ) {
+  if (isCash) {
     return (
-      <span style={styles.cashRecordedText}>
-        Cash recorded
+      <span style={styles.mutedTableText}>
+        Not required
       </span>
     );
   }
 
   return (
-    <span style={styles.mutedTableText}>
-      {isCash
-        ? "Awaiting cash"
-        : "Awaiting proof"}
+    <span style={styles.awaitingProofText}>
+      Awaiting upload
     </span>
   );
 }
@@ -2682,9 +2713,9 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1260,
+    minWidth: 1144,
     borderCollapse: "collapse",
-    tableLayout: "auto",
+    tableLayout: "fixed",
   },
 
   tableHeadRow: {
@@ -2694,12 +2725,12 @@ const styles = {
   },
 
   th: {
-    textAlign: "left",
-    padding: "16px 18px",
-    color: "#16100E",
-    fontSize: 13,
+    padding: "15px 12px",
+    color: "#2A1D19",
+    fontSize: 12.5,
     fontWeight: 900,
     whiteSpace: "nowrap",
+    verticalAlign: "middle",
   },
 
   tableRow: {
@@ -2707,19 +2738,25 @@ const styles = {
   },
 
   numberCell: {
-    padding: "16px 18px",
+    padding: "16px 10px",
     color: BRAND.muted,
     fontSize: 13,
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
+    verticalAlign: "middle",
   },
 
   normalCell: {
-    padding: "16px 18px",
+    padding: "16px 12px",
     fontSize: 13,
     color: "#1F1714",
     whiteSpace: "nowrap",
+    verticalAlign: "middle",
+  },
+
+  centerCell: {
+    textAlign: "center",
   },
 
   primaryText: {
@@ -2727,6 +2764,8 @@ const styles = {
     fontSize: 13,
     color: "#1B1412",
     fontWeight: 800,
+    lineHeight: 1.35,
+    whiteSpace: "normal",
   },
 
   secondaryTableText: {
@@ -2744,13 +2783,13 @@ const styles = {
   },
 
   proofTableBtn: {
-    height: 32,
-    border: "1px solid #F1C5D0",
-    borderRadius: 8,
-    background: "#FFF5F7",
+    height: 30,
+    border: "1px solid #EFC8D2",
+    borderRadius: 7,
+    background: "#FFF7F8",
     color: BRAND.pink,
-    padding: "0 11px",
-    fontSize: 12,
+    padding: "0 10px",
+    fontSize: 11.5,
     fontWeight: 900,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -2789,49 +2828,49 @@ const styles = {
     color: "#DF101D",
   },
 
-  paymentTableCell: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-start",
-    gap: 6,
-  },
-
   paymentBadge: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 72,
-    height: 22,
-    padding: "0 8px",
-    borderRadius: 999,
-    fontSize: 10.5,
-    fontWeight: 900,
+    minWidth: 82,
+    height: 26,
+    padding: "0 9px",
+    borderRadius: 7,
+    border: "1px solid transparent",
+    fontSize: 11,
+    fontWeight: 850,
+    lineHeight: 1,
     boxSizing: "border-box",
+    whiteSpace: "nowrap",
   },
 
   paymentPaid: {
-    background: "#DDF3E7",
-    color: "#0D8B48",
+    background: "#E7F6ED",
+    color: "#167545",
+    borderColor: "#D3ECDD",
   },
 
   paymentUnpaid: {
-    background: "#FFF0D8",
-    color: "#B35A00",
+    background: "#FFF2E1",
+    color: "#B45B08",
+    borderColor: "#F5DFC2",
   },
 
   paymentNotDue: {
-    background: "#EEE9E7",
-    color: "#645854",
+    background: "#F1EEED",
+    color: "#6F625F",
+    borderColor: "#E7E1DF",
   },
 
   paymentNotRequired: {
-    background: "#F4EFEF",
-    color: "#847572",
+    background: "#F5F2F1",
+    color: "#877874",
+    borderColor: "#EAE4E2",
   },
 
-  cashRecordedText: {
-    color: "#0D8B48",
-    fontSize: 12,
+  awaitingProofText: {
+    color: "#A95E17",
+    fontSize: 11.5,
     fontWeight: 800,
   },
 
