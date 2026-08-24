@@ -12,8 +12,6 @@ import {
   X,
   AlertCircle,
   MessageCircleMore,
-  CircleUserRound,
-  ArrowRight,
   Image as ImageIcon,
   ZoomIn,
 } from "lucide-react";
@@ -441,24 +439,13 @@ export default function MessagesPage() {
 
   const stats = useMemo(() => {
     const activeToday = conversations.filter(
-      (conversation) => conversation.lastMessageDate === today
-    ).length;
-
-    const waitingOnSitter = conversations.filter(
       (conversation) =>
-        isOwnerRole(conversation.lastMessage?.sender_role)
-    ).length;
-
-    const waitingOnOwner = conversations.filter(
-      (conversation) =>
-        isSitterRole(conversation.lastMessage?.sender_role)
+        conversation.lastMessageDate === today
     ).length;
 
     return {
       total: conversations.length,
       activeToday,
-      waitingOnSitter,
-      waitingOnOwner,
     };
   }, [conversations, today]);
 
@@ -474,10 +461,6 @@ export default function MessagesPage() {
         conversation.petsitter_id,
         conversation.ownerName,
         conversation.sitterName,
-        conversation.lastMessage?.message_content,
-        getMessageImageValue(
-          conversation.lastMessage
-        ),
       ]
         .filter(
           (value) =>
@@ -494,11 +477,7 @@ export default function MessagesPage() {
       const matchesCard =
         cardFilter === "all" ||
         (cardFilter === "today" &&
-          conversation.lastMessageDate === today) ||
-        (cardFilter === "waiting-sitter" &&
-          isOwnerRole(conversation.lastMessage?.sender_role)) ||
-        (cardFilter === "waiting-owner" &&
-          isSitterRole(conversation.lastMessage?.sender_role));
+          conversation.lastMessageDate === today);
 
       const matchesDateFrom =
         !dateFrom ||
@@ -626,25 +605,6 @@ export default function MessagesPage() {
           onClick={() => applyCardFilter("today")}
         />
 
-        <StatCard
-          icon={<CircleUserRound size={30} />}
-          iconStyle={styles.statOrange}
-          title="Owner Sent Last"
-          value={stats.waitingOnSitter}
-          desc="Latest message was from the owner"
-          active={cardFilter === "waiting-sitter"}
-          onClick={() => applyCardFilter("waiting-sitter")}
-        />
-
-        <StatCard
-          icon={<UserRound size={30} />}
-          iconStyle={styles.statGreen}
-          title="Sitter Sent Last"
-          value={stats.waitingOnOwner}
-          desc="Latest message was from the sitter"
-          active={cardFilter === "waiting-owner"}
-          onClick={() => applyCardFilter("waiting-owner")}
-        />
       </section>
 
       {error && (
@@ -698,7 +658,7 @@ export default function MessagesPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search owner, sitter, ID, or message"
+                placeholder="Search pet owner, pet sitter, or ID"
                 style={styles.searchInput}
               />
             </div>
@@ -715,7 +675,7 @@ export default function MessagesPage() {
               <span>
                 {showDateFilter
                   ? "Hide dates"
-                  : "Select date range"}
+                  : "Date range"}
               </span>
             </button>
           </div>
@@ -1049,13 +1009,17 @@ function ConversationModal({ conversation, onClose }) {
 
             <h2 id="conversation-title" style={styles.modalTitle}>
               {conversation.ownerName}
-              <span style={styles.modalTitleArrow}> ↔ </span>
+              <span style={styles.modalTitleDivider}> & </span>
               {conversation.sitterName}
             </h2>
 
             <p style={styles.modalReference}>
-              Conversation between Owner ID {conversation.po_id} and Sitter ID{" "}
-              {conversation.petsitter_id}
+              Owner ID: {conversation.po_id}
+              <span style={styles.modalMetaDot}> • </span>
+              Sitter ID: {conversation.petsitter_id}
+              <span style={styles.modalMetaDot}> • </span>
+              {conversation.messages.length} message
+              {conversation.messages.length === 1 ? "" : "s"}
             </p>
           </div>
 
@@ -1071,19 +1035,37 @@ function ConversationModal({ conversation, onClose }) {
         </div>
 
         <div style={styles.participantStrip}>
-          <Participant
-            label="Pet Owner"
-            name={conversation.ownerName}
-            idLabel={`Owner ID: ${conversation.po_id}`}
-          />
+          <p style={styles.participantStripTitle}>
+            Conversation Participants
+          </p>
 
-          <ArrowRight size={22} color={BRAND.pink} />
+          <div style={styles.participantGrid}>
+            <Participant
+              label="Pet Owner"
+              name={conversation.ownerName}
+              idLabel={`Owner ID: ${conversation.po_id}`}
+            />
 
-          <Participant
-            label="Pet Sitter"
-            name={conversation.sitterName}
-            idLabel={`Sitter ID: ${conversation.petsitter_id}`}
-          />
+            <div
+              style={styles.conversationConnector}
+              aria-hidden="true"
+            >
+              <span style={styles.connectorLine} />
+
+              <div style={styles.connectorBadge}>
+                <MessagesSquare size={18} />
+                <span>Messages</span>
+              </div>
+
+              <span style={styles.connectorLine} />
+            </div>
+
+            <Participant
+              label="Pet Sitter"
+              name={conversation.sitterName}
+              idLabel={`Sitter ID: ${conversation.petsitter_id}`}
+            />
+          </div>
         </div>
 
         <div style={styles.chatBody}>
@@ -1919,8 +1901,9 @@ const styles = {
   },
 
   statsGrid: {
+    width: "min(760px, 100%)",
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: 18,
     marginBottom: 24,
   },
@@ -2387,8 +2370,14 @@ const styles = {
     lineHeight: 1.3,
   },
 
-  modalTitleArrow: {
+  modalTitleDivider: {
     color: BRAND.pink,
+    fontWeight: 900,
+  },
+
+  modalMetaDot: {
+    color: BRAND.pink,
+    padding: "0 2px",
   },
 
   modalReference: {
@@ -2412,21 +2401,70 @@ const styles = {
   },
 
   participantStrip: {
-    padding: "12px 22px",
+    padding: "12px 22px 15px",
     borderBottom: "1px solid var(--msg-border)",
     background: "var(--msg-head)",
-    display: "grid",
-    gridTemplateColumns: "1fr auto 1fr",
-    alignItems: "center",
-    gap: 16,
     flexShrink: 0,
   },
 
+  participantStripTitle: {
+    margin: "0 0 9px",
+    color: "var(--msg-muted)",
+    fontSize: 10,
+    fontWeight: 900,
+    letterSpacing: "0.45px",
+    textTransform: "uppercase",
+  },
+
+  participantGrid: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto minmax(0, 1fr)",
+    alignItems: "center",
+    gap: 14,
+  },
+
   participant: {
+    minHeight: 64,
+    padding: "10px 12px",
+    borderRadius: 11,
+    border: "1px solid var(--msg-border)",
+    background: "var(--msg-card)",
     display: "flex",
     alignItems: "center",
     gap: 10,
     minWidth: 0,
+    boxSizing: "border-box",
+  },
+
+  conversationConnector: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    minWidth: 150,
+  },
+
+  connectorLine: {
+    width: 24,
+    height: 1,
+    background: "var(--msg-border-strong)",
+    display: "block",
+  },
+
+  connectorBadge: {
+    minHeight: 34,
+    padding: "0 10px",
+    borderRadius: 999,
+    border: "1px solid #F1C9D4",
+    background: BRAND.softPink,
+    color: BRAND.pink,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    fontSize: 10.5,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
   },
 
   avatar: {
@@ -2443,9 +2481,10 @@ const styles = {
 
   participantLabel: {
     margin: 0,
-    color: "var(--msg-muted)",
-    fontSize: 10.5,
+    color: BRAND.pink,
+    fontSize: 10,
     fontWeight: 900,
+    letterSpacing: "0.2px",
   },
 
   participantName: {
