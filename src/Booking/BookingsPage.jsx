@@ -562,18 +562,11 @@ export default function BookingsPage() {
   async function cancelBooking(booking, reviewRemarks) {
     const cleanRemarks = String(reviewRemarks || "").trim();
 
-    if (!cleanRemarks) {
-      setError(
-        "Cancellation remarks are required before cancelling a booking."
-      );
-      return false;
-    }
-
     const confirmed = await requestConfirmation({
       title: "Cancel booking?",
       message: `Are you sure you want to cancel booking ${formatBookingId(
         booking.booking_id
-      )}? The cancellation remarks will be saved and the booking itself can no longer be reactivated.`,
+      )}? The booking status will be changed to Cancelled and cannot be restored afterward.`,
       confirmText: "Cancel Booking",
       variant: "danger",
     });
@@ -581,7 +574,7 @@ export default function BookingsPage() {
     if (!confirmed) return false;
 
     await updateBookingStatus(booking, "Cancelled", {
-      admin_review_remarks: cleanRemarks,
+      admin_review_remarks: cleanRemarks || null,
     });
 
     return true;
