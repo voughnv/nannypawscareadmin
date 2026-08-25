@@ -336,7 +336,7 @@ export default function BookingDetailsModal({
 
                 <p style={styles.reviewRemarksHelp}>
                   {isPending
-                    ? "Add notes relevant to the booking review. Review notes are required if the booking is cancelled."
+                    ? "Optional notes may be added by the Admin to document the booking review."
                     : reviewRemarks.trim()
                     ? "Review notes recorded by the Admin for this booking."
                     : "No Admin review notes were recorded for this booking."}
@@ -357,7 +357,7 @@ export default function BookingDetailsModal({
               readOnly={!isPending}
               placeholder={
                 isPending
-                  ? "Enter review notes for this booking..."
+                  ? "Enter optional review notes..."
                   : "No review notes recorded."
               }
               style={{
@@ -432,21 +432,11 @@ export default function BookingDetailsModal({
                   }}
                   disabled={updating}
                   onClick={async () => {
-                    const cleanRemarks =
-                      reviewRemarks.trim();
-
-                    if (!cleanRemarks) {
-                      setRemarksError(
-                        "Review notes are required before cancelling this booking."
-                      );
-                      return;
-                    }
-
                     setRemarksError("");
 
                     await onCancel?.(
                       booking,
-                      cleanRemarks
+                      reviewRemarks.trim()
                     );
                   }}
                 >
