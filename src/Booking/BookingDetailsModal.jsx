@@ -386,7 +386,7 @@ export default function BookingDetailsModal({
           (isCompleted && isPaid)) && (
           <div style={styles.stickyReadOnlyFooter}>
             {isCancelled
-              ? "Booking cancelled. No payment is required."
+              ? "This booking has been cancelled. No payment is required."
               : isCompleted
               ? "Service completed. Payment has been received and recorded."
               : "Booking approved. Service completion will be recorded by the assigned Pet Sitter."}
