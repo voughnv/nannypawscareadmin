@@ -37,6 +37,11 @@ const MESSAGE_IMAGE_BUCKET_CANDIDATES = [
   MESSAGE_IMAGE_BUCKET,
 ];
 
+const PROFILE_PHOTO_BUCKET =
+  import.meta.env.VITE_PROFILE_PHOTO_BUCKET ||
+  import.meta.env.VITE_SITTER_PROFILE_PHOTO_BUCKET ||
+  "profile-photos";
+
 const MESSAGE_INTERACTION_CSS = `
   .messages-page button:not(:disabled) {
     transition:
@@ -310,11 +315,11 @@ export default function MessagesPage() {
 
         supabase
           .from("PET_OWNER")
-          .select("po_id, po_fname, po_lname, po_username"),
+          .select("*"),
 
         supabase
           .from("PET SITTER")
-          .select("petsitter_id, ps_fname, ps_lname, ps_username"),
+          .select("*"),
       ]);
 
       if (messageResult.error) throw messageResult.error;
@@ -1040,12 +1045,16 @@ function ConversationModal({ conversation, onClose }) {
               label="Pet Owner"
               name={conversation.ownerName}
               idLabel={`Owner ID: ${conversation.po_id}`}
+              record={conversation.owner}
+              role="owner"
             />
 
             <Participant
               label="Pet Sitter"
               name={conversation.sitterName}
               idLabel={`Sitter ID: ${conversation.petsitter_id}`}
+              record={conversation.sitter}
+              role="sitter"
             />
           </div>
         </div>
@@ -1454,20 +1463,238 @@ function MessageImage({ message, senderName }) {
   );
 }
 
-function Participant({ label, name, idLabel }) {
+function Participant({
+  label,
+  name,
+  idLabel,
+  record,
+  role,
+}) {
   return (
     <div style={styles.participant}>
-      <div style={styles.avatar}>
-        <UserRound size={21} />
-      </div>
+      <ParticipantProfilePhoto
+        record={record}
+        role={role}
+        name={name}
+      />
 
-      <div>
+      <div style={styles.participantText}>
         <p style={styles.participantLabel}>{label}</p>
         <h4 style={styles.participantName}>{name}</h4>
         <p style={styles.participantId}>{idLabel}</p>
       </div>
     </div>
   );
+}
+
+function ParticipantProfilePhoto({
+  record,
+  role,
+  name,
+}) {
+  const photoValue =
+    getParticipantProfilePhotoValue(
+      record,
+      role
+    );
+
+  const [photoUrl, setPhotoUrl] =
+    useState("");
+  const [photoFailed, setPhotoFailed] =
+    useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfilePhoto() {
+      setPhotoUrl("");
+      setPhotoFailed(false);
+
+      const storedValue =
+        String(photoValue || "").trim();
+
+      if (!storedValue) {
+        return;
+      }
+
+      /*
+        Some mobile implementations store the complete URL.
+        In that case, no Storage conversion is necessary.
+      */
+      if (isDirectImageUrl(storedValue)) {
+        if (active) {
+          setPhotoUrl(storedValue);
+        }
+
+        return;
+      }
+
+      const storagePath =
+        getProfilePhotoStoragePath(
+          storedValue
+        );
+
+      if (!storagePath) {
+        if (active) {
+          setPhotoFailed(true);
+        }
+
+        return;
+      }
+
+      /*
+        Use the same profile-photos bucket used by the mobile profiles.
+        A signed URL supports private Storage buckets when the current
+        client has permission to read the object.
+      */
+      const {
+        data: signedData,
+        error: signedError,
+      } = await supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .createSignedUrl(
+          storagePath,
+          60 * 60
+        );
+
+      if (
+        !signedError &&
+        signedData?.signedUrl
+      ) {
+        if (active) {
+          setPhotoUrl(
+            signedData.signedUrl
+          );
+        }
+
+        return;
+      }
+
+      /*
+        Fall back to a public URL for public profile-photo buckets.
+      */
+      const {
+        data: publicData,
+      } = supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .getPublicUrl(storagePath);
+
+      if (
+        active &&
+        publicData?.publicUrl
+      ) {
+        setPhotoUrl(
+          publicData.publicUrl
+        );
+      } else if (active) {
+        setPhotoFailed(true);
+      }
+    }
+
+    loadProfilePhoto();
+
+    return () => {
+      active = false;
+    };
+  }, [photoValue]);
+
+  const showPhoto =
+    Boolean(photoUrl) &&
+    !photoFailed;
+
+  return (
+    <div
+      style={styles.avatar}
+      title={
+        showPhoto
+          ? `${name} profile photo`
+          : `${name} has no profile photo`
+      }
+    >
+      {showPhoto ? (
+        <img
+          src={photoUrl}
+          alt={`${name} profile`}
+          style={styles.avatarImage}
+          onError={() =>
+            setPhotoFailed(true)
+          }
+        />
+      ) : (
+        <UserRound size={21} />
+      )}
+    </div>
+  );
+}
+
+function getParticipantProfilePhotoValue(
+  record,
+  role
+) {
+  if (!record) {
+    return "";
+  }
+
+  /*
+    Use role-specific columns first, then common aliases.
+    This keeps the Admin page compatible with the mobile profile
+    implementation without confusing Pet Place photos with profiles.
+  */
+  const candidates =
+    role === "sitter"
+      ? [
+          record.ps_photo_url,
+          record.ps_profile_photo_url,
+          record.profile_photo_url,
+          record.photo_url,
+          record.avatar_url,
+        ]
+      : [
+          record.po_photo_url,
+          record.po_profile_photo_url,
+          record.profile_photo_url,
+          record.photo_url,
+          record.avatar_url,
+        ];
+
+  for (const candidate of candidates) {
+    const value =
+      String(candidate ?? "").trim();
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function getProfilePhotoStoragePath(value) {
+  const text =
+    String(value || "")
+      .trim()
+      .replace(/^\/+/, "");
+
+  if (!text) {
+    return "";
+  }
+
+  const bucketPrefix =
+    `${PROFILE_PHOTO_BUCKET}/`;
+
+  if (
+    text
+      .toLowerCase()
+      .startsWith(
+        bucketPrefix.toLowerCase()
+      )
+  ) {
+    return text.slice(
+      bucketPrefix.length
+    );
+  }
+
+  return text;
 }
 
 function getMessageImageValue(message) {
@@ -2402,7 +2629,7 @@ const styles = {
   },
 
   participant: {
-    minHeight: 64,
+    minHeight: 68,
     padding: "10px 12px",
     borderRadius: 11,
     border: "1px solid var(--msg-border)",
@@ -2415,15 +2642,31 @@ const styles = {
   },
 
   avatar: {
-    width: 40,
-    height: 40,
-    minWidth: 40,
+    width: 46,
+    height: 46,
+    minWidth: 46,
     borderRadius: "50%",
     background: BRAND.softPink,
     color: BRAND.pink,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+    border: "1px solid var(--msg-border)",
+    flexShrink: 0,
+  },
+
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    display: "block",
+    objectFit: "cover",
+    objectPosition: "center",
+  },
+
+  participantText: {
+    minWidth: 0,
+    flex: 1,
   },
 
   participantLabel: {
