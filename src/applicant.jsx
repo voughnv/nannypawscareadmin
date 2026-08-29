@@ -961,9 +961,9 @@ export default function ApplicantPage() {
         profile information directly in PET SITTER.
       */
       preferred_pet_type:
-        String(
-          record.preferred_pet_type || ""
-        ).trim() || null,
+        getPetSitterPreferredPetTypeForDatabase(
+          record.preferred_pet_type
+        ),
 
       ps_address:
         String(
@@ -3624,6 +3624,66 @@ function getPreferredDays(record) {
     .filter((dayName) =>
       selectedSet.has(dayName)
     );
+}
+
+function getPetSitterPreferredPetTypeForDatabase(
+  value
+) {
+  const normalized =
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return null;
+  }
+
+  const hasDog =
+    /\bdogs?\b/.test(normalized);
+
+  const hasCat =
+    /\bcats?\b/.test(normalized);
+
+  /*
+    PET SITTER uses the database-safe canonical values:
+    Dog, Cat, or Both.
+
+    APPLICATION may display/store combined wording such as
+    "Dog and Cat", so convert it before inserting into PET SITTER.
+  */
+  if (
+    normalized === "both" ||
+    normalized === "all" ||
+    (hasDog && hasCat)
+  ) {
+    return "Both";
+  }
+
+  if (
+    normalized === "dog" ||
+    normalized === "dogs" ||
+    normalized === "canine" ||
+    hasDog
+  ) {
+    return "Dog";
+  }
+
+  if (
+    normalized === "cat" ||
+    normalized === "cats" ||
+    normalized === "feline" ||
+    hasCat
+  ) {
+    return "Cat";
+  }
+
+  /*
+    Do not send an unrecognized string into PET SITTER because
+    the database CHECK constraint will reject it.
+  */
+  return null;
 }
 
 function formatPreferredPetType(
