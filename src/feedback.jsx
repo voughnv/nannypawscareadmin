@@ -177,6 +177,11 @@ const FEEDBACK_INTERACTION_CSS = `
 
 const ROWS_PER_PAGE = 6;
 
+const PROFILE_PHOTO_BUCKET =
+  import.meta.env.VITE_PROFILE_PHOTO_BUCKET ||
+  import.meta.env.VITE_SITTER_PROFILE_PHOTO_BUCKET ||
+  "profile-photos";
+
 export default function FeedbackPage() {
   const requestConfirmation = useConfirmation();
 
@@ -225,9 +230,7 @@ export default function FeedbackPage() {
 
         supabase
           .from("PET SITTER")
-          .select(
-            "petsitter_id, ps_fname, ps_lname, ps_username, ps_email, ps_contactno, ps_place"
-          ),
+          .select("*"),
       ]);
 
       if (feedbackResult.error) throw feedbackResult.error;
@@ -919,11 +922,13 @@ function FeedbackDetailsModal({
         <div style={styles.modalBody}>
         <div style={styles.modalGrid}>
           <div style={styles.personBox}>
-            <div style={styles.bigAvatar}>
-              <UserRound size={26} />
-            </div>
+            <FeedbackProfilePhoto
+              record={feedback.owner}
+              role="owner"
+              name={feedback.ownerName}
+            />
 
-            <div>
+            <div style={styles.personText}>
               <p style={styles.detailLabel}>Pet Owner</p>
               <h3 style={styles.detailName}>{feedback.ownerName}</h3>
               <p style={styles.detailSub}>
@@ -933,11 +938,13 @@ function FeedbackDetailsModal({
           </div>
 
           <div style={styles.personBox}>
-            <div style={styles.bigAvatar}>
-              <UserRound size={26} />
-            </div>
+            <FeedbackProfilePhoto
+              record={feedback.sitter}
+              role="sitter"
+              name={feedback.sitterName}
+            />
 
-            <div>
+            <div style={styles.personText}>
               <p style={styles.detailLabel}>Pet Sitter</p>
               <h3 style={styles.detailName}>{feedback.sitterName}</h3>
               <p style={styles.detailSub}>
@@ -1019,6 +1026,218 @@ function FeedbackDetailsModal({
       </div>
     </div>
   );
+}
+
+function FeedbackProfilePhoto({
+  record,
+  role,
+  name,
+}) {
+  const photoValue =
+    getFeedbackProfilePhotoValue(
+      record,
+      role
+    );
+
+  const [photoUrl, setPhotoUrl] =
+    useState("");
+  const [photoFailed, setPhotoFailed] =
+    useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfilePhoto() {
+      setPhotoUrl("");
+      setPhotoFailed(false);
+
+      const storedValue =
+        String(photoValue || "").trim();
+
+      if (!storedValue) {
+        return;
+      }
+
+      if (isDirectProfilePhotoUrl(storedValue)) {
+        if (active) {
+          setPhotoUrl(storedValue);
+        }
+
+        return;
+      }
+
+      const storagePath =
+        getProfilePhotoStoragePath(
+          storedValue
+        );
+
+      if (!storagePath) {
+        if (active) {
+          setPhotoFailed(true);
+        }
+
+        return;
+      }
+
+      /*
+        Signed URLs support private profile-photo buckets
+        when the current Admin client has read permission.
+      */
+      const {
+        data: signedData,
+        error: signedError,
+      } = await supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .createSignedUrl(
+          storagePath,
+          60 * 60
+        );
+
+      if (
+        !signedError &&
+        signedData?.signedUrl
+      ) {
+        if (active) {
+          setPhotoUrl(
+            signedData.signedUrl
+          );
+        }
+
+        return;
+      }
+
+      /*
+        Public URL fallback for public buckets.
+      */
+      const {
+        data: publicData,
+      } = supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .getPublicUrl(storagePath);
+
+      if (
+        active &&
+        publicData?.publicUrl
+      ) {
+        setPhotoUrl(
+          publicData.publicUrl
+        );
+      } else if (active) {
+        setPhotoFailed(true);
+      }
+    }
+
+    loadProfilePhoto();
+
+    return () => {
+      active = false;
+    };
+  }, [photoValue]);
+
+  const showPhoto =
+    Boolean(photoUrl) &&
+    !photoFailed;
+
+  return (
+    <div
+      style={styles.bigAvatar}
+      title={
+        showPhoto
+          ? `${name} profile photo`
+          : `${name} has no profile photo`
+      }
+    >
+      {showPhoto ? (
+        <img
+          src={photoUrl}
+          alt={`${name} profile`}
+          style={styles.bigAvatarImage}
+          onError={() =>
+            setPhotoFailed(true)
+          }
+        />
+      ) : (
+        <UserRound size={26} />
+      )}
+    </div>
+  );
+}
+
+function getFeedbackProfilePhotoValue(
+  record,
+  role
+) {
+  if (!record) {
+    return "";
+  }
+
+  const candidates =
+    role === "sitter"
+      ? [
+          record.ps_photo_url,
+          record.ps_profile_photo_url,
+          record.profile_photo_url,
+          record.photo_url,
+          record.avatar_url,
+        ]
+      : [
+          record.po_photo_url,
+          record.po_profile_photo_url,
+          record.profile_photo_url,
+          record.photo_url,
+          record.avatar_url,
+        ];
+
+  for (const candidate of candidates) {
+    const value =
+      String(candidate ?? "").trim();
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function isDirectProfilePhotoUrl(value) {
+  const text =
+    String(value || "").trim();
+
+  return (
+    text.startsWith("http://") ||
+    text.startsWith("https://") ||
+    text.startsWith("data:image/") ||
+    text.startsWith("blob:")
+  );
+}
+
+function getProfilePhotoStoragePath(value) {
+  const text =
+    String(value || "")
+      .trim()
+      .replace(/^\/+/, "");
+
+  if (!text) {
+    return "";
+  }
+
+  const bucketPrefix =
+    `${PROFILE_PHOTO_BUCKET}/`;
+
+  if (
+    text
+      .toLowerCase()
+      .startsWith(
+        bucketPrefix.toLowerCase()
+      )
+  ) {
+    return text.slice(
+      bucketPrefix.length
+    );
+  }
+
+  return text;
 }
 
 function DetailItem({ label, value }) {
@@ -1742,6 +1961,21 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    overflow: "hidden",
+    border: "1px solid #EADDD9",
+  },
+
+  bigAvatarImage: {
+    width: "100%",
+    height: "100%",
+    display: "block",
+    objectFit: "cover",
+    objectPosition: "center",
+  },
+
+  personText: {
+    minWidth: 0,
+    flex: 1,
   },
 
   detailLabel: {
