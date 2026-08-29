@@ -203,6 +203,10 @@ const PLACE_BUCKET_CANDIDATES = [
   "place",
 ].filter(Boolean);
 
+const PROFILE_PHOTO_BUCKET =
+  import.meta.env.VITE_SITTER_PROFILE_PHOTO_BUCKET ||
+  "profile-photos";
+
 // Approved applicants will be converted into pet sitter accounts
 // from the Applicants page. This page only displays and manages
 // the resulting PET SITTER records.
@@ -1455,6 +1459,147 @@ export default function SittersPage() {
   );
 }
 
+function SitterProfileAvatar({
+  sitter,
+}) {
+  const [photoUrl, setPhotoUrl] =
+    useState("");
+  const [photoFailed, setPhotoFailed] =
+    useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfilePhoto() {
+      setPhotoUrl("");
+      setPhotoFailed(false);
+
+      const value = String(
+        sitter?.ps_photo_url || ""
+      ).trim();
+
+      if (!value) {
+        return;
+      }
+
+      /*
+        If the mobile app already stored a complete URL,
+        use it directly.
+      */
+      if (isHttpUrl(value)) {
+        if (active) {
+          setPhotoUrl(value);
+        }
+
+        return;
+      }
+
+      const storagePath =
+        getStoragePath(
+          value,
+          PROFILE_PHOTO_BUCKET
+        );
+
+      if (!storagePath) {
+        if (active) {
+          setPhotoFailed(true);
+        }
+
+        return;
+      }
+
+      /*
+        Prefer a signed URL so this also works when profile-photos
+        is configured as a private Supabase Storage bucket.
+      */
+      const {
+        data: signedData,
+        error: signedError,
+      } = await supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .createSignedUrl(
+          storagePath,
+          60 * 60
+        );
+
+      if (
+        !signedError &&
+        signedData?.signedUrl
+      ) {
+        if (active) {
+          setPhotoUrl(
+            signedData.signedUrl
+          );
+        }
+
+        return;
+      }
+
+      /*
+        Public buckets do not require a signed URL.
+        Fall back to the public Storage URL.
+      */
+      const {
+        data: publicData,
+      } = supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .getPublicUrl(storagePath);
+
+      if (
+        active &&
+        publicData?.publicUrl
+      ) {
+        setPhotoUrl(
+          publicData.publicUrl
+        );
+      } else if (active) {
+        setPhotoFailed(true);
+      }
+    }
+
+    loadProfilePhoto();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    sitter?.petsitter_id,
+    sitter?.ps_photo_url,
+  ]);
+
+  const showPhoto =
+    Boolean(photoUrl) &&
+    !photoFailed;
+
+  return (
+    <div
+      style={styles.modalAvatar}
+      title={
+        showPhoto
+          ? `${getFullName(
+              sitter
+            )} profile photo`
+          : "No profile photo available"
+      }
+    >
+      {showPhoto ? (
+        <img
+          src={photoUrl}
+          alt={`${getFullName(
+            sitter
+          )} profile`}
+          style={styles.modalAvatarImage}
+          onError={() =>
+            setPhotoFailed(true)
+          }
+        />
+      ) : (
+        <UserRound size={32} />
+      )}
+    </div>
+  );
+}
+
 function StatCard({
   icon,
   iconStyle,
@@ -1963,9 +2108,9 @@ function SitterModal({
 
         <div style={styles.modalBody}>
           <div style={styles.modalProfile}>
-            <div style={styles.modalAvatar}>
-              <UserRound size={32} />
-            </div>
+            <SitterProfileAvatar
+              sitter={sitter}
+            />
 
             <div>
               <h3 style={styles.modalName}>
@@ -4561,6 +4706,16 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
+    overflow: "hidden",
+    border: "1px solid #EADDD9",
+  },
+
+  modalAvatarImage: {
+    width: "100%",
+    height: "100%",
+    display: "block",
+    objectFit: "cover",
+    objectPosition: "center",
   },
 
   modalName: {
