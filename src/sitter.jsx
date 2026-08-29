@@ -2199,14 +2199,20 @@ function SitterModal({
                 )}
               />
 
-              <DetailItem
-                icon={<MapPin size={18} />}
-                label="Specific Address"
-                value={
-                  sitter.ps_address ||
-                  "Not set"
+              <div
+                style={
+                  styles.fullWidthItem
                 }
-              />
+              >
+                <DetailItem
+                  icon={<MapPin size={18} />}
+                  label="Specific Address"
+                  value={
+                    sitter.ps_address ||
+                    "Not set"
+                  }
+                />
+              </div>
 
               <SitterPreferenceCard
                 sitter={sitter}
