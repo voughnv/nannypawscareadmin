@@ -775,7 +775,7 @@ export default function ApplicantPage() {
               )} was accepted and is already listed as a Pet Sitter.`
             : `${getFullName(
                 record
-              )} was accepted, moved to Pet Sitters, and sent an email verification link.`
+              )}'s application was accepted successfully. A Pet Sitter account has been created, and a verification email has been sent.`
         );
       } else {
         setSelectedRecord(updated);
