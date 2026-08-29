@@ -24,6 +24,7 @@ import {
   Pencil,
   Save,
   Trash2,
+  MapPin,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
@@ -180,7 +181,7 @@ const SITTER_INTERACTION_CSS = `
 const ROWS_PER_PAGE = 6;
 
 const SITTER_FIELDS =
-  "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place";
+  "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place, preferred_pet_type, ps_address, ps_photo_url";
 
 const PREFERRED_DAY_OPTIONS = [
   { name: "Monday", short: "Mon", letter: "M" },
@@ -305,10 +306,10 @@ export default function SittersPage() {
           .select("*"),
 
         /*
-          Pet preference and availability belong to APPLICATION.
-          The Admin Pet Sitter page reads the latest application for
-          the matched applicant instead of duplicating those values
-          into the PET SITTER table.
+          Preferred schedule remains linked to APPLICATION.
+          Permanent Pet Sitter profile fields such as preferred pet
+          type and address are read from PET SITTER first.
+          APPLICATION/APPLICANT are retained only as legacy fallbacks.
         */
         supabase
           .from("APPLICATION")
@@ -449,9 +450,34 @@ export default function SittersPage() {
             application?.preferred_end_time ??
             null,
 
+          /*
+            Use the canonical PET SITTER value first. The linked
+            application is only a compatibility fallback for older
+            sitter rows created before these fields were transferred.
+          */
           preferred_pet_type:
-            application?.preferred_pet_type ??
-            null,
+            normalizeNullableText(
+              sitter.preferred_pet_type
+            ) ??
+            normalizeNullableText(
+              application?.preferred_pet_type
+            ),
+
+          ps_address:
+            normalizeNullableText(
+              sitter.ps_address
+            ) ??
+            normalizeNullableText(
+              applicant?.a_address
+            ),
+
+          ps_photo_url:
+            normalizeNullableText(
+              sitter.ps_photo_url
+            ) ??
+            getApplicantProfilePhotoUrl(
+              applicant
+            ),
 
           place_images:
             placeImages,
@@ -2094,7 +2120,7 @@ function SitterModal({
 
               <SitterPreferenceCard
                 sitter={sitter}
-                note="These preferences came from the accepted application and are view-only on the Admin Pet Sitter page."
+                note="Preferred pet and schedule information are view-only on the Admin Pet Sitter page."
               />
 
               <PlacePhotoCard
@@ -2171,6 +2197,15 @@ function SitterModal({
                 value={formatContactNumber(
                   sitter.ps_contactno
                 )}
+              />
+
+              <DetailItem
+                icon={<MapPin size={18} />}
+                label="Specific Address"
+                value={
+                  sitter.ps_address ||
+                  "Not set"
+                }
               />
 
               <SitterPreferenceCard
@@ -3367,6 +3402,44 @@ function getSitterFormValues(sitter) {
     ps_contactno: String(sitter?.ps_contactno || ""),
     ps_email: String(sitter?.ps_email || ""),
   };
+}
+
+function normalizeNullableText(value) {
+  const text = String(
+    value ?? ""
+  )
+    .trim()
+    .replace(/\s+/g, " ");
+
+  return text || null;
+}
+
+function getApplicantProfilePhotoUrl(
+  applicant
+) {
+  if (!applicant) {
+    return null;
+  }
+
+  const candidates = [
+    applicant.a_photo_url,
+    applicant.a_profile_photo_url,
+    applicant.profile_photo_url,
+    applicant.applicant_photo_url,
+    applicant.photo_url,
+  ];
+
+  for (const candidate of candidates) {
+    const text = String(
+      candidate ?? ""
+    ).trim();
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return null;
 }
 
 function normalizeEmail(value) {
