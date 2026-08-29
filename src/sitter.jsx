@@ -3492,6 +3492,7 @@ function normalizePreferredPetType(
     .trim()
     .toLowerCase()
     .replace(/&/g, " and ")
+    .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ");
 
   const hasDog =
@@ -3504,8 +3505,14 @@ function normalizePreferredPetType(
       normalized
     );
 
+  /*
+    PET SITTER stores the canonical values:
+    Dog, Cat, or Dog and Cat.
+    Older "Both"/"All" values remain readable for compatibility.
+  */
   if (
     normalized === "both" ||
+    normalized === "all" ||
     (hasDog && hasCat)
   ) {
     return "both";
