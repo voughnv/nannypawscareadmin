@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+
 import { createClient } from "@supabase/supabase-js";
 import {
   Users,
@@ -832,7 +832,10 @@ export default function ApplicantPage() {
           petsitter_id,
           ps_auth_id,
           ps_email,
-          ps_username
+          ps_username,
+          preferred_pet_type,
+          ps_address,
+          ps_photo_url
         `
       )
       .ilike("ps_email", email)
@@ -844,8 +847,63 @@ export default function ApplicantPage() {
     }
 
     if (existingByEmail) {
+      const profilePhotoUrl =
+        getApplicantProfilePhotoUrl(record);
+
+      const profileSyncPayload = {
+        preferred_pet_type:
+          normalizeNullableText(
+            record.preferred_pet_type
+          ),
+
+        ps_address:
+          normalizeNullableText(
+            record.a_address
+          ),
+      };
+
+      /*
+        ps_photo_url is a personal Pet Sitter profile photo.
+        Do not substitute a Pet Place photo for it.
+        It is synchronized only when the Applicant record actually
+        contains a personal/profile-photo URL.
+      */
+      if (profilePhotoUrl) {
+        profileSyncPayload.ps_photo_url =
+          profilePhotoUrl;
+      }
+
+      const {
+        data: synchronizedSitter,
+        error: synchronizeError,
+      } = await supabase
+        .from("PET SITTER")
+        .update(profileSyncPayload)
+        .eq(
+          "petsitter_id",
+          existingByEmail.petsitter_id
+        )
+        .select(
+          `
+            petsitter_id,
+            ps_auth_id,
+            ps_email,
+            ps_username,
+            preferred_pet_type,
+            ps_address,
+            ps_photo_url
+          `
+        )
+        .single();
+
+      if (synchronizeError) {
+        throw synchronizeError;
+      }
+
       return {
-        sitter: existingByEmail,
+        sitter:
+          synchronizedSitter ||
+          existingByEmail,
         alreadyExisting: true,
       };
     }
@@ -957,8 +1015,31 @@ export default function ApplicantPage() {
       ps_email: email,
 
       /*
-        Transfer the applicant's submitted place image into
-        the Pet Sitter profile instead of discarding it.
+        These values become part of the permanent PET SITTER profile
+        when an applicant is accepted.
+      */
+      preferred_pet_type:
+        normalizeNullableText(
+          record.preferred_pet_type
+        ),
+
+      ps_address:
+        normalizeNullableText(
+          record.a_address
+        ),
+
+      /*
+        ps_photo_url is reserved for the Pet Sitter's personal/profile
+        photo. It is copied only when the application contains an
+        actual profile-photo URL.
+      */
+      ps_photo_url:
+        getApplicantProfilePhotoUrl(
+          record
+        ),
+
+      /*
+        Pet Place photos are separate from the personal profile photo.
       */
       ps_place:
         getPetPlaceImages(
@@ -985,7 +1066,10 @@ export default function ApplicantPage() {
           ps_username,
           ps_contactno,
           ps_email,
-          ps_place
+          ps_place,
+          preferred_pet_type,
+          ps_address,
+          ps_photo_url
         `
       )
       .single();
@@ -3529,6 +3613,49 @@ function getPetPlaceImages(record) {
         .filter(Boolean)
     )
   );
+}
+
+function normalizeNullableText(value) {
+  const text = String(
+    value ?? ""
+  )
+    .trim()
+    .replace(/\s+/g, " ");
+
+  return text || null;
+}
+
+function getApplicantProfilePhotoUrl(
+  record
+) {
+  if (!record) {
+    return null;
+  }
+
+  /*
+    Keep profile photos separate from Pet Place photos.
+    These aliases allow compatibility if the mobile Applicant form
+    already stores a personal photo under one of these field names.
+  */
+  const candidates = [
+    record.a_photo_url,
+    record.a_profile_photo_url,
+    record.profile_photo_url,
+    record.applicant_photo_url,
+    record.photo_url,
+  ];
+
+  for (const candidate of candidates) {
+    const text = String(
+      candidate ?? ""
+    ).trim();
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return null;
 }
 
 function normalizePreferredDay(
