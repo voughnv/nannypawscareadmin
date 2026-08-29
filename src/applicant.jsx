@@ -3629,10 +3629,15 @@ function getPreferredDays(record) {
 function getPetSitterPreferredPetTypeForDatabase(
   value
 ) {
+  const raw = Array.isArray(value)
+    ? value.join(" and ")
+    : String(value || "");
+
   const normalized =
-    String(value || "")
+    raw
       .trim()
       .toLowerCase()
+      .replace(/&/g, " and ")
       .replace(/[_-]+/g, " ")
       .replace(/\s+/g, " ");
 
@@ -3647,18 +3652,19 @@ function getPetSitterPreferredPetTypeForDatabase(
     /\bcats?\b/.test(normalized);
 
   /*
-    PET SITTER uses the database-safe canonical values:
-    Dog, Cat, or Both.
+    Keep PET SITTER.preferred_pet_type standardized to exactly:
+    "Dog", "Cat", or "Dog and Cat".
 
-    APPLICATION may display/store combined wording such as
-    "Dog and Cat", so convert it before inserting into PET SITTER.
+    APPLICATION/mobile values such as "Both", "Dog & Cat",
+    "Cat and Dog", or an array containing Dog and Cat are
+    converted before the PET SITTER insert.
   */
   if (
     normalized === "both" ||
     normalized === "all" ||
     (hasDog && hasCat)
   ) {
-    return "Both";
+    return "Dog and Cat";
   }
 
   if (
@@ -3679,10 +3685,6 @@ function getPetSitterPreferredPetTypeForDatabase(
     return "Cat";
   }
 
-  /*
-    Do not send an unrecognized string into PET SITTER because
-    the database CHECK constraint will reject it.
-  */
   return null;
 }
 
@@ -3978,6 +3980,14 @@ function validateApplicantForAcceptance(
     )
   ) {
     return "The applicant must select at least one preferred day and provide a preferred start time and end time before acceptance.";
+  }
+
+  if (
+    !getPetSitterPreferredPetTypeForDatabase(
+      record.preferred_pet_type
+    )
+  ) {
+    return "The applicant must have a valid preferred pet type before acceptance.";
   }
 
   return "";
