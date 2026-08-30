@@ -229,7 +229,7 @@ export default function BookingDetailsModal({
           />
         </div>
 
-        <h3 style={styles.sectionTitle}>Pet and Assigned Users</h3>
+        <h3 style={styles.sectionTitle}>Pet and Assignment Details</h3>
 
         <div style={styles.modalGrid}>
           <DetailItem
@@ -302,14 +302,14 @@ export default function BookingDetailsModal({
           {isCancelled
             ? "No payment is required for this cancelled booking."
             : !isCompleted
-            ? "Payment is pending until the service is completed."
+            ? "Payment will be processed after the service is completed."
             : isPaid
-            ? "Payment has been received and recorded."
+            ? "Payment has been received and recorded successfully."
             : isCash
-            ? "Service completed. Cash payment is awaiting confirmation."
+            ? "The service has been completed. Cash payment is awaiting confirmation."
             : hasPaymentProof
-            ? "Payment proof has been submitted and is awaiting Admin verification."
-            : "Service completed. Proof of payment has not yet been submitted."}
+            ? "Proof of payment has been submitted and is awaiting verification."
+            : "The service has been completed. Proof of payment has not yet been submitted."}
         </div>
 
         <h3 style={styles.sectionTitle}>Additional Information</h3>
@@ -336,10 +336,10 @@ export default function BookingDetailsModal({
 
                 <p style={styles.reviewRemarksHelp}>
                   {isPending
-                    ? "Optional notes may be added by the Admin to document the booking review."
+                    ? "Add optional notes to document the booking review."
                     : reviewRemarks.trim()
-                    ? "Review notes recorded by the Admin for this booking."
-                    : "No Admin review notes were recorded for this booking."}
+                    ? "Review notes for this booking."
+                    : "No review notes were recorded for this booking."}
                 </p>
               </div>
             </div>
@@ -357,7 +357,7 @@ export default function BookingDetailsModal({
               readOnly={!isPending}
               placeholder={
                 isPending
-                  ? "Enter optional review notes..."
+                  ? "Add optional review notes..."
                   : "No review notes recorded."
               }
               style={{
@@ -388,8 +388,8 @@ export default function BookingDetailsModal({
             {isCancelled
               ? "This booking has been cancelled. No payment is required."
               : isCompleted
-              ? "Service completed. Payment has been received and recorded."
-              : "Booking approved. Service completion will be recorded by the assigned Pet Sitter."}
+              ? "The service has been completed, and payment has been recorded."
+              : "Booking approved. The assigned Pet Sitter will update the booking once the service is completed."}
           </div>
         )}
 
@@ -414,7 +414,7 @@ export default function BookingDetailsModal({
               >
                 {updating
                   ? "Updating..."
-                  : "Set Pending"}
+                  : "Move to Pending"}
               </button>
             )}
 
@@ -460,7 +460,7 @@ export default function BookingDetailsModal({
                 >
                   {updating
                     ? "Updating..."
-                    : "Approve"}
+                    : "Approve Booking"}
                 </button>
               </>
             )}
@@ -496,7 +496,7 @@ export default function BookingDetailsModal({
                   ? "Updating..."
                   : canMarkPaid
                   ? "Mark as Paid"
-                  : "Payment Proof Pending"}
+                  : "Awaiting Payment Proof"}
               </button>
             )}
           </div>
@@ -565,7 +565,7 @@ function PaymentProofForBooking({
   if (normalizedStatus !== "Completed") {
     return (
       <PaymentMessage>
-        Proof of payment is submitted after service completion.
+        Proof of payment can be submitted after the service is completed.
       </PaymentMessage>
     );
   }
@@ -587,7 +587,7 @@ function PaymentProofForBooking({
   ) {
     return (
       <PaymentMessage positive>
-        Cash payment has been recorded. No proof image is required.
+        Cash payment has been recorded. No payment proof is required.
       </PaymentMessage>
     );
   }
@@ -595,7 +595,7 @@ function PaymentProofForBooking({
   return (
     <PaymentMessage>
       {isCash
-        ? "Cash payment has not yet been recorded."
+        ? "Cash payment has not yet been confirmed."
         : "Proof of payment has not yet been submitted."}
     </PaymentMessage>
   );
@@ -672,7 +672,7 @@ function PaymentProof({ value, bookingId }) {
       if (!cancelled) {
         setLoadingImage(false);
         setImageError(
-          "Unable to load the payment proof image. Check the Storage bucket name and read policy."
+          "The proof of payment could not be loaded. Please try again."
         );
       }
     }
@@ -699,10 +699,10 @@ function PaymentProof({ value, bookingId }) {
   if (imageError || !imageUrl) {
     return (
       <div style={styles.proofErrorBox}>
-        <strong>Image could not be displayed.</strong>
+        <strong>Proof of payment unavailable.</strong>
         <span>{imageError}</span>
         <span style={styles.proofFileName}>
-          Stored file: {getPaymentProofFileName(value)}
+          File: {getPaymentProofFileName(value)}
         </span>
       </div>
     );
@@ -723,12 +723,12 @@ function PaymentProof({ value, bookingId }) {
           style={styles.proofImage}
           onError={() =>
             setImageError(
-              "The image link was created, but the image could not be opened."
+              "The proof of payment could not be displayed. Please try again."
             )
           }
         />
         <span style={styles.proofActionText}>
-          Click to view full image
+          View Full Image
         </span>
       </button>
 
