@@ -353,8 +353,7 @@ export default function BookingsPage() {
     } catch (fetchError) {
       console.error("Unable to load bookings:", fetchError);
       setError(
-        fetchError?.message ||
-          "Unable to load bookings. Please check your Supabase connection and table policies."
+        "Bookings could not be loaded at this time. Please refresh the page and try again."
       );
     } finally {
       setLoading(false);
@@ -385,7 +384,9 @@ export default function BookingsPage() {
       const parsedSitterId = Number(nextSitterId);
 
       if (Number.isNaN(parsedSitterId)) {
-        setError("The selected pet sitter ID is invalid.");
+        setError(
+          "The selected pet sitter is not available. Please refresh the page and try again."
+        );
         return false;
       }
 
@@ -399,7 +400,7 @@ export default function BookingsPage() {
 
       if (!nextSitter) {
         setError(
-          "The selected pet sitter could not be found. Refresh the booking page and try again."
+          "The selected pet sitter is no longer available. Please refresh the page and choose another sitter."
         );
         return false;
       }
@@ -477,8 +478,7 @@ export default function BookingsPage() {
       );
 
       setError(
-        updateError?.message ||
-          "Unable to update the assigned pet sitter. Please try again."
+        "The pet sitter assignment could not be updated. Please try again."
       );
 
       return false;
@@ -495,7 +495,7 @@ export default function BookingsPage() {
 
     if (!allowedStatuses.includes(newStatus)) {
       setError(
-        `A ${currentStatus.toLowerCase()} booking cannot be changed to ${newStatus.toLowerCase()}.`
+        `This booking can no longer be changed to ${newStatus.toLowerCase()}.`
       );
       return;
     }
@@ -547,8 +547,7 @@ export default function BookingsPage() {
     } catch (updateError) {
       console.error("Unable to update booking:", updateError);
       setError(
-        updateError?.message ||
-          "Unable to update the booking status. Please try again."
+        "The booking status could not be updated. Please try again."
       );
     } finally {
       setUpdatingId(null);
@@ -590,7 +589,7 @@ export default function BookingsPage() {
 
     if (currentStatus !== "Completed") {
       setError(
-        "Payment can only be marked as paid after the service is completed."
+        "Payment can only be marked as paid once the service has been completed."
       );
       return false;
     }
@@ -613,7 +612,7 @@ export default function BookingsPage() {
 
     if (!isCash && !hasProof) {
       setError(
-        "Proof of payment must be uploaded before a non-cash payment can be marked as paid."
+        "Please upload proof of payment before marking this booking as paid."
       );
       return false;
     }
@@ -699,8 +698,7 @@ export default function BookingsPage() {
       );
 
       setError(
-        updateError?.message ||
-          "Unable to mark the payment as paid. Please try again."
+        "The payment status could not be updated. Please try again."
       );
 
       return false;
@@ -1514,7 +1512,9 @@ function PaymentProofPreviewModal({
       ).trim();
 
       if (!value) {
-        setImageError("No proof of payment was uploaded.");
+        setImageError(
+          "No proof of payment is available for this booking."
+        );
         setLoadingImage(false);
         return;
       }
@@ -1550,7 +1550,7 @@ function PaymentProofPreviewModal({
 
       if (!cancelled) {
         setImageError(
-          "Unable to load the payment proof. Check the Storage bucket and read policy."
+          "The proof of payment could not be loaded. Please close this window and try again."
         );
         setLoadingImage(false);
       }
@@ -1611,7 +1611,7 @@ function PaymentProofPreviewModal({
                 ...styles.proofModalError,
               }}
             >
-              {imageError || "Image could not be displayed."}
+              {imageError || "The proof of payment could not be displayed."}
             </div>
           ) : (
             <img
@@ -1622,7 +1622,7 @@ function PaymentProofPreviewModal({
               style={styles.proofModalImage}
               onError={() =>
                 setImageError(
-                  "The payment proof image could not be displayed."
+                  "The proof of payment could not be displayed. Please try again."
                 )
               }
             />
