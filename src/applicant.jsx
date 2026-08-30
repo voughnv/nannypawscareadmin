@@ -483,8 +483,7 @@ export default function ApplicantPage() {
       );
 
       setError(
-        fetchError?.message ||
-          "Unable to load applicant and application records."
+        "Applicant records could not be loaded. Please refresh the page and try again."
       );
     } finally {
       setLoading(false);
@@ -793,8 +792,7 @@ export default function ApplicantPage() {
       );
 
       setError(
-        updateError?.message ||
-          "Unable to update application review."
+        getApplicantActionErrorMessage(updateError)
       );
     } finally {
       setUpdatingId(null);
@@ -869,7 +867,7 @@ export default function ApplicantPage() {
 
     if (usernameMatch) {
       throw new Error(
-        `The generated username "${username}" is already being used by another Pet Sitter.`
+        `A Pet Sitter account with the username "${username}" already exists. Please review the existing account before trying again.`
       );
     }
 
@@ -914,7 +912,7 @@ export default function ApplicantPage() {
 
     if (!authUser?.id) {
       throw new Error(
-        "Supabase Auth did not return a user ID for the accepted applicant."
+        "The Pet Sitter account could not be created. Please try again."
       );
     }
 
@@ -930,7 +928,7 @@ export default function ApplicantPage() {
       authUser.identities.length === 0
     ) {
       throw new Error(
-        `An authentication account already exists for ${email}.`
+        `An account with the email address ${email} already exists. Please review the existing account before trying again.`
       );
     }
 
@@ -1030,7 +1028,7 @@ export default function ApplicantPage() {
 
     if (!petPlaceImages.length) {
       setError(
-        "No pet place images are stored for this applicant."
+        "No pet place photos are available for this applicant."
       );
       return;
     }
@@ -1096,8 +1094,7 @@ export default function ApplicantPage() {
       );
 
       setError(
-        previewError?.message ||
-          "Unable to open the pet place images."
+        "The pet place photos could not be opened. Please try again."
       );
     } finally {
       setOpeningImageId(null);
@@ -1109,7 +1106,7 @@ export default function ApplicantPage() {
   ) {
     if (!record?.resume_file) {
       setError(
-        "No resume file is stored for this applicant."
+        "No resume is available for this applicant."
       );
       return;
     }
@@ -1146,8 +1143,7 @@ export default function ApplicantPage() {
       );
 
       setError(
-        previewError?.message ||
-          `Unable to preview the resume from the "${RESUME_BUCKET}" Storage bucket.`
+        "The resume could not be opened. Please try again."
       );
     } finally {
       setOpeningResumeId(null);
@@ -3945,6 +3941,50 @@ function buildSitterUsername(
   );
 }
 
+function getApplicantActionErrorMessage(error) {
+  const message = String(
+    error?.message || ""
+  )
+    .trim()
+    .toLowerCase();
+
+  if (
+    message.includes("rate limit") ||
+    message.includes("too many requests")
+  ) {
+    return "Too many verification emails have been requested. Please wait a while before trying again.";
+  }
+
+  if (
+    message.includes("already registered") ||
+    message.includes("already exists") ||
+    message.includes("user already") ||
+    message.includes("duplicate")
+  ) {
+    return "An account with the same information already exists. Please review the existing Pet Sitter account before trying again.";
+  }
+
+  if (
+    message.includes("network") ||
+    message.includes("failed to fetch") ||
+    message.includes("fetch failed")
+  ) {
+    return "The request could not be completed. Please check your internet connection and try again.";
+  }
+
+  if (
+    message.includes("permission") ||
+    message.includes("row-level security") ||
+    message.includes("rls") ||
+    message.includes("policy") ||
+    message.includes("constraint")
+  ) {
+    return "The application could not be processed at this time. Please try again or contact the system administrator.";
+  }
+
+  return "The application could not be updated. Please try again.";
+}
+
 function validateApplicantForAcceptance(
   record
 ) {
@@ -4218,7 +4258,7 @@ async function resolvePreviewFile(
 
   if (!text) {
     throw new Error(
-      "No file was provided."
+      "The requested file is not available."
     );
   }
 
@@ -4249,7 +4289,7 @@ async function resolvePreviewFile(
 
     if (!response.ok) {
       throw new Error(
-        "Unable to retrieve the resume file."
+        "The resume could not be loaded."
       );
     }
 
@@ -4309,7 +4349,7 @@ async function resolvePreviewFile(
   throw (
     lastError ||
     new Error(
-      "Unable to retrieve the uploaded file."
+      "The requested file could not be loaded."
     )
   );
 }
