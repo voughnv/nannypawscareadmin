@@ -28,7 +28,9 @@ import {
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
-import { useAdminSettings } from "./context/AdminSettingsContext";
+import {
+  adminScaledFontSize,
+} from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -213,25 +215,15 @@ const PROFILE_PHOTO_BUCKET =
 
 export default function SittersPage() {
   const requestConfirmation = useConfirmation();
-  const { settings, fontScale } = useAdminSettings();
-
   /*
-    Default font keeps the Pet Sitter table compact and organized.
-    Large follows the Admin's saved accessibility preference and is
-    intentionally allowed to expand the page horizontally when needed.
+    Font Size now affects text only.
+    The page width, cards, table, spacing, buttons, and other layout
+    dimensions remain unchanged when Large Font is selected.
   */
-  const isLargeFont =
-    settings?.fontSize === "Large" ||
-    Number(fontScale || 1) > 1;
-
-  const pageScaleStyle = useMemo(
-    () => ({
-      width: "100%",
-      minWidth: 0,
-      zoom: Number(fontScale || 1),
-    }),
-    [fontScale]
-  );
+  const pageScaleStyle = {
+    width: "100%",
+    minWidth: 0,
+  };
 
   const [sitters, setSitters] = useState([]);
   const [search, setSearch] = useState("");
@@ -1119,9 +1111,7 @@ export default function SittersPage() {
             <table
               style={{
                 ...styles.table,
-                minWidth: isLargeFont
-                  ? 1240
-                  : 1080,
+                minWidth: 1080,
               }}
             >
               <colgroup>
@@ -4089,7 +4079,7 @@ const styles = {
   title: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -4097,7 +4087,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "#5D5351",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
@@ -4105,14 +4095,14 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: BRAND.brown,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "#9A8C89",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   statsGrid: {
@@ -4191,21 +4181,21 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     color: "#1F1714",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: 28,
+    fontSize: adminScaledFontSize(28),
     fontWeight: 900,
     color: BRAND.brown,
   },
 
   statDesc: {
     margin: 0,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "#6D5F5B",
   },
 
@@ -4223,7 +4213,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -4250,7 +4240,7 @@ const styles = {
 
   successText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -4303,7 +4293,7 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     color: BRAND.text,
     background: "transparent",
     minWidth: 0,
@@ -4320,7 +4310,7 @@ const styles = {
     justifyContent: "center",
     gap: 9,
     padding: "0 16px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -4349,7 +4339,7 @@ const styles = {
     textAlign: "left",
     padding: "12px 10px",
     color: "#16100E",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     whiteSpace: "nowrap",
   },
@@ -4363,7 +4353,7 @@ const styles = {
   numberCell: {
     padding: "12px 8px",
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
@@ -4372,7 +4362,7 @@ const styles = {
 
   normalCell: {
     padding: "12px 10px",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "#1F1714",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
@@ -4382,7 +4372,7 @@ const styles = {
 
   scheduleCell: {
     padding: "12px 10px",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "#1F1714",
     verticalAlign: "middle",
     overflow: "hidden",
@@ -4397,7 +4387,7 @@ const styles = {
 
   schedulePrimary: {
     color: BRAND.brown,
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 900,
     lineHeight: 1.3,
     whiteSpace: "nowrap",
@@ -4405,7 +4395,7 @@ const styles = {
 
   scheduleSecondary: {
     color: BRAND.pink,
-    fontSize: 10.5,
+    fontSize: adminScaledFontSize(10.5),
     fontWeight: 900,
     lineHeight: 1.3,
     whiteSpace: "normal",
@@ -4418,7 +4408,7 @@ const styles = {
     minHeight: 26,
     padding: "3px 8px",
     borderRadius: 999,
-    fontSize: 10.5,
+    fontSize: adminScaledFontSize(10.5),
     fontWeight: 900,
     whiteSpace: "nowrap",
     border: "1px solid transparent",
@@ -4450,7 +4440,7 @@ const styles = {
 
   mutedCell: {
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 700,
   },
 
@@ -4462,7 +4452,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: 10.5,
+    fontSize: adminScaledFontSize(10.5),
     fontWeight: 900,
     fontFamily: "inherit",
     cursor: "pointer",
@@ -4481,7 +4471,7 @@ const styles = {
 
   primaryText: {
     display: "block",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "#1B1412",
     fontWeight: 800,
     overflow: "hidden",
@@ -4537,7 +4527,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     textAlign: "left",
     cursor: "pointer",
@@ -4559,7 +4549,7 @@ const styles = {
     padding: 32,
     textAlign: "center",
     color: BRAND.muted,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
   },
 
@@ -4579,7 +4569,7 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1F1714",
   },
 
@@ -4596,7 +4586,7 @@ const styles = {
     border: "1px solid #E6D9D7",
     background: "#fff",
     color: "#1F1714",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
     cursor: "pointer",
     display: "inline-flex",
@@ -4668,14 +4658,14 @@ const styles = {
   modalTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 24,
+    fontSize: adminScaledFontSize(24),
     fontWeight: 900,
   },
 
   modalSubtitle: {
     margin: "4px 0 0",
     color: BRAND.pink,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
   },
 
@@ -4727,7 +4717,7 @@ const styles = {
 
   modalName: {
     margin: 0,
-    fontSize: 20,
+    fontSize: adminScaledFontSize(20),
     fontWeight: 900,
     color: BRAND.brown,
   },
@@ -4735,7 +4725,7 @@ const styles = {
   modalUsername: {
     margin: "5px 0 0",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -4788,13 +4778,13 @@ const styles = {
 
   preferenceSectionLabel: {
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 900,
   },
 
   preferenceValue: {
     color: BRAND.brown,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
   },
 
@@ -4824,7 +4814,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 900,
   },
 
@@ -4837,7 +4827,7 @@ const styles = {
   preferenceDaysText: {
     display: "block",
     color: BRAND.brown,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
     lineHeight: 1.4,
   },
@@ -4845,7 +4835,7 @@ const styles = {
   preferenceNote: {
     margin: "10px 0 0",
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     lineHeight: 1.5,
   },
 
@@ -4904,14 +4894,14 @@ const styles = {
     gap: 6,
     marginTop: 8,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
   },
 
   placePhotoNote: {
     margin: "10px 0 0",
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     lineHeight: 1.5,
   },
 
@@ -4953,14 +4943,14 @@ const styles = {
   placeCarouselTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 18,
+    fontSize: adminScaledFontSize(18),
     fontWeight: 900,
   },
 
   placeCarouselCounter: {
     margin: "4px 0 0",
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 700,
   },
 
@@ -5020,7 +5010,7 @@ const styles = {
     margin: 0,
     padding: "12px 18px 4px",
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 700,
     textAlign: "center",
     overflowWrap: "anywhere",
@@ -5081,14 +5071,14 @@ const styles = {
 
   detailLabel: {
     margin: "0 0 7px",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     color: BRAND.muted,
   },
 
   detailValue: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
     color: BRAND.text,
     overflowWrap: "anywhere",
@@ -5120,7 +5110,7 @@ const styles = {
     display: "block",
     marginTop: 7,
     color: "#B3404A",
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 700,
     lineHeight: 1.4,
   },
@@ -5136,7 +5126,7 @@ const styles = {
     outline: "none",
     boxSizing: "border-box",
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     transition:
       "border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease",
   },
@@ -5156,7 +5146,7 @@ const styles = {
     display: "block",
     marginTop: 7,
     color: BRAND.muted,
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     lineHeight: 1.4,
   },
 
@@ -5190,7 +5180,7 @@ const styles = {
     background: "#F8D8DB",
     color: "#C42435",
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
     display: "inline-flex",
@@ -5205,7 +5195,7 @@ const styles = {
     background: "#fff",
     color: BRAND.brown,
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
     display: "inline-flex",
@@ -5220,7 +5210,7 @@ const styles = {
     background: "#fff",
     color: BRAND.brown,
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -5232,7 +5222,7 @@ const styles = {
     background: BRAND.pink,
     color: "#fff",
     padding: "0 16px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
     display: "inline-flex",
@@ -5247,7 +5237,7 @@ const styles = {
     background: BRAND.pink,
     color: "#fff",
     padding: "0 18px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
