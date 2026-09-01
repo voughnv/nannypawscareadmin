@@ -17,6 +17,26 @@ export const FONT_SCALE_VALUES = {
   Large: 1.08,
 };
 
+/*
+  Use this helper for text sizes that should respond to the Admin
+  Font Size setting without scaling cards, spacing, widths, or heights.
+
+  Example:
+    fontSize: adminScaledFontSize(14)
+
+  Default -> 14px
+  Large   -> 15.12px
+*/
+export function adminScaledFontSize(pixelSize) {
+  const size = Number(pixelSize);
+
+  if (!Number.isFinite(size)) {
+    return pixelSize;
+  }
+
+  return `calc(${size}px * var(--admin-font-scale, 1))`;
+}
+
 const AdminSettingsContext = createContext(null);
 
 export function AdminSettingsProvider({ children }) {
@@ -93,6 +113,10 @@ export function AdminSettingsProvider({ children }) {
       // Last settings actually saved to localStorage.
       savedSettings,
 
+      /*
+        fontScale is kept available for pages that need to know the
+        selected scale value. It should NOT be used with CSS zoom.
+      */
       fontScale:
         FONT_SCALE_VALUES[settings.fontSize] ||
         FONT_SCALE_VALUES.Default,
@@ -170,6 +194,11 @@ function applyDocumentSettings(settings) {
   root.dataset.adminTheme = darkMode ? "dark" : "light";
   root.dataset.adminFontSize = settings.fontSize;
 
+  /*
+    Store the selected scale as a CSS variable.
+    Individual font-size values can use this variable without changing
+    element width, height, padding, margins, or the overall page layout.
+  */
   root.style.setProperty(
     "--admin-font-scale",
     String(fontScale)
