@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Save, Type, Moon, RotateCcw } from "lucide-react";
 import {
   DEFAULT_ADMIN_SETTINGS,
+  adminScaledFontSize,
   useAdminSettings,
 } from "./context/AdminSettingsContext";
 
@@ -476,35 +477,35 @@ const styles = {
 
   title: {
     margin: 0,
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
 
   subtitle: {
     margin: "8px 0 0",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
     display: "flex",
     alignItems: "center",
     gap: 14,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "#9A8C89",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   alertSuccess: {
     marginBottom: 18,
     borderRadius: 12,
     padding: "14px 16px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     background: "#DDF4E7",
     color: "#0B8F45",
@@ -543,13 +544,13 @@ const styles = {
 
   sectionHeading: {
     margin: 0,
-    fontSize: 18,
+    fontSize: adminScaledFontSize(18),
     fontWeight: 900,
   },
 
   sectionDesc: {
     margin: "4px 0 0",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     lineHeight: 1.4,
   },
 
@@ -592,13 +593,13 @@ const styles = {
 
   optionTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
   },
 
   optionDesc: {
     margin: "5px 0 0",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     lineHeight: 1.4,
   },
 
@@ -608,7 +609,7 @@ const styles = {
     border: "1px solid",
     borderRadius: 8,
     padding: "0 12px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
     outline: "none",
     flexShrink: 0,
@@ -660,7 +661,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     cursor: "pointer",
     transition:
@@ -678,7 +679,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 9,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
     cursor: "pointer",
     transition:
