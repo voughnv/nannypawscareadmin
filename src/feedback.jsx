@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
+import { adminScaledFontSize } from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -1408,7 +1409,7 @@ const styles = {
   title: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -1416,7 +1417,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "#5D5351",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
@@ -1424,14 +1425,14 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: BRAND.brown,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "#9A8C89",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   statsGrid: {
@@ -1493,21 +1494,21 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     color: "#1F1714",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: 28,
+    fontSize: adminScaledFontSize(28),
     fontWeight: 900,
     color: BRAND.brown,
   },
 
   statDesc: {
     margin: 0,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "#6D5F5B",
   },
 
@@ -1525,7 +1526,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -1552,7 +1553,7 @@ const styles = {
 
   successText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -1620,7 +1621,7 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     color: BRAND.text,
     background: "transparent",
     minWidth: 0,
@@ -1633,7 +1634,7 @@ const styles = {
     borderRadius: 7,
     background: "#fff",
     padding: "0 12px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
     color: BRAND.text,
     outline: "none",
@@ -1650,7 +1651,7 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
     gap: 7,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -1667,7 +1668,7 @@ const styles = {
     justifyContent: "flex-start",
     gap: 12,
     fontFamily: "inherit",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 400,
     color: BRAND.muted,
     whiteSpace: "nowrap",
@@ -1690,7 +1691,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     color: BRAND.brown,
   },
@@ -1711,7 +1712,7 @@ const styles = {
     background: "#fff",
     color: BRAND.brown,
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -1737,7 +1738,7 @@ const styles = {
     textAlign: "left",
     padding: "14px 12px",
     color: "#16100E",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     whiteSpace: "nowrap",
   },
@@ -1752,7 +1753,7 @@ const styles = {
     width: 54,
     padding: "14px 12px",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
@@ -1760,7 +1761,7 @@ const styles = {
 
   normalCell: {
     padding: "14px 12px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1F1714",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
@@ -1768,7 +1769,7 @@ const styles = {
 
   primaryText: {
     display: "block",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1B1412",
     fontWeight: 800,
   },
@@ -1776,13 +1777,13 @@ const styles = {
   secondaryText: {
     display: "block",
     marginTop: 4,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     color: "#645854",
   },
 
   ratingNumber: {
     display: "block",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1B1412",
     fontWeight: 700,
     marginBottom: 3,
@@ -1795,7 +1796,7 @@ const styles = {
 
   commentCell: {
     padding: "14px 12px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1F1714",
     lineHeight: 1.45,
     overflow: "hidden",
@@ -1808,7 +1809,7 @@ const styles = {
     padding: 28,
     textAlign: "center",
     color: BRAND.muted,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
   },
 
@@ -1828,7 +1829,7 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1F1714",
   },
 
@@ -1845,7 +1846,7 @@ const styles = {
     border: "1px solid #E6D9D7",
     background: "#fff",
     color: "#1F1714",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
     cursor: "pointer",
     display: "inline-flex",
@@ -1917,7 +1918,7 @@ const styles = {
   modalTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 24,
+    fontSize: adminScaledFontSize(24),
     fontWeight: 900,
   },
 
@@ -1981,21 +1982,21 @@ const styles = {
   detailLabel: {
     margin: "0 0 7px",
     color: "#6D5F5B",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
   },
 
   detailName: {
     margin: 0,
     color: BRAND.text,
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
     fontWeight: 900,
   },
 
   detailSub: {
     margin: "5px 0 0",
     color: "#6D5F5B",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
   },
 
   ratingBox: {
@@ -2013,7 +2014,7 @@ const styles = {
   },
 
   modalRating: {
-    fontSize: 24,
+    fontSize: adminScaledFontSize(24),
     color: BRAND.brown,
     fontWeight: 900,
   },
@@ -2029,7 +2030,7 @@ const styles = {
   fullComment: {
     margin: 0,
     color: BRAND.text,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     lineHeight: 1.55,
     overflowWrap: "anywhere",
   },
@@ -2050,7 +2051,7 @@ const styles = {
   detailValue: {
     margin: 0,
     color: BRAND.text,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
   },
 
@@ -2085,7 +2086,7 @@ const styles = {
     background: "#F8D8DB",
     color: "#C42435",
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
     display: "inline-flex",
@@ -2101,7 +2102,7 @@ const styles = {
     background: BRAND.pink,
     color: "#fff",
     padding: "0 18px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
