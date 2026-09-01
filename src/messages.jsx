@@ -16,7 +16,10 @@ import {
   ZoomIn,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
-import { useAdminSettings } from "./context/AdminSettingsContext";
+import {
+  adminScaledFontSize,
+  useAdminSettings,
+} from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -225,7 +228,7 @@ const MESSAGE_INTERACTION_CSS = `
 `;
 
 export default function MessagesPage() {
-  const { settings, fontScale } = useAdminSettings();
+  const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
   const pageThemeStyle = useMemo(
@@ -247,12 +250,11 @@ export default function MessagesPage() {
         : "0 8px 18px rgba(51,26,18,0.07)",
       width: "100%",
       minHeight: "100%",
-      zoom: Number(fontScale || 1),
       background: "var(--msg-page)",
       color: "var(--msg-text)",
       transition: "background 0.2s ease, color 0.2s ease",
     }),
-    [darkMode, fontScale]
+    [darkMode]
   );
 
   const [messages, setMessages] = useState([]);
@@ -2083,7 +2085,7 @@ const styles = {
   title: {
     margin: 0,
     color: "var(--msg-strong)",
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -2091,7 +2093,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "var(--msg-muted)",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
@@ -2099,14 +2101,14 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: "var(--msg-strong)",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "var(--msg-muted)",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   statsGrid: {
@@ -2167,21 +2169,21 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     color: "var(--msg-text)",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: 28,
+    fontSize: adminScaledFontSize(28),
     fontWeight: 900,
     color: "var(--msg-strong)",
   },
 
   statDesc: {
     margin: 0,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "var(--msg-muted)",
     lineHeight: 1.35,
   },
@@ -2200,7 +2202,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -2223,7 +2225,7 @@ const styles = {
     border: "1px solid #F0D6A9",
     background: "#FFF8E9",
     color: "#8A5712",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     lineHeight: 1.5,
   },
 
@@ -2280,7 +2282,7 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     color: "var(--msg-text)",
     background: "transparent",
     minWidth: 0,
@@ -2298,7 +2300,7 @@ const styles = {
     gap: 12,
     padding: "0 16px",
     fontFamily: "inherit",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 400,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -2316,7 +2318,7 @@ const styles = {
     gap: 8,
     padding: "0 14px",
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -2338,7 +2340,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     color: "var(--msg-strong)",
   },
@@ -2360,7 +2362,7 @@ const styles = {
     color: "var(--msg-strong)",
     padding: "0 14px",
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -2387,7 +2389,7 @@ const styles = {
     textAlign: "left",
     padding: "13px 11px",
     color: "var(--msg-text)",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     fontWeight: 900,
     lineHeight: 1.3,
   },
@@ -2399,7 +2401,7 @@ const styles = {
   numberCell: {
     padding: "14px 11px",
     color: "var(--msg-muted)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     textAlign: "center",
     verticalAlign: "middle",
@@ -2408,7 +2410,7 @@ const styles = {
   normalCell: {
     padding: "14px 11px",
     color: "var(--msg-text)",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     verticalAlign: "middle",
     overflowWrap: "anywhere",
   },
@@ -2416,7 +2418,7 @@ const styles = {
   messageCell: {
     padding: "14px 11px",
     color: "var(--msg-text)",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     verticalAlign: "middle",
     minWidth: 0,
   },
@@ -2424,7 +2426,7 @@ const styles = {
   primaryText: {
     display: "block",
     color: "var(--msg-text)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     lineHeight: 1.4,
   },
@@ -2433,7 +2435,7 @@ const styles = {
     display: "block",
     marginTop: 5,
     color: "var(--msg-muted)",
-    fontSize: 10.5,
+    fontSize: adminScaledFontSize(10.5),
     fontWeight: 700,
   },
 
@@ -2443,7 +2445,7 @@ const styles = {
     WebkitBoxOrient: "vertical",
     overflow: "hidden",
     color: "var(--msg-text)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     lineHeight: 1.45,
     overflowWrap: "anywhere",
@@ -2459,7 +2461,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
   },
 
@@ -2467,7 +2469,7 @@ const styles = {
     padding: 30,
     textAlign: "center",
     color: "var(--msg-muted)",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
   },
 
@@ -2487,7 +2489,7 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "var(--msg-text)",
   },
 
@@ -2504,7 +2506,7 @@ const styles = {
     border: "1px solid var(--msg-border-strong)",
     background: "var(--msg-card)",
     color: "var(--msg-text)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
     cursor: "pointer",
     display: "inline-flex",
@@ -2567,7 +2569,7 @@ const styles = {
   modalEyebrow: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 900,
     letterSpacing: "0.8px",
   },
@@ -2575,7 +2577,7 @@ const styles = {
   modalTitle: {
     margin: "4px 0 0",
     color: "var(--msg-strong)",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
     fontWeight: 900,
     lineHeight: 1.3,
   },
@@ -2588,7 +2590,7 @@ const styles = {
   modalReference: {
     margin: "5px 0 0",
     color: "var(--msg-muted)",
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 700,
   },
 
@@ -2615,7 +2617,7 @@ const styles = {
   participantStripTitle: {
     margin: "0 0 9px",
     color: "var(--msg-muted)",
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 900,
     letterSpacing: "0.45px",
     textTransform: "uppercase",
@@ -2672,7 +2674,7 @@ const styles = {
   participantLabel: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 900,
     letterSpacing: "0.2px",
   },
@@ -2680,7 +2682,7 @@ const styles = {
   participantName: {
     margin: "2px 0 0",
     color: "var(--msg-text)",
-    fontSize: 13.5,
+    fontSize: adminScaledFontSize(13.5),
     fontWeight: 900,
     overflowWrap: "anywhere",
   },
@@ -2688,7 +2690,7 @@ const styles = {
   participantId: {
     margin: "2px 0 0",
     color: "var(--msg-muted)",
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 700,
   },
 
@@ -2736,7 +2738,7 @@ const styles = {
 
   chatSender: {
     color: "var(--msg-strong)",
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 900,
   },
 
@@ -2745,14 +2747,14 @@ const styles = {
     borderRadius: 999,
     background: "rgba(217, 67, 104, 0.10)",
     color: BRAND.pink,
-    fontSize: 9.5,
+    fontSize: adminScaledFontSize(9.5),
     fontWeight: 900,
   },
 
   chatMessage: {
     margin: 0,
     color: "var(--msg-text)",
-    fontSize: 13.5,
+    fontSize: adminScaledFontSize(13.5),
     lineHeight: 1.55,
     whiteSpace: "pre-wrap",
     overflowWrap: "anywhere",
@@ -2761,7 +2763,7 @@ const styles = {
   chatEmptyMessage: {
     margin: 0,
     color: "var(--msg-muted)",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     fontStyle: "italic",
     lineHeight: 1.5,
   },
@@ -2796,7 +2798,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: "var(--msg-muted)",
-    fontSize: 10.5,
+    fontSize: adminScaledFontSize(10.5),
     fontWeight: 800,
     boxSizing: "border-box",
   },
@@ -2813,7 +2815,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 800,
     boxSizing: "border-box",
   },
@@ -2828,7 +2830,7 @@ const styles = {
   messageImageErrorText: {
     display: "block",
     marginTop: 3,
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 700,
     lineHeight: 1.4,
   },
@@ -2877,7 +2879,7 @@ const styles = {
   messageImagePreviewEyebrow: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: 10.5,
+    fontSize: adminScaledFontSize(10.5),
     fontWeight: 900,
     letterSpacing: "0.7px",
   },
@@ -2885,7 +2887,7 @@ const styles = {
   messageImagePreviewTitle: {
     margin: "4px 0 0",
     color: BRAND.brown,
-    fontSize: 21,
+    fontSize: adminScaledFontSize(21),
     fontWeight: 900,
     lineHeight: 1.25,
     overflowWrap: "anywhere",
@@ -2894,7 +2896,7 @@ const styles = {
   messageImagePreviewMeta: {
     margin: "5px 0 0",
     color: BRAND.muted,
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 750,
   },
 
@@ -2952,7 +2954,7 @@ const styles = {
     gap: 5,
     flexWrap: "wrap",
     color: "var(--msg-muted)",
-    fontSize: 9.5,
+    fontSize: adminScaledFontSize(9.5),
     fontWeight: 700,
   },
 
@@ -2973,7 +2975,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: "var(--msg-muted)",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
   },
 
@@ -2985,7 +2987,7 @@ const styles = {
     color: "#FFFFFF",
     padding: "0 18px",
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
