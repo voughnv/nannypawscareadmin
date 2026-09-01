@@ -16,7 +16,7 @@ export default function AdminLayout() {
 }
 
 function AdminLayoutContent() {
-  const { settings, fontScale } = useAdminSettings();
+  const { settings } = useAdminSettings();
   const darkMode = settings.darkMode;
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -80,13 +80,12 @@ function AdminLayoutContent() {
             paddingLeft: sidebarOpen ? 32 : 76,
           }}
         >
-          <div
-            style={{
-              ...styles.scaledContent,
-              width: `${100 / fontScale}%`,
-              zoom: fontScale,
-            }}
-          >
+          {/*
+            Font Size no longer uses CSS zoom here.
+            Pages use --admin-font-scale only on their text sizes,
+            so cards, spacing, widths, and the overall layout stay unchanged.
+          */}
+          <div style={styles.scaledContent}>
             <Outlet />
           </div>
         </main>
@@ -295,7 +294,7 @@ const styles = {
   },
 
   scaledContent: {
+    width: "100%",
     minHeight: "100%",
-    transformOrigin: "top left",
   },
 };
