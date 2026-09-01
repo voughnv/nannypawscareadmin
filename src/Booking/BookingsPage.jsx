@@ -16,6 +16,7 @@ import {
 import { supabase } from "../lib/supabase";
 import BookingDetailsModal from "./BookingDetailsModal";
 import { useConfirmation } from "../context/ConfirmationProvider";
+import { adminScaledFontSize } from "../context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -2130,7 +2131,7 @@ const styles = {
   title: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -2138,7 +2139,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "#5D5351",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
@@ -2146,14 +2147,14 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: BRAND.brown,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "#9A8C89",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   statsGrid: {
@@ -2231,21 +2232,21 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     color: "#1F1714",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: 28,
+    fontSize: adminScaledFontSize(28),
     fontWeight: 900,
     color: BRAND.brown,
   },
 
   statDesc: {
     margin: 0,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "#6D5F5B",
   },
 
@@ -2282,7 +2283,7 @@ const styles = {
   reportEyebrow: {
     margin: "0 0 4px",
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.5px",
@@ -2291,7 +2292,7 @@ const styles = {
   reportModalTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 23,
+    fontSize: adminScaledFontSize(23),
     fontWeight: 900,
   },
 
@@ -2316,7 +2317,7 @@ const styles = {
   reportDescription: {
     margin: "0 0 18px",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     lineHeight: 1.5,
   },
 
@@ -2351,13 +2352,13 @@ const styles = {
 
   reportCountLabel: {
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
   },
 
   reportCountValue: {
     color: BRAND.brown,
-    fontSize: 30,
+    fontSize: adminScaledFontSize(30),
     lineHeight: 1,
     fontWeight: 900,
   },
@@ -2365,7 +2366,7 @@ const styles = {
   reportOtherText: {
     margin: "14px 0 0",
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     lineHeight: 1.45,
   },
 
@@ -2384,7 +2385,7 @@ const styles = {
     background: "#FFFFFF",
     color: BRAND.brown,
     padding: "0 16px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -2396,7 +2397,7 @@ const styles = {
     background: BRAND.pink,
     color: "#FFFFFF",
     padding: "0 16px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -2438,7 +2439,7 @@ const styles = {
   proofModalEyebrow: {
     margin: "0 0 4px",
     color: BRAND.pink,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.5px",
@@ -2447,7 +2448,7 @@ const styles = {
   proofModalTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 21,
+    fontSize: adminScaledFontSize(21),
     fontWeight: 900,
   },
 
@@ -2494,7 +2495,7 @@ const styles = {
     justifyContent: "center",
     padding: 20,
     textAlign: "center",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     boxSizing: "border-box",
   },
@@ -2519,7 +2520,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -2578,7 +2579,7 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     color: BRAND.text,
     background: "transparent",
     minWidth: 0,
@@ -2591,7 +2592,7 @@ const styles = {
     borderRadius: 7,
     background: "#fff",
     padding: "0 14px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
     color: BRAND.text,
     outline: "none",
@@ -2616,7 +2617,7 @@ const styles = {
     justifyContent: "center",
     gap: 9,
     padding: "0 14px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -2633,7 +2634,7 @@ const styles = {
     alignItems: "center",
     gap: 12,
     padding: "0 16px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
@@ -2654,7 +2655,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     color: BRAND.brown,
   },
@@ -2675,7 +2676,7 @@ const styles = {
     background: "#fff",
     color: BRAND.brown,
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -2701,7 +2702,7 @@ const styles = {
   th: {
     padding: "15px 12px",
     color: "#2A1D19",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     fontWeight: 900,
     whiteSpace: "nowrap",
     verticalAlign: "middle",
@@ -2714,7 +2715,7 @@ const styles = {
   numberCell: {
     padding: "16px 10px",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
@@ -2723,7 +2724,7 @@ const styles = {
 
   normalCell: {
     padding: "16px 12px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1F1714",
     whiteSpace: "nowrap",
     verticalAlign: "middle",
@@ -2735,7 +2736,7 @@ const styles = {
 
   primaryText: {
     display: "block",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1B1412",
     fontWeight: 800,
     lineHeight: 1.35,
@@ -2746,13 +2747,13 @@ const styles = {
     display: "block",
     marginTop: 4,
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 700,
   },
 
   mutedTableText: {
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 700,
   },
 
@@ -2763,7 +2764,7 @@ const styles = {
     background: "#FFF7F8",
     color: BRAND.pink,
     padding: "0 10px",
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 900,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -2777,7 +2778,7 @@ const styles = {
     height: 26,
     padding: "0 9px",
     borderRadius: 7,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
     boxSizing: "border-box",
   },
@@ -2811,7 +2812,7 @@ const styles = {
     padding: "0 9px",
     borderRadius: 7,
     border: "1px solid transparent",
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 850,
     lineHeight: 1,
     boxSizing: "border-box",
@@ -2832,7 +2833,7 @@ const styles = {
 
   awaitingProofText: {
     color: "#A95E17",
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 800,
   },
 
@@ -2845,7 +2846,7 @@ const styles = {
     padding: 32,
     textAlign: "center",
     color: BRAND.muted,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
   },
 
@@ -2865,7 +2866,7 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "#1F1714",
   },
 
@@ -2882,7 +2883,7 @@ const styles = {
     border: "1px solid #E6D9D7",
     background: "#fff",
     color: "#1F1714",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
     cursor: "pointer",
     display: "inline-flex",
