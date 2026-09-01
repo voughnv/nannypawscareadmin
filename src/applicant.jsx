@@ -22,7 +22,10 @@ import {
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
 import { useConfirmation } from "./context/ConfirmationProvider";
-import { useAdminSettings } from "./context/AdminSettingsContext";
+import {
+  adminScaledFontSize,
+  useAdminSettings,
+} from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -242,17 +245,16 @@ const sitterAuthClient = createClient(
 
 export default function ApplicantPage() {
   const requestConfirmation = useConfirmation();
-  const { settings, fontScale } = useAdminSettings();
+  const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
   /*
     Keep this page synchronized with the Admin Settings page.
-    The entire Applicant workspace scales using the saved fontScale,
-    while all neutral colors below use these page-level theme variables.
+    Dark Mode is applied through the page-level theme variables below.
+    Font Size is applied only to text so the Applicant layout stays unchanged.
   */
   const pageThemeStyle = useMemo(
     () => ({
-      "--admin-font-scale": String(fontScale || 1),
       "--app-page": darkMode ? "#171311" : "#FFF9F8",
       "--app-card": darkMode ? "#241D1A" : "#FFFFFF",
       "--app-card-soft": darkMode ? "#2B2320" : "#FFFCFB",
@@ -275,22 +277,16 @@ export default function ApplicantPage() {
       minHeight: "100%",
 
       /*
-        Reliable Admin font-size scaling.
-        The previous CSS calc(Npx * variable) syntax is not consistently
-        supported by browsers. Scaling the Applicant workspace here makes
-        every text element visibly respond to Settings > Font Size.
-
-        Default = 1, so the current clean layout is unchanged.
-        Large = 1.08, so the page can naturally become wider and use the
-        horizontal scrollbar instead of squeezing or clipping text.
+        Font Size affects text only.
+        Cards, table widths, spacing, buttons, media previews, and the overall
+        Applicant page layout remain unchanged when Large Font is selected.
       */
-      zoom: Number(fontScale || 1),
 
       color: "var(--app-text)",
       background: "var(--app-page)",
       transition: "background 0.2s ease, color 0.2s ease",
     }),
-    [darkMode, fontScale]
+    [darkMode]
   );
 
   const [records, setRecords] = useState([]);
@@ -4589,7 +4585,7 @@ const styles = {
   title: {
     margin: 0,
     color: "var(--app-strong)",
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -4597,7 +4593,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "var(--app-muted)",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
@@ -4605,14 +4601,14 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: "var(--app-strong)",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "var(--app-muted)",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   statsGrid: {
@@ -4684,21 +4680,21 @@ const styles = {
 
   statTitle: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
     color: "var(--app-text)",
   },
 
   statValue: {
     margin: "4px 0 2px",
-    fontSize: 28,
+    fontSize: adminScaledFontSize(28),
     fontWeight: 900,
     color: "var(--app-strong)",
   },
 
   statDesc: {
     margin: 0,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "var(--app-muted)",
   },
 
@@ -4717,7 +4713,7 @@ const styles = {
 
   errorText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -4744,7 +4740,7 @@ const styles = {
 
   successText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
   },
 
@@ -4811,7 +4807,7 @@ const styles = {
     border: "none",
     outline: "none",
     marginLeft: 12,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     color: "var(--app-text)",
     background:
       "transparent",
@@ -4839,7 +4835,7 @@ const styles = {
     justifyContent: "center",
     gap: 9,
     padding: "0 14px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -4859,7 +4855,7 @@ const styles = {
     alignItems: "center",
     gap: 12,
     padding: "0 16px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     cursor: "pointer",
     whiteSpace: "nowrap",
     transition:
@@ -4878,7 +4874,7 @@ const styles = {
     gap: 9,
     padding: "0 12px",
     fontFamily: "inherit",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
     cursor: "pointer",
     whiteSpace: "nowrap",
@@ -4943,7 +4939,7 @@ const styles = {
   },
 
   datePanelTitle: {
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     color: BRAND.pink,
     textTransform:
@@ -4955,7 +4951,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     color: "var(--app-strong)",
   },
@@ -4981,7 +4977,7 @@ const styles = {
     background: "var(--app-card)",
     color: "var(--app-strong)",
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     cursor: "pointer",
   },
@@ -5011,7 +5007,7 @@ const styles = {
     textAlign: "left",
     padding: "13px 10px",
     color: "var(--app-text)",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     fontWeight: 900,
     whiteSpace: "normal",
     lineHeight: 1.25,
@@ -5027,7 +5023,7 @@ const styles = {
   numberCell: {
     padding: "13px 10px",
     color: "var(--app-muted)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     whiteSpace: "nowrap",
     textAlign: "center",
@@ -5035,7 +5031,7 @@ const styles = {
 
   normalCell: {
     padding: "13px 10px",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     color: "var(--app-text)",
     whiteSpace: "normal",
     lineHeight: 1.4,
@@ -5045,7 +5041,7 @@ const styles = {
 
   addressCell: {
     padding: "13px 10px",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     color: "var(--app-text)",
     minWidth: 0,
     whiteSpace: "normal",
@@ -5056,7 +5052,7 @@ const styles = {
 
   scheduleCell: {
     padding: "13px 10px",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: "var(--app-text)",
     minWidth: 0,
     whiteSpace: "normal",
@@ -5069,7 +5065,7 @@ const styles = {
   preferredPetText: {
     display: "inline-block",
     color: "var(--app-strong)",
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     fontWeight: 800,
     lineHeight: 1.4,
   },
@@ -5078,14 +5074,14 @@ const styles = {
     display: "block",
     marginTop: 5,
     color: BRAND.pink,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 800,
     lineHeight: 1.35,
   },
 
   primaryText: {
     display: "block",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "var(--app-text)",
     fontWeight: 800,
   },
@@ -5102,7 +5098,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 800,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -5137,7 +5133,7 @@ const styles = {
 
   mutedCell: {
     color: "var(--app-muted)",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
   },
 
   badge: {
@@ -5147,7 +5143,7 @@ const styles = {
     minWidth: 76,
     height: 26,
     borderRadius: 7,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
   },
 
@@ -5175,7 +5171,7 @@ const styles = {
     padding: 28,
     textAlign: "center",
     color: "var(--app-muted)",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 700,
   },
 
@@ -5198,7 +5194,7 @@ const styles = {
 
   pageText: {
     margin: 0,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: "var(--app-text)",
   },
 
@@ -5216,7 +5212,7 @@ const styles = {
       "1px solid var(--app-border-strong)",
     background: "var(--app-card)",
     color: "var(--app-text)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 700,
     cursor: "pointer",
     display:
@@ -5291,14 +5287,14 @@ const styles = {
   modalTitle: {
     margin: 0,
     color: "var(--app-strong)",
-    fontSize: 24,
+    fontSize: adminScaledFontSize(24),
     fontWeight: 900,
   },
 
   modalSubtitle: {
     margin: "4px 0 0",
     color: BRAND.pink,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
   },
 
@@ -5343,7 +5339,7 @@ const styles = {
   detailsName: {
     margin: 0,
     color: "var(--app-strong)",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
     fontWeight: 900,
   },
 
@@ -5351,7 +5347,7 @@ const styles = {
     margin:
       "5px 0 10px",
     color: "var(--app-muted)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     display: "flex",
     alignItems: "center",
     gap: 5,
@@ -5409,14 +5405,14 @@ const styles = {
   detailLabel: {
     margin: "0 0 7px",
     color: "var(--app-muted)",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
   },
 
   detailValue: {
     margin: 0,
     color: "var(--app-text)",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
     overflowWrap:
       "anywhere",
@@ -5425,7 +5421,7 @@ const styles = {
   validationHint: {
     margin: "8px 0 0",
     color: "#B45309",
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     lineHeight: 1.45,
     fontWeight: 700,
   },
@@ -5451,7 +5447,7 @@ const styles = {
     background: "var(--app-readonly)",
     color: "var(--app-muted)",
     border: "1px solid var(--app-border)",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     boxSizing: "border-box",
   },
@@ -5467,7 +5463,7 @@ const styles = {
   selectedDaysText: {
     margin: "9px 0 0",
     color: "var(--app-muted)",
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 700,
   },
 
@@ -5525,7 +5521,7 @@ const styles = {
   mediaActionText: {
     marginTop: 8,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
     display:
       "inline-flex",
@@ -5562,7 +5558,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     cursor: "pointer",
     fontFamily: "inherit",
@@ -5588,7 +5584,7 @@ const styles = {
     borderRadius: 9,
     padding: 12,
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     boxSizing: "border-box",
     outline: "none",
     transition:
@@ -5627,7 +5623,7 @@ const styles = {
       "1px solid var(--app-border-strong)",
     background: "var(--app-readonly)",
     color: "var(--app-muted)",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     textAlign: "center",
   },
@@ -5639,7 +5635,7 @@ const styles = {
     background: "#FCE2E8",
     color: "#E11D48",
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -5651,7 +5647,7 @@ const styles = {
     background: BRAND.pink,
     color: "#fff",
     padding: "0 16px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
@@ -5699,7 +5695,7 @@ const styles = {
   previewEyebrow: {
     margin: 0,
     color: BRAND.pink,
-    fontSize: 10,
+    fontSize: adminScaledFontSize(10),
     fontWeight: 900,
     letterSpacing: "0.8px",
   },
@@ -5707,7 +5703,7 @@ const styles = {
   previewTitle: {
     margin: "3px 0 0",
     color: "var(--app-strong)",
-    fontSize: 17,
+    fontSize: adminScaledFontSize(17),
     fontWeight: 900,
   },
 
@@ -5741,7 +5737,7 @@ const styles = {
   carouselCounter: {
     margin: "5px 0 0",
     color: "var(--app-muted)",
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 800,
   },
 
