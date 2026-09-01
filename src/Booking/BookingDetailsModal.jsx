@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { adminScaledFontSize } from "../context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -1139,14 +1140,14 @@ const styles = {
   modalTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 24,
+    fontSize: adminScaledFontSize(24),
     fontWeight: 900,
   },
 
   modalReference: {
     margin: "5px 0 0",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
   },
 
@@ -1166,7 +1167,7 @@ const styles = {
   sectionTitle: {
     margin: "19px 0 10px",
     color: BRAND.brown,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
   },
 
@@ -1191,14 +1192,14 @@ const styles = {
 
   detailLabel: {
     margin: "0 0 7px",
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     color: BRAND.muted,
   },
 
   detailValue: {
     margin: 0,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 900,
     color: BRAND.text,
     overflowWrap: "anywhere",
@@ -1207,7 +1208,7 @@ const styles = {
   detailSecondary: {
     margin: "6px 0 0",
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 700,
   },
 
@@ -1218,7 +1219,7 @@ const styles = {
     background: "transparent",
     padding: 0,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
     textDecoration: "none",
     textAlign: "left",
@@ -1240,7 +1241,7 @@ const styles = {
     display: "inline-block",
     marginTop: 9,
     color: BRAND.pink,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 900,
   },
 
@@ -1253,7 +1254,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
   },
 
@@ -1266,7 +1267,7 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 6,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     lineHeight: 1.45,
   },
 
@@ -1293,14 +1294,14 @@ const styles = {
   reviewRemarksLabel: {
     margin: 0,
     color: BRAND.text,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
   },
 
   reviewRemarksHelp: {
     margin: "4px 0 0",
     color: BRAND.muted,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     lineHeight: 1.4,
     fontWeight: 700,
   },
@@ -1315,7 +1316,7 @@ const styles = {
     color: BRAND.text,
     padding: 11,
     fontFamily: "inherit",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     lineHeight: 1.45,
     outline: "none",
     boxSizing: "border-box",
@@ -1335,7 +1336,7 @@ const styles = {
   reviewRemarksError: {
     margin: "7px 0 0",
     color: "#B42335",
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 800,
   },
 
@@ -1376,7 +1377,7 @@ const styles = {
   proofPreviewLabel: {
     margin: "0 0 4px",
     color: BRAND.pink,
-    fontSize: 11,
+    fontSize: adminScaledFontSize(11),
     fontWeight: 900,
     textTransform: "uppercase",
     letterSpacing: "0.5px",
@@ -1385,7 +1386,7 @@ const styles = {
   proofPreviewTitle: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 21,
+    fontSize: adminScaledFontSize(21),
     fontWeight: 900,
   },
 
@@ -1428,7 +1429,7 @@ const styles = {
     height: 26,
     padding: "0 9px",
     borderRadius: 7,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 800,
     boxSizing: "border-box",
   },
@@ -1462,7 +1463,7 @@ const styles = {
     padding: "0 10px",
     borderRadius: 7,
     border: "1px solid transparent",
-    fontSize: 11.5,
+    fontSize: adminScaledFontSize(11.5),
     fontWeight: 850,
     boxSizing: "border-box",
     whiteSpace: "nowrap",
@@ -1492,7 +1493,7 @@ const styles = {
     border: "1px solid #EEE5E2",
     background: "#FCFAF9",
     color: BRAND.muted,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     fontWeight: 650,
     lineHeight: 1.5,
   },
@@ -1504,7 +1505,7 @@ const styles = {
     border: "1px solid #E8DDDA",
     background: "#FAF7F6",
     color: BRAND.muted,
-    fontSize: 12.5,
+    fontSize: adminScaledFontSize(12.5),
     fontWeight: 700,
     lineHeight: 1.45,
     boxSizing: "border-box",
@@ -1538,7 +1539,7 @@ const styles = {
     borderTop: "1px solid #E6D9D7",
     background: "#F8F5F4",
     color: BRAND.muted,
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     textAlign: "center",
   },
@@ -1547,7 +1548,7 @@ const styles = {
     height: 40,
     borderRadius: 9,
     padding: "0 14px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 900,
     cursor: "pointer",
   },
