@@ -9,6 +9,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import { adminScaledFontSize } from "./context/AdminSettingsContext";
 
 const BRAND = {
   brown: "#3A1E14",
@@ -512,7 +513,7 @@ const styles = {
   title: {
     margin: 0,
     color: BRAND.brown,
-    fontSize: 34,
+    fontSize: adminScaledFontSize(34),
     fontWeight: 900,
     letterSpacing: "-1px",
   },
@@ -520,7 +521,7 @@ const styles = {
   subtitle: {
     margin: "8px 0 0",
     color: "#5D5351",
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
   },
 
   breadcrumb: {
@@ -528,21 +529,21 @@ const styles = {
     alignItems: "center",
     gap: 14,
     color: BRAND.brown,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 600,
     whiteSpace: "nowrap",
   },
 
   chevron: {
     color: "#9A8C89",
-    fontSize: 22,
+    fontSize: adminScaledFontSize(22),
   },
 
   alert: {
     marginBottom: 18,
     borderRadius: 12,
     padding: "14px 16px",
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     fontWeight: 800,
   },
 
@@ -594,14 +595,14 @@ const styles = {
 
   sectionHeading: {
     margin: 0,
-    fontSize: 18,
+    fontSize: adminScaledFontSize(18),
     fontWeight: 900,
     color: BRAND.brown,
   },
 
   sectionDesc: {
     margin: "4px 0 0",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: BRAND.muted,
     lineHeight: 1.4,
   },
@@ -620,7 +621,7 @@ const styles = {
   },
 
   label: {
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     fontWeight: 800,
     color: BRAND.brown,
   },
@@ -648,7 +649,7 @@ const styles = {
     border: "none",
     outline: "none",
     flex: 1,
-    fontSize: 14,
+    fontSize: adminScaledFontSize(14),
     color: BRAND.text,
     background: "transparent",
     minWidth: 0,
@@ -656,7 +657,7 @@ const styles = {
 
   fieldNote: {
     margin: 0,
-    fontSize: 12,
+    fontSize: adminScaledFontSize(12),
     color: BRAND.muted,
   },
 
@@ -694,7 +695,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     gap: 10,
-    fontSize: 15,
+    fontSize: adminScaledFontSize(15),
     fontWeight: 800,
     transition:
       "transform 0.14s ease, box-shadow 0.18s ease, filter 0.18s ease",
@@ -709,7 +710,7 @@ const styles = {
 
   noteText: {
     margin: "0 0 10px",
-    fontSize: 13,
+    fontSize: adminScaledFontSize(13),
     color: BRAND.muted,
     lineHeight: 1.5,
   },
