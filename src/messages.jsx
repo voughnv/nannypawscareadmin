@@ -1515,6 +1515,11 @@ function ParticipantProfilePhoto({
       ? SITTER_PROFILE_PHOTO_BUCKET
       : OWNER_PROFILE_PHOTO_BUCKET;
 
+  const ownerAuthId =
+    role === "owner"
+      ? String(record?.po_auth_id || "").trim()
+      : "";
+
   useEffect(() => {
     let active = true;
 
@@ -1525,7 +1530,61 @@ function ParticipantProfilePhoto({
       const storedValue =
         String(photoValue || "").trim();
 
+      /*
+        Pet Owner mobile profile photos are uploaded to:
+        <po_auth_id>/owner-profile.jpg
+
+        Resolve that exact object first so the Admin page can still show
+        the owner's photo even when po_photo_url is empty or stale.
+      */
+      if (role === "owner" && ownerAuthId) {
+        const ownerStoragePath =
+          `${ownerAuthId}/owner-profile.jpg`;
+
+        const {
+          data: ownerSignedData,
+          error: ownerSignedError,
+        } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(
+            ownerStoragePath,
+            60 * 60
+          );
+
+        if (
+          !ownerSignedError &&
+          ownerSignedData?.signedUrl
+        ) {
+          if (active) {
+            setPhotoUrl(
+              ownerSignedData.signedUrl
+            );
+          }
+
+          return;
+        }
+      }
+
       if (!storedValue) {
+        if (role === "owner" && ownerAuthId) {
+          const ownerStoragePath =
+            `${ownerAuthId}/owner-profile.jpg`;
+
+          const { data: ownerPublicData } =
+            supabase.storage
+              .from(bucketName)
+              .getPublicUrl(ownerStoragePath);
+
+          if (
+            active &&
+            ownerPublicData?.publicUrl
+          ) {
+            setPhotoUrl(
+              ownerPublicData.publicUrl
+            );
+          }
+        }
+
         return;
       }
 
@@ -1609,7 +1668,7 @@ function ParticipantProfilePhoto({
     return () => {
       active = false;
     };
-  }, [photoValue]);
+  }, [photoValue, role, ownerAuthId, bucketName]);
 
   const showPhoto =
     Boolean(photoUrl) &&
