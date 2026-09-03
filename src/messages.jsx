@@ -40,9 +40,14 @@ const MESSAGE_IMAGE_BUCKET_CANDIDATES = [
   MESSAGE_IMAGE_BUCKET,
 ];
 
-const PROFILE_PHOTO_BUCKET =
+const OWNER_PROFILE_PHOTO_BUCKET =
+  import.meta.env.VITE_OWNER_PROFILE_PHOTO_BUCKET ||
   import.meta.env.VITE_PROFILE_PHOTO_BUCKET ||
+  "profile-photos";
+
+const SITTER_PROFILE_PHOTO_BUCKET =
   import.meta.env.VITE_SITTER_PROFILE_PHOTO_BUCKET ||
+  import.meta.env.VITE_PROFILE_PHOTO_BUCKET ||
   "profile-photos";
 
 const MESSAGE_INTERACTION_CSS = `
@@ -1505,6 +1510,11 @@ function ParticipantProfilePhoto({
   const [photoFailed, setPhotoFailed] =
     useState(false);
 
+  const bucketName =
+    role === "sitter"
+      ? SITTER_PROFILE_PHOTO_BUCKET
+      : OWNER_PROFILE_PHOTO_BUCKET;
+
   useEffect(() => {
     let active = true;
 
@@ -1533,7 +1543,8 @@ function ParticipantProfilePhoto({
 
       const storagePath =
         getProfilePhotoStoragePath(
-          storedValue
+          storedValue,
+          bucketName
         );
 
       if (!storagePath) {
@@ -1553,7 +1564,7 @@ function ParticipantProfilePhoto({
         data: signedData,
         error: signedError,
       } = await supabase.storage
-        .from(PROFILE_PHOTO_BUCKET)
+        .from(bucketName)
         .createSignedUrl(
           storagePath,
           60 * 60
@@ -1578,7 +1589,7 @@ function ParticipantProfilePhoto({
       const {
         data: publicData,
       } = supabase.storage
-        .from(PROFILE_PHOTO_BUCKET)
+        .from(bucketName)
         .getPublicUrl(storagePath);
 
       if (
@@ -1671,7 +1682,10 @@ function getParticipantProfilePhotoValue(
   return "";
 }
 
-function getProfilePhotoStoragePath(value) {
+function getProfilePhotoStoragePath(
+  value,
+  bucketName
+) {
   const text =
     String(value || "")
       .trim()
@@ -1682,7 +1696,7 @@ function getProfilePhotoStoragePath(value) {
   }
 
   const bucketPrefix =
-    `${PROFILE_PHOTO_BUCKET}/`;
+    `${bucketName}/`;
 
   if (
     text
