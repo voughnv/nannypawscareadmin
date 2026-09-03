@@ -180,7 +180,6 @@ const ROWS_PER_PAGE = 6;
 
 const PROFILE_PHOTO_BUCKET =
   import.meta.env.VITE_PROFILE_PHOTO_BUCKET ||
-  import.meta.env.VITE_SITTER_PROFILE_PHOTO_BUCKET ||
   "profile-photos";
 
 export default function FeedbackPage() {
