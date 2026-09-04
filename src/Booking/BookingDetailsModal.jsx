@@ -27,6 +27,19 @@ const PAYMENT_PROOF_BUCKET_CANDIDATES = Array.from(
   ])
 );
 
+const WAIVER_BUCKET =
+  import.meta.env.VITE_BOOKING_WAIVER_BUCKET || "booking-waivers";
+
+const WAIVER_BUCKET_CANDIDATES = Array.from(
+  new Set([
+    WAIVER_BUCKET,
+    "booking-waivers",
+    "BOOKING_WAIVERS",
+    "booking_waivers",
+    "booking-waiver",
+  ])
+);
+
 
 const BOOKING_MODAL_INTERACTION_CSS = `
   .booking-details-interactive button:not(:disabled) {
@@ -214,6 +227,11 @@ export default function BookingDetailsModal({
           />
 
           <DetailItem
+            label="Start Date"
+            value={formatDate(booking.start_date || booking.booking_date)}
+          />
+
+          <DetailItem
             label="End Date"
             value={formatDate(booking.end_date)}
           />
@@ -226,7 +244,6 @@ export default function BookingDetailsModal({
           <DetailItem
             label="End Time"
             value={formatTime(booking.end_time)}
-            fullWidth
           />
         </div>
 
@@ -306,11 +323,11 @@ export default function BookingDetailsModal({
             ? "Payment will be processed after the service is completed."
             : isPaid
             ? "Payment has been received and recorded successfully."
-            : isCash
-            ? "The service has been completed. Cash payment is awaiting confirmation."
-            : hasPaymentProof
-            ? "Proof of payment has been submitted and is awaiting verification."
-            : "The service has been completed. Proof of payment has not yet been submitted."}
+            : paymentState === "Awaiting Cash Confirmation"
+            ? "The owner selected cash. Confirm once the business has received payment."
+            : paymentState === "Pending Review" || hasPaymentProof
+            ? "GCash proof of payment has been submitted and is awaiting verification."
+            : "The service has been completed. The owner has not submitted payment yet."}
         </div>
 
         <h3 style={styles.sectionTitle}>Additional Information</h3>
@@ -322,6 +339,12 @@ export default function BookingDetailsModal({
               booking.instructions ||
               "No additional instructions provided."
             }
+            fullWidth
+          />
+
+          <DetailItem
+            label="Signed Waiver"
+            custom={<SignedWaiverForBooking booking={booking} />}
             fullWidth
           />
         </div>
@@ -815,6 +838,106 @@ function getPaymentProofFileName(value) {
   return parts[parts.length - 1] || text;
 }
 
+function SignedWaiverForBooking({ booking }) {
+  const [waiverUrl, setWaiverUrl] = useState("");
+  const [loadingWaiver, setLoadingWaiver] = useState(false);
+  const [waiverError, setWaiverError] = useState("");
+  const storedValue = String(
+    booking?.signed_waiver || booking?.waiver_path || ""
+  ).trim();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveWaiver() {
+      setWaiverUrl("");
+      setWaiverError("");
+
+      if (!storedValue) {
+        setLoadingWaiver(false);
+        return;
+      }
+
+      if (isHttpUrl(storedValue)) {
+        setWaiverUrl(storedValue);
+        setLoadingWaiver(false);
+        return;
+      }
+
+      setLoadingWaiver(true);
+
+      for (const bucketName of WAIVER_BUCKET_CANDIDATES) {
+        const storagePath = getPaymentProofStoragePath(
+          storedValue,
+          bucketName
+        );
+
+        if (!storagePath) continue;
+
+        const { data, error } = await supabase.storage
+          .from(bucketName)
+          .createSignedUrl(storagePath, 60 * 60);
+
+        if (!error && data?.signedUrl) {
+          if (!cancelled) {
+            setWaiverUrl(data.signedUrl);
+            setWaiverError("");
+            setLoadingWaiver(false);
+          }
+          return;
+        }
+      }
+
+      if (!cancelled) {
+        setLoadingWaiver(false);
+        setWaiverError("The signed waiver could not be loaded.");
+      }
+    }
+
+    resolveWaiver();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storedValue]);
+
+  if (!storedValue) {
+    return <h4 style={styles.detailValue}>Not uploaded</h4>;
+  }
+
+  if (loadingWaiver) {
+    return (
+      <div style={styles.proofLoadingBox}>
+        Loading signed waiver...
+      </div>
+    );
+  }
+
+  if (waiverError || !waiverUrl) {
+    return (
+      <div style={styles.proofErrorBox}>
+        <strong>Signed waiver unavailable.</strong>
+        <span>{waiverError}</span>
+        <span style={styles.proofFileName}>
+          File: {getPaymentProofFileName(storedValue)}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={waiverUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="booking-proof-interactive"
+      style={styles.proofLink}
+    >
+      View signed waiver
+    </a>
+  );
+}
+
 function StatusBadge({ status }) {
   const normalizedStatus = normalizeStatus(status);
 
@@ -867,26 +990,21 @@ function normalizePaymentStatus(status) {
     .trim()
     .toLowerCase();
 
-  if (cleaned === "paid") {
-    return "Paid";
+  if (cleaned === "paid") return "Paid";
+  if (cleaned === "unpaid") return "Unpaid";
+  if (cleaned === "pending review") return "Pending Review";
+  if (cleaned === "awaiting cash confirmation") {
+    return "Awaiting Cash Confirmation";
   }
+  if (cleaned === "not due") return "Not Due";
 
-  if (cleaned === "unpaid") {
-    return "Unpaid";
-  }
-
-  return "";
+  return cleaned
+    ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+    : "Not Due";
 }
 
 function getBookingPaymentState(booking) {
-  const storedStatus =
-    normalizePaymentStatus(
-      booking?.payment_status
-    );
-
-  return storedStatus === "Paid"
-    ? "Paid"
-    : "Unpaid";
+  return normalizePaymentStatus(booking?.payment_status);
 }
 
 function isCashPaymentMethod(method) {
@@ -901,20 +1019,32 @@ function isCashPaymentMethod(method) {
   );
 }
 
-function PaymentStatusBadge({ state }) {
-  const isPaid =
-    state === "Paid";
+function paymentBadgeStyle(state, styles) {
+  if (state === "Paid") return styles.paymentPaid;
+  if (
+    state === "Pending Review" ||
+    state === "Awaiting Cash Confirmation"
+  ) {
+    return styles.paymentPending;
+  }
+  if (state === "Not Due") return styles.paymentNotDue;
+  return styles.paymentUnpaid;
+}
 
+function paymentBadgeLabel(state) {
+  if (state === "Awaiting Cash Confirmation") return "Cash Pending";
+  return state || "Unpaid";
+}
+
+function PaymentStatusBadge({ state }) {
   return (
     <span
       style={{
         ...styles.paymentStatusBadge,
-        ...(isPaid
-          ? styles.paymentPaid
-          : styles.paymentUnpaid),
+        ...paymentBadgeStyle(state, styles),
       }}
     >
-      {isPaid ? "Paid" : "Unpaid"}
+      {paymentBadgeLabel(state)}
     </span>
   );
 }
@@ -1458,7 +1588,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 86,
+    minWidth: 108,
     height: 28,
     padding: "0 10px",
     borderRadius: 7,
@@ -1476,9 +1606,21 @@ const styles = {
   },
 
   paymentUnpaid: {
+    background: "#F8D8DB",
+    color: "#DF101D",
+    borderColor: "#F0C7CC",
+  },
+
+  paymentPending: {
     background: "#FFF1DF",
     color: "#A9570A",
     borderColor: "#F2DDBF",
+  },
+
+  paymentNotDue: {
+    background: "#EEE9E7",
+    color: "#645854",
+    borderColor: "#E3DCDA",
   },
 
   statusDefault: {
