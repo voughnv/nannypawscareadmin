@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   AlertCircle,
   Cat,
@@ -438,6 +437,19 @@ export default function MaintenancePage() {
     setServiceModalError("");
   }
 
+  function showSuccessNearCards(message) {
+    setSuccess(message);
+
+    if (typeof document !== "undefined") {
+      window.requestAnimationFrame(() => {
+        document.querySelector(".maintenance-page")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    }
+  }
+
   function updateServiceForm(field, value) {
     if (!isValidCurrencyTyping(value)) return;
     setServiceForm((previous) => ({ ...previous, [field]: value }));
@@ -484,7 +496,8 @@ export default function MaintenancePage() {
       !moneyValuesEqual(selectedService.large_price, largePrice);
 
     if (!baseChanged && !mediumChanged && !largeChanged) {
-      setSuccess("Service pricing is already up to date.");
+      setSelectedService(null);
+      showSuccessNearCards("Service pricing is already up to date.");
       return;
     }
 
@@ -564,7 +577,7 @@ export default function MaintenancePage() {
       );
 
       setSelectedService(null);
-      setSuccess("Service price updated successfully.");
+      showSuccessNearCards("Service price updated successfully.");
     } catch (error) {
       console.error("Unable to update service price:", error);
       // Restore the editor if the database update fails so the Admin can see
@@ -650,7 +663,9 @@ export default function MaintenancePage() {
     if (revenueShareAlreadyMatches) {
       setRevenueConfigured(true);
       setRevenueError("");
-      setSuccess("Revenue sharing percentages are already up to date.");
+      showSuccessNearCards(
+        "Revenue sharing percentages are already up to date."
+      );
       return;
     }
 
@@ -743,7 +758,9 @@ export default function MaintenancePage() {
       });
 
       setRevenueError("");
-      setSuccess("Revenue sharing percentages updated successfully.");
+      showSuccessNearCards(
+        "Revenue sharing percentages updated successfully."
+      );
     } catch (error) {
       console.error("Unable to update revenue sharing percentages:", error);
       setRevenueError(getRevenueSaveMessage(error));
@@ -862,32 +879,13 @@ export default function MaintenancePage() {
         </div>
       </header>
 
-      {success && typeof document !== "undefined"
-        ? createPortal(
-            <div
-              role="status"
-              aria-live="polite"
-              style={{
-                ...themeStyle,
-                position: "fixed",
-                top: 22,
-                right: 22,
-                width: "min(430px, calc(100vw - 44px))",
-                zIndex: 12000,
-                pointerEvents: "auto",
-                filter: "drop-shadow(0 10px 24px rgba(31, 17, 13, 0.16))",
-              }}
-            >
-              <StatusAlert
-                type="success"
-                message={success}
-                onClose={() => setSuccess("")}
-                compact
-              />
-            </div>,
-            document.body
-          )
-        : null}
+      {success ? (
+        <StatusAlert
+          type="success"
+          message={success}
+          onClose={() => setSuccess("")}
+        />
+      ) : null}
 
       {serviceError ? (
         <StatusAlert type="error" message={serviceError} onClose={() => setServiceError("")} />
