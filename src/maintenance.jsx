@@ -354,7 +354,7 @@ export default function MaintenancePage() {
 
     if (hasInconsistentRevenueShare) {
       setRevenueError(
-        "Revenue sharing values differ between service records. Save the percentages below to synchronize all services."
+        "Revenue-sharing percentages are not consistent across the service catalog. Save the values below to apply one revenue split to all services."
       );
     } else {
       setRevenueError("");
@@ -392,14 +392,14 @@ export default function MaintenancePage() {
 
       setServiceError(
         missingRevenueColumns
-          ? "Revenue-sharing fields are not available in the service catalog yet. Apply the Maintenance database update and refresh the page."
-          : "Unable to load the service catalog. Please refresh the page and try again."
+          ? "Revenue-sharing settings are not available. Please apply the required system update, then refresh this page."
+          : "The service catalog could not be loaded. Please refresh the page and try again."
       );
 
       if (missingRevenueColumns) {
         setRevenueConfigured(false);
         setRevenueError(
-          "Revenue sharing cannot be loaded until the Maintenance database update is applied."
+          "Revenue-sharing settings cannot be loaded until the required system update is applied."
         );
       }
     } finally {
@@ -472,7 +472,7 @@ export default function MaintenancePage() {
       : selectedService.large_price;
 
     if (basePrice === null) {
-      setServiceModalError("Enter a valid base price of ₱0.00 or higher.");
+      setServiceModalError("Enter a valid base price of ₱0.00 or more.");
       return;
     }
 
@@ -482,7 +482,7 @@ export default function MaintenancePage() {
         (serviceForm.large_price.trim() !== "" && largePrice === null))
     ) {
       setServiceModalError(
-        "Enter valid medium and large prices, or leave an optional price blank."
+        "Enter valid Medium and Large prices, or leave an optional field blank."
       );
       return;
     }
@@ -497,7 +497,7 @@ export default function MaintenancePage() {
 
     if (!baseChanged && !mediumChanged && !largeChanged) {
       setSelectedService(null);
-      showSuccessNearCards("Service pricing is already up to date.");
+      showSuccessNearCards("No service pricing changes were detected.");
       return;
     }
 
@@ -505,13 +505,13 @@ export default function MaintenancePage() {
 
     if (baseChanged) {
       priceChanges.push(
-        `Base: ${formatPeso(selectedService.base_price)} → ${formatPeso(basePrice)}`
+        `Base Price: ${formatPeso(selectedService.base_price)} → ${formatPeso(basePrice)}`
       );
     }
 
     if (mediumChanged) {
       priceChanges.push(
-        `Medium: ${formatPeso(selectedService.medium_price)} → ${formatPeso(
+        `Medium Price: ${formatPeso(selectedService.medium_price)} → ${formatPeso(
           mediumPrice
         )}`
       );
@@ -519,7 +519,7 @@ export default function MaintenancePage() {
 
     if (largeChanged) {
       priceChanges.push(
-        `Large: ${formatPeso(selectedService.large_price)} → ${formatPeso(
+        `Large Price: ${formatPeso(selectedService.large_price)} → ${formatPeso(
           largePrice
         )}`
       );
@@ -532,11 +532,11 @@ export default function MaintenancePage() {
     setServiceConfirmationOpen(true);
 
     const confirmed = await requestConfirmation({
-      title: "Update service price?",
-      message: `Save the pricing changes for ${
+      title: "Confirm service pricing update",
+      message: `Please confirm the following pricing changes for ${
         selectedService.service_name || "this service"
-      }? ${priceChanges.join(" • ")}`,
-      confirmText: "Save Price",
+      }: ${priceChanges.join(" • ")}`,
+      confirmText: "Save Pricing",
       cancelText: "Cancel",
       variant: "primary",
     });
@@ -577,14 +577,14 @@ export default function MaintenancePage() {
       );
 
       setSelectedService(null);
-      showSuccessNearCards("Service price updated successfully.");
+      showSuccessNearCards("Service pricing updated successfully.");
     } catch (error) {
       console.error("Unable to update service price:", error);
       // Restore the editor if the database update fails so the Admin can see
       // the error and keep the entered values.
       setServiceConfirmationOpen(false);
       setServiceModalError(
-        "Unable to update the service price. Please try again."
+        "The service pricing could not be updated. Please try again."
       );
     } finally {
       setSavingService(false);
@@ -614,20 +614,20 @@ export default function MaintenancePage() {
       ownerPercentage < 0 ||
       ownerPercentage > 100
     ) {
-      setRevenueError("Each revenue percentage must be between 0% and 100%.");
+      setRevenueError("Enter a percentage from 0% to 100% for each revenue share.");
       return;
     }
 
     if (!percentagesEqual100(sitterPercentage, ownerPercentage)) {
       setRevenueError(
-        "Pet Sitter and Business Owner percentages must total exactly 100%."
+        "The Pet Sitter and Business Owner revenue shares must total exactly 100%."
       );
       return;
     }
 
     if (services.length === 0) {
       setRevenueError(
-        "Revenue sharing cannot be saved because no service records are available."
+        "Revenue-sharing settings cannot be updated because no services are available."
       );
       return;
     }
@@ -644,7 +644,7 @@ export default function MaintenancePage() {
       );
 
     if (serviceIds.length === 0) {
-      setRevenueError("No service records are available for update.");
+      setRevenueError("No services are available for this update.");
       return;
     }
 
@@ -664,7 +664,7 @@ export default function MaintenancePage() {
       setRevenueConfigured(true);
       setRevenueError("");
       showSuccessNearCards(
-        "Revenue sharing percentages are already up to date."
+        "Revenue-sharing settings are already up to date."
       );
       return;
     }
@@ -688,12 +688,12 @@ export default function MaintenancePage() {
         : "";
 
     const confirmed = await requestConfirmation({
-      title: "Update revenue sharing?",
+      title: "Confirm revenue-sharing update",
       message: `${currentSplitText}New: ${formatPercentage(
         normalizedSitterPercentage
       )} Pet Sitter / ${formatPercentage(
         normalizedOwnerPercentage
-      )} Business Owner. This new split will apply to future finalized transactions only.`,
+      )} Business Owner. The new revenue split will apply only to bookings finalized as Completed and Paid after this change. Existing earnings records will remain unchanged.`,
       confirmText: "Save Revenue Sharing",
       cancelText: "Cancel",
       variant: "primary",
@@ -726,7 +726,7 @@ export default function MaintenancePage() {
 
       if (updatedRows.length !== serviceIds.length) {
         throw new Error(
-          "Not all service records were updated. Please verify administrator access."
+          "Some services could not be updated. Please verify administrator access and try again."
         );
       }
 
@@ -759,7 +759,7 @@ export default function MaintenancePage() {
 
       setRevenueError("");
       showSuccessNearCards(
-        "Revenue sharing percentages updated successfully."
+        "Revenue-sharing settings updated successfully."
       );
     } catch (error) {
       console.error("Unable to update revenue sharing percentages:", error);
@@ -858,7 +858,7 @@ export default function MaintenancePage() {
               lineHeight: 1.5,
             }}
           >
-            Manage service pricing and revenue sharing settings.
+            Manage service prices and revenue-sharing settings used across Nanny Paws Care.
           </p>
         </div>
 
@@ -902,7 +902,7 @@ export default function MaintenancePage() {
       >
         <StatCard
           icon={<Coins size={28} />}
-          label="Service Records"
+          label="Total Services"
           value={loading ? "—" : stats.total}
           desc="All configured services"
           iconBackground="#F9DCE5"
@@ -915,7 +915,7 @@ export default function MaintenancePage() {
           icon={<Dog size={29} />}
           label="Dog Services"
           value={loading ? "—" : stats.dogServices}
-          desc="Services for dogs"
+          desc="Services available for dogs"
           iconBackground="#E4EFFB"
           iconColor="#2E6EAE"
           active={cardFilter === "Dog"}
@@ -926,7 +926,7 @@ export default function MaintenancePage() {
           icon={<Cat size={29} />}
           label="Cat Services"
           value={loading ? "—" : stats.catServices}
-          desc="Services for cats"
+          desc="Services available for cats"
           iconBackground="#EFE5F8"
           iconColor="#7A4BA3"
           active={cardFilter === "Cat"}
@@ -937,7 +937,7 @@ export default function MaintenancePage() {
           icon={<Scale size={28} />}
           label="Weight-Based Pricing"
           value={loading ? "—" : stats.weightBased}
-          desc="Services with size rates"
+          desc="Services with size-based rates"
           iconBackground="#FCEBDD"
           iconColor="#CE7026"
           active={cardFilter === "WeightBased"}
@@ -976,7 +976,7 @@ export default function MaintenancePage() {
                 lineHeight: 1.5,
               }}
             >
-              Update the prices currently used for Nanny Paws Care services.
+              Review and update the prices applied to each Nanny Paws Care service.
             </p>
           </div>
 
@@ -1002,7 +1002,7 @@ export default function MaintenancePage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search service or ID"
+                placeholder="Search by service name or ID"
                 style={{
                   width: "100%",
                   border: 0,
@@ -1018,7 +1018,7 @@ export default function MaintenancePage() {
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
-              title="Refresh maintenance data"
+              title="Refresh service and revenue-sharing data"
               style={{
                 ...secondaryButtonStyle(),
                 height: 48,
@@ -1055,10 +1055,10 @@ export default function MaintenancePage() {
                 <TableHeading width="230px">Service</TableHeading>
                 <TableHeading width="110px">Pet Type</TableHeading>
                 <TableHeading width="135px">Base Price</TableHeading>
-                <TableHeading width="135px">Medium</TableHeading>
-                <TableHeading width="135px">Large</TableHeading>
-                <TableHeading width="150px">Pricing</TableHeading>
-                <TableHeading width="170px">Last Updated</TableHeading>
+                <TableHeading width="135px">Medium Price</TableHeading>
+                <TableHeading width="135px">Large Price</TableHeading>
+                <TableHeading width="150px">Pricing Method</TableHeading>
+                <TableHeading width="170px">Price Updated</TableHeading>
                 <TableHeading width="100px" align="center">Action</TableHeading>
               </tr>
             </thead>
@@ -1068,14 +1068,14 @@ export default function MaintenancePage() {
                   <td colSpan={9} style={emptyCellStyle()}>
                     <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
                       <span className="maintenance-spinner" />
-                      Loading service pricing...
+                      Loading service pricing records...
                     </span>
                   </td>
                 </tr>
               ) : filteredServices.length === 0 ? (
                 <tr>
                   <td colSpan={9} style={emptyCellStyle()}>
-                    No service records match the current filter.
+                    No services match the current search or filter.
                   </td>
                 </tr>
               ) : (
@@ -1132,7 +1132,7 @@ export default function MaintenancePage() {
                       {service.weight_based ? (
                         <span style={pricingBadgeStyle("weight")}>Weight-based</span>
                       ) : (
-                        <span style={pricingBadgeStyle("fixed")}>Base price</span>
+                        <span style={pricingBadgeStyle("fixed")}>Fixed price</span>
                       )}
                     </TableCell>
                     <TableCell muted>
@@ -1165,7 +1165,7 @@ export default function MaintenancePage() {
               fontWeight: 700,
             }}
           >
-            Showing {filteredServices.length} of {services.length} service record
+            Showing {filteredServices.length} of {services.length} service
             {services.length === 1 ? "" : "s"}.
           </div>
         ) : null}
@@ -1199,8 +1199,8 @@ export default function MaintenancePage() {
               maxWidth: 820,
             }}
           >
-            Configure how service revenue is divided between the Pet Sitter and Business Owner.
-            The two percentages must always total 100%.
+            Set the percentage of service revenue allocated to the Pet Sitter and Business Owner.
+            The total revenue allocation must equal 100%.
           </p>
         </div>
 
@@ -1232,7 +1232,7 @@ export default function MaintenancePage() {
               }}
             >
               <Info size={17} style={{ marginTop: 1, flexShrink: 0 }} />
-              No saved revenue configuration was found. The form is showing the proposed 60% / 40% split. Save it to create the active configuration.
+              No active revenue-sharing configuration was found. The default split of 60% for the Pet Sitter and 40% for the Business Owner is shown below. Save these settings to make the split active.
             </div>
           ) : null}
 
@@ -1250,7 +1250,7 @@ export default function MaintenancePage() {
               }}
             >
               <span className="maintenance-spinner" />
-              Loading revenue settings...
+              Loading revenue-sharing settings...
             </div>
           ) : (
             <>
@@ -1264,14 +1264,14 @@ export default function MaintenancePage() {
                 }}
               >
                 <PercentageField
-                  label="Pet Sitter Share"
+                  label="Pet Sitter Revenue Share"
                   value={revenueForm.pet_sitter_percentage}
                   onChange={(value) =>
                     updateRevenueField("pet_sitter_percentage", value)
                   }
                 />
                 <PercentageField
-                  label="Business Owner Share"
+                  label="Business Owner Revenue Share"
                   value={revenueForm.business_owner_percentage}
                   onChange={(value) =>
                     updateRevenueField("business_owner_percentage", value)
@@ -1286,7 +1286,7 @@ export default function MaintenancePage() {
                       fontWeight: 900,
                     }}
                   >
-                    Total Allocation
+                    Total Revenue Allocation
                   </div>
                   <div
                     style={{
@@ -1336,7 +1336,7 @@ export default function MaintenancePage() {
               >
                 <Info size={17} color={BRAND.pink} style={{ marginTop: 1, flexShrink: 0 }} />
                 <span>
-                  Changes here apply to future calculations. Completed transactions should keep the price and percentage values that were saved for that transaction when it was finalized.
+                  Changes to the revenue split apply only to bookings finalized as Completed and Paid after the update. Existing earnings records retain the service price and revenue split captured when each transaction was finalized.
                 </span>
               </div>
 
@@ -1403,7 +1403,7 @@ export default function MaintenancePage() {
                       fontWeight: 900,
                     }}
                   >
-                    Edit Service Price
+                    Edit Service Pricing
                   </h3>
                   <p
                     style={{
@@ -1412,7 +1412,7 @@ export default function MaintenancePage() {
                       fontSize: adminScaledFontSize(12.5),
                     }}
                   >
-                    Update the current pricing for this service.
+                    Review and update the price currently applied to this service.
                   </p>
                 </div>
                 <button
@@ -1462,7 +1462,7 @@ export default function MaintenancePage() {
                       lineHeight: 1.5,
                     }}
                   >
-                    Service ID {selectedService.service_id} • {selectedService.pet_type || "No pet type"}
+                    Service ID: {selectedService.service_id} • Pet Type: {selectedService.pet_type || "Not specified"}
                   </div>
                 </div>
 
@@ -1473,8 +1473,8 @@ export default function MaintenancePage() {
                   onChange={(value) => updateServiceForm("base_price", value)}
                   helpText={
                     selectedService.weight_based
-                      ? "This is the starting price for the service."
-                      : "This is the price displayed for the service."
+                      ? "Starting price used for this service."
+                      : "Standard price charged for this service."
                   }
                 />
 
@@ -1493,7 +1493,7 @@ export default function MaintenancePage() {
                       onChange={(value) =>
                         updateServiceForm("medium_price", value)
                       }
-                      helpText="Optional medium-weight rate."
+                      helpText="Optional rate for medium-sized pets."
                     />
                     <MoneyField
                       label="Large Price"
@@ -1501,7 +1501,7 @@ export default function MaintenancePage() {
                       onChange={(value) =>
                         updateServiceForm("large_price", value)
                       }
-                      helpText="Optional large-weight rate."
+                      helpText="Optional rate for large-sized pets."
                     />
                   </div>
                 ) : null}
@@ -1555,7 +1555,7 @@ export default function MaintenancePage() {
                   ) : (
                     <Save size={17} />
                   )}
-                  {savingService ? "Saving..." : "Save Price"}
+                  {savingService ? "Saving..." : "Save Pricing"}
                 </button>
               </div>
             </form>
@@ -1995,14 +1995,14 @@ function getRevenueSaveMessage(error) {
   const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
 
   if (text.includes("row-level security") || text.includes("rls")) {
-    return "You do not have permission to update revenue sharing settings. Please check the administrator access policy.";
+    return "You do not have permission to update revenue-sharing settings. Please review the administrator access policy.";
   }
 
   if (text.includes("100") || text.includes("check constraint")) {
-    return "Pet Sitter and Business Owner percentages must total exactly 100%.";
+    return "The Pet Sitter and Business Owner revenue shares must total exactly 100%.";
   }
 
-  return "Unable to update revenue sharing percentages. Please try again.";
+  return "The revenue-sharing settings could not be updated. Please try again.";
 }
 
 function pricingBadgeStyle(type) {
