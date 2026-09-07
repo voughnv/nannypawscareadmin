@@ -247,6 +247,8 @@ export default function MaintenancePage() {
 
   const [selectedService, setSelectedService] = useState(null);
   const [serviceForm, setServiceForm] = useState({
+    service_name: "",
+    description: "",
     base_price: "",
     medium_price: "",
     large_price: "",
@@ -425,6 +427,8 @@ export default function MaintenancePage() {
     setSelectedService(service);
     setServiceModalError("");
     setServiceForm({
+      service_name: String(service.service_name || ""),
+      description: String(service.description || ""),
       base_price: formatEditableNumber(service.base_price),
       medium_price: formatEditableNumber(service.medium_price),
       large_price: formatEditableNumber(service.large_price),
@@ -451,8 +455,16 @@ export default function MaintenancePage() {
   }
 
   function updateServiceForm(field, value) {
-    if (!isValidCurrencyTyping(value)) return;
-    setServiceForm((previous) => ({ ...previous, [field]: value }));
+    const priceFields = new Set(["base_price", "medium_price", "large_price"]);
+
+    if (priceFields.has(field) && !isValidCurrencyTyping(value)) return;
+
+    setServiceForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+
+    setServiceModalError("");
   }
 
   async function saveServicePrice(event) {
@@ -462,6 +474,12 @@ export default function MaintenancePage() {
     setServiceModalError("");
     setSuccess("");
 
+    const serviceName = String(serviceForm.service_name || "")
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const description = String(serviceForm.description || "").trim();
+
     const basePrice = parseRequiredMoney(serviceForm.base_price);
     const usesTierPrices = serviceUsesTierPrices(selectedService);
     const mediumPrice = usesTierPrices
@@ -470,6 +488,11 @@ export default function MaintenancePage() {
     const largePrice = usesTierPrices
       ? parseOptionalMoney(serviceForm.large_price)
       : selectedService.large_price;
+
+    if (!serviceName) {
+      setServiceModalError("Service name is required.");
+      return;
+    }
 
     if (basePrice === null) {
       setServiceModalError("Enter a valid base price of ₱0.00 or more.");
@@ -487,6 +510,14 @@ export default function MaintenancePage() {
       return;
     }
 
+    const currentServiceName = String(selectedService.service_name || "")
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const currentDescription = String(selectedService.description || "").trim();
+
+    const nameChanged = serviceName !== currentServiceName;
+    const descriptionChanged = description !== currentDescription;
     const baseChanged = !moneyValuesEqual(selectedService.base_price, basePrice);
     const mediumChanged =
       usesTierPrices &&
@@ -495,22 +526,63 @@ export default function MaintenancePage() {
       usesTierPrices &&
       !moneyValuesEqual(selectedService.large_price, largePrice);
 
-    if (!baseChanged && !mediumChanged && !largeChanged) {
+    const priceChanged = baseChanged || mediumChanged || largeChanged;
+
+    if (
+      !nameChanged &&
+      !descriptionChanged &&
+      !baseChanged &&
+      !mediumChanged &&
+      !largeChanged
+    ) {
       setSelectedService(null);
-      showSuccessNearCards("No service pricing changes were detected.");
+      showSuccessNearCards("No service changes were detected.");
       return;
     }
 
-    const priceChanges = [];
+    if (nameChanged) {
+      const { data: duplicateService, error: duplicateError } = await supabase
+        .from(SERVICE_TABLE)
+        .select("service_id")
+        .ilike("service_name", serviceName)
+        .neq("service_id", selectedService.service_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (duplicateError) {
+        console.error("Unable to validate service name:", duplicateError);
+        setServiceModalError(
+          "The service name could not be validated. Please try again."
+        );
+        return;
+      }
+
+      if (duplicateService) {
+        setServiceModalError(
+          "A service with this name already exists. Enter a different service name."
+        );
+        return;
+      }
+    }
+
+    const changes = [];
+
+    if (nameChanged) {
+      changes.push(`Service Name: ${currentServiceName || "Unnamed Service"} → ${serviceName}`);
+    }
+
+    if (descriptionChanged) {
+      changes.push("Description: updated");
+    }
 
     if (baseChanged) {
-      priceChanges.push(
+      changes.push(
         `Base Price: ${formatPeso(selectedService.base_price)} → ${formatPeso(basePrice)}`
       );
     }
 
     if (mediumChanged) {
-      priceChanges.push(
+      changes.push(
         `Medium Price: ${formatPeso(selectedService.medium_price)} → ${formatPeso(
           mediumPrice
         )}`
@@ -518,25 +590,24 @@ export default function MaintenancePage() {
     }
 
     if (largeChanged) {
-      priceChanges.push(
+      changes.push(
         `Large Price: ${formatPeso(selectedService.large_price)} → ${formatPeso(
           largePrice
         )}`
       );
     }
 
-    // Temporarily hide the price editor while the shared confirmation dialog is open.
-    // This guarantees the confirmation dialog is the top-most modal regardless of
-    // the z-index used by ConfirmationProvider. The editor state is preserved and
-    // returns unchanged when the Admin cancels.
+    // Temporarily hide the service editor while the shared confirmation dialog is open.
+    // This guarantees the confirmation dialog remains above the editor while preserving
+    // all entered values if the Admin cancels.
     setServiceConfirmationOpen(true);
 
     const confirmed = await requestConfirmation({
-      title: "Confirm service pricing update",
-      message: `Please confirm the following pricing changes for ${
-        selectedService.service_name || "this service"
-      }: ${priceChanges.join(" • ")}`,
-      confirmText: "Save Pricing",
+      title: "Confirm service update",
+      message: `Please review the following changes for ${
+        currentServiceName || "this service"
+      }: ${changes.join(" • ")}`,
+      confirmText: "Save Changes",
       cancelText: "Cancel",
       variant: "primary",
     });
@@ -548,15 +619,80 @@ export default function MaintenancePage() {
 
     setSavingService(true);
 
-    try {
-      const updatePayload = {
-        base_price: basePrice,
-        updated_at: new Date().toISOString(),
-      };
+    let renamedBookingIds = [];
 
-      if (usesTierPrices) {
+    try {
+      /*
+        SERVICE_CATALOG currently uses the service name while BOOKING stores
+        that service in BOOKING.service_type. When a service is renamed,
+        synchronize only bookings that may still proceed to payment.
+
+        Completed + Paid and Cancelled bookings are intentionally left unchanged
+        so historical booking and earnings records keep their original service name.
+      */
+      if (nameChanged && currentServiceName) {
+        const { data: linkedBookings, error: bookingLookupError } = await supabase
+          .from("BOOKING")
+          .select("booking_id, booking_status, payment_status")
+          .eq("service_type", currentServiceName);
+
+        if (bookingLookupError) throw bookingLookupError;
+
+        renamedBookingIds = (linkedBookings || [])
+          .filter((booking) => {
+            const status = String(booking.booking_status || "")
+              .trim()
+              .toLowerCase();
+
+            const paymentStatus = String(booking.payment_status || "")
+              .trim()
+              .toLowerCase();
+
+            const isHistoricalPaid =
+              status === "completed" && paymentStatus === "paid";
+
+            const isCancelled = status === "cancelled";
+
+            return !isHistoricalPaid && !isCancelled;
+          })
+          .map((booking) => booking.booking_id);
+
+        if (renamedBookingIds.length > 0) {
+          const { error: bookingRenameError } = await supabase
+            .from("BOOKING")
+            .update({ service_type: serviceName })
+            .in("booking_id", renamedBookingIds);
+
+          if (bookingRenameError) throw bookingRenameError;
+        }
+      }
+
+      const updatePayload = {};
+
+      if (nameChanged) {
+        updatePayload.service_name = serviceName;
+      }
+
+      if (descriptionChanged) {
+        updatePayload.description = description || null;
+      }
+
+      if (baseChanged) {
+        updatePayload.base_price = basePrice;
+      }
+
+      if (usesTierPrices && mediumChanged) {
         updatePayload.medium_price = mediumPrice;
+      }
+
+      if (usesTierPrices && largeChanged) {
         updatePayload.large_price = largePrice;
+      }
+
+      // "Price Updated" must change only when an actual price changes.
+      // Editing the service name or description alone does not touch updated_at.
+      if (priceChanged) {
+        updatePayload.updated_at = new Date().toISOString();
       }
 
       const { data, error } = await supabase
@@ -568,7 +704,24 @@ export default function MaintenancePage() {
         )
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Best-effort rollback if linked active bookings were renamed first.
+        if (nameChanged && renamedBookingIds.length > 0) {
+          const { error: rollbackError } = await supabase
+            .from("BOOKING")
+            .update({ service_type: currentServiceName })
+            .in("booking_id", renamedBookingIds);
+
+          if (rollbackError) {
+            console.error(
+              "Unable to restore linked booking service names after a failed service update:",
+              rollbackError
+            );
+          }
+        }
+
+        throw error;
+      }
 
       setServices((previous) =>
         previous.map((service) =>
@@ -577,14 +730,29 @@ export default function MaintenancePage() {
       );
 
       setSelectedService(null);
-      showSuccessNearCards("Service pricing updated successfully.");
+
+      if (priceChanged && (nameChanged || descriptionChanged)) {
+        showSuccessNearCards(
+          "Service information and pricing updated successfully."
+        );
+      } else if (priceChanged) {
+        showSuccessNearCards("Service pricing updated successfully.");
+      } else {
+        showSuccessNearCards("Service information updated successfully.");
+      }
     } catch (error) {
-      console.error("Unable to update service price:", error);
-      // Restore the editor if the database update fails so the Admin can see
-      // the error and keep the entered values.
+      console.error("Unable to update service:", error);
+
       setServiceConfirmationOpen(false);
+
+      const errorText = String(error?.message || "").toLowerCase();
+
       setServiceModalError(
-        "The service pricing could not be updated. Please try again."
+        errorText.includes("booking") ||
+          errorText.includes("service_type") ||
+          errorText.includes("row-level security")
+          ? "The service name could not be updated because linked active bookings could not be synchronized. Please try again."
+          : "The service changes could not be saved. Please try again."
       );
     } finally {
       setSavingService(false);
@@ -966,7 +1134,7 @@ export default function MaintenancePage() {
                 fontWeight: 900,
               }}
             >
-              Service Pricing
+              Service Catalog
             </h2>
             <p
               style={{
@@ -976,7 +1144,7 @@ export default function MaintenancePage() {
                 lineHeight: 1.5,
               }}
             >
-              Review and update the prices applied to each Nanny Paws Care service.
+              Manage service names, descriptions, and pricing used across Nanny Paws Care.
             </p>
           </div>
 
@@ -1002,7 +1170,7 @@ export default function MaintenancePage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by service name or ID"
+                placeholder="Search by service name, description, or ID"
                 style={{
                   width: "100%",
                   border: 0,
@@ -1143,8 +1311,8 @@ export default function MaintenancePage() {
                         type="button"
                         onClick={() => openServiceEditor(service)}
                         style={iconActionButtonStyle()}
-                        title={`Edit ${service.service_name || "service"} price`}
-                        aria-label={`Edit ${service.service_name || "service"} price`}
+                        title={`Edit ${service.service_name || "service"}`}
+                        aria-label={`Edit ${service.service_name || "service"}`}
                       >
                         <Pencil size={16} />
                       </button>
@@ -1403,7 +1571,7 @@ export default function MaintenancePage() {
                       fontWeight: 900,
                     }}
                   >
-                    Edit Service Pricing
+                    Edit Service
                   </h3>
                   <p
                     style={{
@@ -1412,7 +1580,7 @@ export default function MaintenancePage() {
                       fontSize: adminScaledFontSize(12.5),
                     }}
                   >
-                    Review and update the price currently applied to this service.
+                    Update the service name, description, and applicable pricing.
                   </p>
                 </div>
                 <button
@@ -1420,7 +1588,7 @@ export default function MaintenancePage() {
                   onClick={closeServiceEditor}
                   disabled={savingService}
                   style={closeButtonStyle()}
-                  aria-label="Close service price editor"
+                  aria-label="Close service editor"
                 >
                   <X size={18} />
                 </button>
@@ -1448,11 +1616,11 @@ export default function MaintenancePage() {
                   <div
                     style={{
                       color: "var(--maint-strong)",
-                      fontSize: adminScaledFontSize(14),
+                      fontSize: adminScaledFontSize(13.5),
                       fontWeight: 900,
                     }}
                   >
-                    {selectedService.service_name}
+                    Service ID: {selectedService.service_id}
                   </div>
                   <div
                     style={{
@@ -1462,11 +1630,30 @@ export default function MaintenancePage() {
                       lineHeight: 1.5,
                     }}
                   >
-                    Service ID: {selectedService.service_id} • Pet Type: {selectedService.pet_type || "Not specified"}
+                    Pet Type: {selectedService.pet_type || "Not specified"} • Pricing Method:{" "}
+                    {selectedService.weight_based ? "Weight-based" : "Fixed price"}
                   </div>
                 </div>
 
-                <MoneyField
+                <TextField
+                  label="Service Name"
+                  required
+                  value={serviceForm.service_name}
+                  onChange={(value) => updateServiceForm("service_name", value)}
+                  placeholder="Enter service name"
+                  helpText="Use a clear and unique name that customers can easily recognize."
+                />
+
+                <TextAreaField
+                  label="Description"
+                  value={serviceForm.description}
+                  onChange={(value) => updateServiceForm("description", value)}
+                  placeholder="Enter a short description of the service"
+                  helpText="Briefly explain what the service includes so customers understand what they are booking."
+                />
+
+                <div style={{ marginTop: 16 }}>
+                  <MoneyField
                   label="Base Price"
                   required
                   value={serviceForm.base_price}
@@ -1477,6 +1664,7 @@ export default function MaintenancePage() {
                       : "Standard price charged for this service."
                   }
                 />
+                </div>
 
                 {serviceUsesTierPrices(selectedService) ? (
                   <div
@@ -1555,7 +1743,7 @@ export default function MaintenancePage() {
                   ) : (
                     <Save size={17} />
                   )}
-                  {savingService ? "Saving..." : "Save Pricing"}
+                  {savingService ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
@@ -1706,6 +1894,122 @@ function PetTypeBadge({ petType }) {
       {isDog ? <Dog size={14} /> : isCat ? <Cat size={14} /> : null}
       {petType || "Not set"}
     </span>
+  );
+}
+
+function TextField({
+  label,
+  value,
+  onChange,
+  helpText,
+  placeholder,
+  required = false,
+}) {
+  return (
+    <label style={{ display: "block", marginBottom: 15 }}>
+      <span
+        style={{
+          display: "block",
+          marginBottom: 7,
+          color: "var(--maint-strong)",
+          fontSize: adminScaledFontSize(12.5),
+          fontWeight: 900,
+        }}
+      >
+        {label}
+        {required ? <span style={{ color: BRAND.pink }}> *</span> : null}
+      </span>
+
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          height: 44,
+          border: "1px solid var(--maint-border-strong)",
+          borderRadius: 9,
+          padding: "0 12px",
+          background: "var(--maint-input)",
+          color: "var(--maint-text)",
+          fontSize: adminScaledFontSize(13.5),
+          fontWeight: 700,
+        }}
+      />
+
+      {helpText ? (
+        <span
+          style={{
+            display: "block",
+            marginTop: 6,
+            color: "var(--maint-muted)",
+            fontSize: adminScaledFontSize(11),
+            lineHeight: 1.4,
+          }}
+        >
+          {helpText}
+        </span>
+      ) : null}
+    </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  value,
+  onChange,
+  helpText,
+  placeholder,
+}) {
+  return (
+    <label style={{ display: "block", marginBottom: 15 }}>
+      <span
+        style={{
+          display: "block",
+          marginBottom: 7,
+          color: "var(--maint-strong)",
+          fontSize: adminScaledFontSize(12.5),
+          fontWeight: 900,
+        }}
+      >
+        {label}
+      </span>
+
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        rows={4}
+        style={{
+          width: "100%",
+          minHeight: 96,
+          resize: "vertical",
+          border: "1px solid var(--maint-border-strong)",
+          borderRadius: 9,
+          padding: "10px 12px",
+          background: "var(--maint-input)",
+          color: "var(--maint-text)",
+          fontFamily: "inherit",
+          fontSize: adminScaledFontSize(13),
+          fontWeight: 600,
+          lineHeight: 1.5,
+        }}
+      />
+
+      {helpText ? (
+        <span
+          style={{
+            display: "block",
+            marginTop: 6,
+            color: "var(--maint-muted)",
+            fontSize: adminScaledFontSize(11),
+            lineHeight: 1.4,
+          }}
+        >
+          {helpText}
+        </span>
+      ) : null}
+    </label>
   );
 }
 
