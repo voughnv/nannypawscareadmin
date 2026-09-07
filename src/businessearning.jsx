@@ -296,7 +296,7 @@ export default function BusinessEarningPage() {
     event.preventDefault();
 
     if (!password) {
-      setAuthError("Enter the Business Owner password to continue.");
+      setAuthError("Enter the Business Owner access password to continue.");
       return;
     }
 
@@ -314,7 +314,7 @@ export default function BusinessEarningPage() {
       }
 
       if (!data) {
-        setAuthError("Incorrect Business Owner password. Please try again.");
+        setAuthError("The Business Owner access password is incorrect. Please try again.");
         return;
       }
 
@@ -343,11 +343,11 @@ export default function BusinessEarningPage() {
         errorText.includes("42883")
       ) {
         setAuthError(
-          "Business Owner password access is not configured yet. Run the Business Earnings password setup SQL in Supabase first."
+          "Business Owner financial access has not been configured. Please contact the system administrator."
         );
       } else {
         setAuthError(
-          "Business Owner access could not be verified. Please try again."
+          "Business Owner financial access could not be verified. Please try again."
         );
       }
     } finally {
@@ -445,7 +445,7 @@ export default function BusinessEarningPage() {
           (errorText.includes("does not exist") || errorText.includes("42p01"))
       ) {
         setError(
-          "Business Earnings database access is not configured yet. Run the Business Earnings password setup SQL in Supabase first."
+          "Business Earnings is not fully configured. Please contact the system administrator."
         );
       } else if (
         errorText.includes("incorrect business owner password") ||
@@ -453,11 +453,11 @@ export default function BusinessEarningPage() {
         errorText.includes("42501")
       ) {
         setError(
-          "Business Owner access is no longer valid. Lock this page and enter the current Business Owner password again."
+          "Your Business Owner financial access is no longer valid. Lock the dashboard, then enter the current access password again."
         );
       } else {
         setError(
-          "Business Earnings could not be loaded at this time. Please refresh the page and try again."
+          "Business Earnings could not be loaded at this time. Refresh the page and try again."
         );
       }
     } finally {
@@ -501,7 +501,7 @@ export default function BusinessEarningPage() {
     event.preventDefault();
 
     if (!currentPassword || !newPassword || !confirmNewPassword) {
-      setChangePasswordError("Complete all password fields before saving.");
+      setChangePasswordError("Enter all required password fields before saving.");
       return;
     }
 
@@ -512,13 +512,13 @@ export default function BusinessEarningPage() {
 
     if (newPassword === currentPassword) {
       setChangePasswordError(
-        "Choose a new password that is different from the current password."
+        "The new password must be different from the current password."
       );
       return;
     }
 
     if (newPassword !== confirmNewPassword) {
-      setChangePasswordError("The new password and confirmation do not match.");
+      setChangePasswordError("The new password and confirmation must match.");
       return;
     }
 
@@ -540,7 +540,7 @@ export default function BusinessEarningPage() {
 
       if (!data) {
         setChangePasswordError(
-          "The current Business Owner password is incorrect."
+          "The current Business Owner access password is incorrect."
         );
         return;
       }
@@ -555,7 +555,7 @@ export default function BusinessEarningPage() {
       setShowPassword(false);
       setAuthError("");
       setSuccessMessage(
-        "Business Owner access password updated successfully. Use the new password to open Business Earnings."
+        "Business Owner access password was updated successfully. Use the new password to access Business Earnings."
       );
     } catch (changeError) {
       console.error("Unable to change Business Owner password:", changeError);
@@ -565,18 +565,18 @@ export default function BusinessEarningPage() {
       }`.toLowerCase();
 
       if (errorText.includes("current business owner password is incorrect")) {
-        setChangePasswordError("The current Business Owner password is incorrect.");
+        setChangePasswordError("The current Business Owner access password is incorrect.");
       } else if (
         errorText.includes("change_business_owner_password") ||
         errorText.includes("pgrst202") ||
         errorText.includes("42883")
       ) {
         setChangePasswordError(
-          "Password change is not configured yet. Run the Business Earnings password setup SQL in Supabase first."
+          "Password management has not been configured. Please contact the system administrator."
         );
       } else {
         setChangePasswordError(
-          "The Business Owner password could not be changed. Please try again."
+          "The Business Owner access password could not be updated. Please try again."
         );
       }
     } finally {
@@ -690,7 +690,7 @@ export default function BusinessEarningPage() {
               Business Earnings
             </h1>
             <p style={{ ...styles.subtitle, color: "var(--earn-muted)" }}>
-              Review completed and paid service earnings securely.
+              Securely review revenue, earnings allocations, and completed paid transactions.
             </p>
           </div>
 
@@ -714,13 +714,13 @@ export default function BusinessEarningPage() {
           </div>
 
           <div style={{ textAlign: "center", maxWidth: 560 }}>
-            <p style={styles.authEyebrow}>Protected Financial Access</p>
+            <p style={styles.authEyebrow}>Restricted Financial Access</p>
             <h2 style={{ ...styles.authTitle, color: "var(--earn-strong)" }}>
-              Business Owner Access
+              Business Owner Financial Access
             </h2>
             <p style={{ ...styles.authDescription, color: "var(--earn-muted)" }}>
-              Enter the Business Owner password to open the financial dashboard.
-              This access gate is separate from the regular Admin login.
+              Enter the Business Owner access password to view the financial dashboard.
+              This additional access control is separate from the regular Admin login.
             </p>
           </div>
 
@@ -750,7 +750,7 @@ export default function BusinessEarningPage() {
                   autoComplete="off"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter Business Owner password"
+                  placeholder="Enter Business Owner access password"
                   style={{
                     ...styles.authInput,
                     paddingRight: 48,
@@ -776,7 +776,7 @@ export default function BusinessEarningPage() {
             <div className="earnings-auth-actions" style={styles.authActions}>
               <div style={{ ...styles.securityNote, color: "var(--earn-muted)" }}>
                 <ShieldCheck size={17} color={BRAND.pink} />
-                The password is required again after you lock or leave this page.
+                For security, the password is required again after this dashboard is locked or exited.
               </div>
 
               <button
@@ -789,7 +789,7 @@ export default function BusinessEarningPage() {
                 ) : (
                   <LockKeyhole size={17} />
                 )}
-                {authenticating ? "Verifying..." : "Open Business Earnings"}
+                {authenticating ? "Verifying..." : "Open Financial Dashboard"}
               </button>
             </div>
           </form>
@@ -825,7 +825,7 @@ export default function BusinessEarningPage() {
                 }}
               >
                 <KeyRound size={16} />
-                Change Business Owner Password
+                Change Business Owner Access Password
               </button>
             ) : (
               <form
@@ -839,10 +839,10 @@ export default function BusinessEarningPage() {
                 <div style={styles.changePasswordInlineHeader}>
                   <div>
                     <p style={{ ...styles.changePasswordInlineTitle, color: "var(--earn-strong)" }}>
-                      Change Password
+                      Change Access Password
                     </p>
                     <p style={{ ...styles.changePasswordInlineSubtitle, color: "var(--earn-muted)" }}>
-                      Enter the current password and choose a new Business Owner password.
+                      Verify the current password, then enter and confirm a new Business Owner access password.
                     </p>
                   </div>
 
@@ -850,7 +850,7 @@ export default function BusinessEarningPage() {
                     type="button"
                     onClick={closeChangePasswordPanel}
                     disabled={changingPassword}
-                    aria-label="Close change password"
+                    aria-label="Close password settings"
                     style={{
                       ...styles.inlineCloseButton,
                       background: "var(--earn-card)",
@@ -968,7 +968,7 @@ export default function BusinessEarningPage() {
             Business Earnings
           </h1>
           <p style={{ ...styles.subtitle, color: "var(--earn-muted)" }}>
-            Monitor financial results from completed and paid services.
+            Review revenue allocations and paid transaction records from completed services.
           </p>
         </div>
 
@@ -987,28 +987,28 @@ export default function BusinessEarningPage() {
           iconStyle={styles.statPink}
           title="Total Revenue"
           value={formatPeso(stats.totalRevenue)}
-          description="Finalized paid services"
+          description="Revenue from completed paid bookings"
         />
         <StatCard
           icon={<WalletCards size={30} />}
           iconStyle={styles.statGreen}
           title="Business Owner Earnings"
           value={formatPeso(stats.ownerEarnings)}
-          description="Historical owner share"
+          description="Total allocated business share"
         />
         <StatCard
           icon={<HandCoins size={31} />}
           iconStyle={styles.statOrange}
           title="Pet Sitter Earnings"
           value={formatPeso(stats.sitterEarnings)}
-          description="Historical sitter share"
+          description="Total allocated sitter share"
         />
         <StatCard
           icon={<ReceiptText size={30} />}
           iconStyle={styles.statBlue}
           title="Total Transactions"
           value={stats.totalTransactions}
-          description="Unique paid bookings"
+          description="Completed and paid bookings"
         />
       </section>
 
@@ -1047,10 +1047,10 @@ export default function BusinessEarningPage() {
           <AlertCircle size={20} style={{ flexShrink: 0 }} />
           <span>
             {unfinalizedCount} completed and paid booking
-            {unfinalizedCount === 1 ? " is" : "s are"} missing a historical
-            earnings snapshot and {unfinalizedCount === 1 ? "is" : "are"} not
-            included in the totals. This prevents older transactions from being
-            recalculated using a newer Maintenance percentage.
+            {unfinalizedCount === 1 ? " does" : "s do"} not have a historical
+            earnings record and {unfinalizedCount === 1 ? "is" : "are"} excluded
+            from the totals. This prevents a newer revenue-sharing percentage
+            from being applied to past transactions.
           </span>
         </div>
       ) : null}
@@ -1077,7 +1077,7 @@ export default function BusinessEarningPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search booking ID, service, or pet sitter"
+                placeholder="Search by booking ID, service, or pet sitter"
                 style={{ ...styles.searchInput, color: "var(--earn-text)" }}
               />
             </div>
@@ -1093,7 +1093,7 @@ export default function BusinessEarningPage() {
               }}
             >
               <Calendar size={19} />
-              {showDateFilter ? "Hide date range" : "Select date range"}
+              {showDateFilter ? "Hide Date Range" : "Filter by Date"}
             </button>
           </div>
 
@@ -1105,11 +1105,11 @@ export default function BusinessEarningPage() {
                 borderColor: "var(--earn-border)",
                 color: "var(--earn-muted)",
               }}
-              title="Business Owner password access"
+              title="Business Owner financial access"
             >
               <ShieldCheck size={16} color={BRAND.pink} />
               <span>
-                Access: Business Owner
+                Authorized: Business Owner
               </span>
             </div>
 
@@ -1121,12 +1121,12 @@ export default function BusinessEarningPage() {
                   borderColor: "var(--earn-border)",
                   color: "var(--earn-muted)",
                 }}
-                title="Current Maintenance percentage. Historical totals use each transaction's saved snapshot."
+                title="Current revenue-sharing allocation from Maintenance. Historical transactions retain their saved allocation."
               >
-                Current Split:&nbsp;
+                Current Revenue Split:&nbsp;
                 <strong style={{ color: "var(--earn-strong)" }}>
-                  {formatPercentage(currentSplit.pet_sitter_percentage)} Sitter /{" "}
-                  {formatPercentage(currentSplit.business_owner_percentage)} Owner
+                  {formatPercentage(currentSplit.pet_sitter_percentage)} Pet Sitter /{" "}
+                  {formatPercentage(currentSplit.business_owner_percentage)} Business Owner
                 </strong>
               </div>
             ) : null}
@@ -1153,10 +1153,10 @@ export default function BusinessEarningPage() {
               type="button"
               onClick={lockBusinessEarnings}
               style={styles.lockButton}
-              title="Lock Business Owner financial access"
+              title="Lock the Business Owner financial dashboard"
             >
               <LogOut size={18} />
-              Lock Access
+              Lock Dashboard
             </button>
           </div>
         </div>
@@ -1171,7 +1171,7 @@ export default function BusinessEarningPage() {
             }}
           >
             <label style={{ ...styles.dateLabel, color: "var(--earn-strong)" }}>
-              From
+              Start Date
               <input
                 className="earnings-date-input"
                 type="date"
@@ -1194,7 +1194,7 @@ export default function BusinessEarningPage() {
             </label>
 
             <label style={{ ...styles.dateLabel, color: "var(--earn-strong)" }}>
-              To
+              End Date
               <input
                 className="earnings-date-input"
                 type="date"
@@ -1226,7 +1226,7 @@ export default function BusinessEarningPage() {
                 color: "var(--earn-strong)",
               }}
             >
-              Clear filters
+              Clear Dates
             </button>
           </div>
         ) : null}
@@ -1241,16 +1241,16 @@ export default function BusinessEarningPage() {
                   borderColor: "var(--earn-border)",
                 }}
               >
-                <Th width="120px">Transaction</Th>
-                <Th width="150px">Date</Th>
+                <Th width="120px">Booking ID</Th>
+                <Th width="150px">Finalized Date</Th>
                 <Th width="210px">Service</Th>
                 <Th width="190px">Pet Sitter</Th>
                 <Th width="140px" align="right">Service Price</Th>
-                <Th width="120px" align="center">Sitter %</Th>
+                <Th width="120px" align="center">Sitter Share</Th>
                 <Th width="150px" align="right">Sitter Earnings</Th>
-                <Th width="120px" align="center">Owner %</Th>
+                <Th width="120px" align="center">Owner Share</Th>
                 <Th width="160px" align="right">Owner Earnings</Th>
-                <Th width="120px" align="center">Payment</Th>
+                <Th width="120px" align="center">Payment Status</Th>
               </tr>
             </thead>
 
@@ -1260,7 +1260,7 @@ export default function BusinessEarningPage() {
                   <td colSpan={10} style={styles.emptyCell}>
                     <span style={styles.loadingContent}>
                       <RefreshCw size={20} className="earnings-spinner-icon" />
-                      Loading financial records...
+                      Loading earnings records...
                     </span>
                   </td>
                 </tr>
@@ -1324,7 +1324,7 @@ export default function BusinessEarningPage() {
               ) : (
                 <tr>
                   <td colSpan={10} style={styles.emptyCell}>
-                    No finalized paid transactions match the current filters.
+                    No completed and paid transactions match the selected filters.
                   </td>
                 </tr>
               )}
@@ -1387,10 +1387,10 @@ export default function BusinessEarningPage() {
         >
           <ShieldCheck size={17} color={BRAND.pink} style={{ flexShrink: 0 }} />
           <span>
-            Totals are calculated only from completed and paid bookings with an
-            immutable financial snapshot. Current Maintenance percentages are
-            shown for reference only and are never used to recalculate older
-            finalized transactions.
+            Totals include only bookings that are both Completed and Paid and have a
+            finalized earnings record. Each transaction retains the service price
+            and revenue split recorded when it was finalized; changes in Maintenance
+            apply only to future finalized transactions.
           </span>
         </div>
       </section>
