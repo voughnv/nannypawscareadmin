@@ -570,10 +570,31 @@ export default function MaintenancePage() {
         throw new Error("No service records are available for update.");
       }
 
+      const revenueShareAlreadyMatches = services.every((service) => {
+        const currentSitter = Number(service.pet_sitter_percentage);
+        const currentOwner = Number(service.business_owner_percentage);
+
+        return (
+          Number.isFinite(currentSitter) &&
+          Number.isFinite(currentOwner) &&
+          Math.abs(currentSitter - normalizedSitterPercentage) < 0.005 &&
+          Math.abs(currentOwner - normalizedOwnerPercentage) < 0.005
+        );
+      });
+
+      if (revenueShareAlreadyMatches) {
+        setRevenueConfigured(true);
+        setRevenueError("");
+        setSuccess("Revenue sharing percentages are already up to date.");
+        return;
+      }
+
+      // Revenue sharing is a separate configuration from service pricing.
+      // Do not touch updated_at here; the Service Pricing "Last Updated" value
+      // must change only when a service price is actually edited.
       const payload = {
         pet_sitter_percentage: normalizedSitterPercentage,
         business_owner_percentage: normalizedOwnerPercentage,
-        updated_at: new Date().toISOString(),
       };
 
       const { data, error } = await supabase
@@ -581,7 +602,7 @@ export default function MaintenancePage() {
         .update(payload)
         .in("service_id", serviceIds)
         .select(
-          "service_id, pet_sitter_percentage, business_owner_percentage, updated_at"
+          "service_id, pet_sitter_percentage, business_owner_percentage"
         );
 
       if (error) throw error;
@@ -774,8 +795,8 @@ export default function MaintenancePage() {
           label="Dog Services"
           value={loading ? "—" : stats.dogServices}
           desc="Services for dogs"
-          iconBackground="#DDF3E7"
-          iconColor="#0D9B4A"
+          iconBackground="#E4EFFB"
+          iconColor="#2E6EAE"
           active={cardFilter === "Dog"}
           disabled={loading}
           onClick={() => handleCardFilter("Dog")}
@@ -785,8 +806,8 @@ export default function MaintenancePage() {
           label="Cat Services"
           value={loading ? "—" : stats.catServices}
           desc="Services for cats"
-          iconBackground="#FCEBDD"
-          iconColor="#CE7026"
+          iconBackground="#EFE5F8"
+          iconColor="#7A4BA3"
           active={cardFilter === "Cat"}
           disabled={loading}
           onClick={() => handleCardFilter("Cat")}
@@ -1552,8 +1573,11 @@ function PetTypeBadge({ petType }) {
         height: 27,
         padding: "0 9px",
         borderRadius: 999,
-        background: isDog ? "#EAF7EF" : isCat ? "#FFF0E4" : "#F1EDEE",
-        color: isDog ? "#147744" : isCat ? "#A85B24" : BRAND.muted,
+        border: `1px solid ${
+          isDog ? "#CADFF3" : isCat ? "#DFCDED" : "#E7DDDA"
+        }`,
+        background: isDog ? "#EAF3FC" : isCat ? "#F3EAF9" : "#F5F1F0",
+        color: isDog ? "#285F95" : isCat ? "#714493" : BRAND.muted,
         fontSize: adminScaledFontSize(11.5),
         fontWeight: 900,
       }}
