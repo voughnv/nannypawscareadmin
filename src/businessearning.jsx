@@ -383,7 +383,11 @@ export default function BusinessEarningPage() {
         throw earningsResult.error;
       }
 
-      setTransactions(earningsResult.data || []);
+      const earningsRows = earningsResult.data || [];
+      const enrichedEarningsRows = await enrichTransactionsWithPetSitters(
+        earningsRows
+      );
+      setTransactions(enrichedEarningsRows);
 
       if (missingResult.error) {
         console.error(
@@ -628,6 +632,7 @@ export default function BusinessEarningPage() {
         transaction.booking_id,
         formatBookingId(transaction.booking_id),
         transaction.service_name_snapshot,
+        transaction.sitter_name,
       ]
         .filter((value) => value !== null && value !== undefined)
         .map((value) => String(value).toLowerCase());
@@ -1072,7 +1077,7 @@ export default function BusinessEarningPage() {
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search booking ID or service"
+                placeholder="Search booking ID, service, or pet sitter"
                 style={{ ...styles.searchInput, color: "var(--earn-text)" }}
               />
             </div>
@@ -1238,7 +1243,8 @@ export default function BusinessEarningPage() {
               >
                 <Th width="120px">Transaction</Th>
                 <Th width="150px">Date</Th>
-                <Th width="220px">Service</Th>
+                <Th width="210px">Service</Th>
+                <Th width="190px">Pet Sitter</Th>
                 <Th width="140px" align="right">Service Price</Th>
                 <Th width="120px" align="center">Sitter %</Th>
                 <Th width="150px" align="right">Sitter Earnings</Th>
@@ -1251,7 +1257,7 @@ export default function BusinessEarningPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={9} style={styles.emptyCell}>
+                  <td colSpan={10} style={styles.emptyCell}>
                     <span style={styles.loadingContent}>
                       <RefreshCw size={20} className="earnings-spinner-icon" />
                       Loading financial records...
@@ -1275,6 +1281,21 @@ export default function BusinessEarningPage() {
                       <strong style={{ color: "var(--earn-text)" }}>
                         {transaction.service_name_snapshot || "Not specified"}
                       </strong>
+                    </Td>
+                    <Td>
+                      <strong style={{ color: "var(--earn-text)" }}>
+                        {transaction.sitter_name || "Not assigned"}
+                      </strong>
+                      {transaction.ps_id ? (
+                        <div style={{
+                          marginTop: 3,
+                          color: "var(--earn-muted)",
+                          fontSize: adminScaledFontSize(11),
+                          fontWeight: 700,
+                        }}>
+                          Sitter ID: {transaction.ps_id}
+                        </div>
+                      ) : null}
                     </Td>
                     <Td align="right" strong>
                       {formatPeso(transaction.service_price_snapshot)}
@@ -1302,7 +1323,7 @@ export default function BusinessEarningPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={9} style={styles.emptyCell}>
+                  <td colSpan={10} style={styles.emptyCell}>
                     No finalized paid transactions match the current filters.
                   </td>
                 </tr>
@@ -1454,6 +1475,119 @@ function Td({ children, align = "left", muted = false, strong = false }) {
     >
       {children}
     </td>
+  );
+}
+
+async function enrichTransactionsWithPetSitters(rows) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+
+  if (safeRows.length === 0) return [];
+
+  const bookingIds = [
+    ...new Set(
+      safeRows
+        .map((row) => row?.booking_id)
+        .filter((id) => id !== null && id !== undefined && id !== "")
+    ),
+  ];
+
+  if (bookingIds.length === 0) {
+    return safeRows.map((row) => ({
+      ...row,
+      ps_id: null,
+      sitter_name: "Not assigned",
+    }));
+  }
+
+  const { data: bookingRows, error: bookingError } = await supabase
+    .from("BOOKING")
+    .select("booking_id, ps_id")
+    .in("booking_id", bookingIds);
+
+  if (bookingError) {
+    console.error(
+      "Unable to load booking sitter references for Business Earnings:",
+      bookingError
+    );
+
+    return safeRows.map((row) => ({
+      ...row,
+      ps_id: null,
+      sitter_name: "Unavailable",
+    }));
+  }
+
+  const bookingMap = new Map(
+    (bookingRows || []).map((booking) => [
+      normalizeReferenceKey(booking.booking_id),
+      booking,
+    ])
+  );
+
+  const sitterIds = [
+    ...new Set(
+      (bookingRows || [])
+        .map((booking) => booking?.ps_id)
+        .filter((id) => id !== null && id !== undefined && id !== "")
+    ),
+  ];
+
+  let sitterRows = [];
+
+  if (sitterIds.length > 0) {
+    const { data, error: sitterError } = await supabase
+      .from("PET SITTER")
+      .select("petsitter_id, ps_fname, ps_lname, ps_username")
+      .in("petsitter_id", sitterIds);
+
+    if (sitterError) {
+      console.error(
+        "Unable to load Pet Sitter names for Business Earnings:",
+        sitterError
+      );
+    } else {
+      sitterRows = data || [];
+    }
+  }
+
+  const sitterMap = new Map(
+    sitterRows.map((sitter) => [
+      normalizeReferenceKey(sitter.petsitter_id),
+      sitter,
+    ])
+  );
+
+  return safeRows.map((row) => {
+    const booking =
+      bookingMap.get(normalizeReferenceKey(row.booking_id)) || null;
+    const sitterId = booking?.ps_id ?? null;
+    const sitter =
+      sitterMap.get(normalizeReferenceKey(sitterId)) || null;
+
+    return {
+      ...row,
+      ps_id: sitterId,
+      sitter_name: getBusinessEarningsSitterName(sitter, sitterId),
+    };
+  });
+}
+
+function normalizeReferenceKey(value) {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+}
+
+function getBusinessEarningsSitterName(sitter, fallbackId) {
+  if (!sitter) {
+    return fallbackId ? `Pet Sitter ${fallbackId}` : "Not assigned";
+  }
+
+  const fullName = `${sitter.ps_fname || ""} ${sitter.ps_lname || ""}`.trim();
+
+  return (
+    fullName ||
+    sitter.ps_username ||
+    (fallbackId ? `Pet Sitter ${fallbackId}` : "Not assigned")
   );
 }
 
@@ -2232,7 +2366,7 @@ const styles = {
 
   table: {
     width: "100%",
-    minWidth: 1280,
+    minWidth: 1470,
     borderCollapse: "collapse",
     tableLayout: "fixed",
   },
