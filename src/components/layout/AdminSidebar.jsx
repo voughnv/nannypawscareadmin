@@ -9,6 +9,7 @@ import {
   Settings,
   User,
   Users,
+  Wrench,
 } from "lucide-react";
 import { useAdminSettings } from "../../context/AdminSettingsContext";
 import { releaseAdminSession } from "../../utils/adminSession";
@@ -24,6 +25,7 @@ const MENU_ITEMS = [
   { to: "/messages", text: "Messages", icon: MessagesSquare },
   { to: "/applicants", text: "Applicants", icon: Users },
   { to: "/feedbacks", text: "Feedbacks", icon: MessageSquare },
+  { to: "/maintenance", text: "Maintenance", icon: Wrench },
 ];
 
 export default function AdminSidebar({ onCollapse }) {
@@ -491,6 +493,9 @@ const styles = {
     flexDirection: "column",
     boxSizing: "border-box",
     flexShrink: 0,
+    overflowY: "auto",
+    overflowX: "hidden",
+    scrollbarWidth: "thin",
     borderRight: "1px solid transparent",
     transition:
       "background 0.2s ease, border-color 0.2s ease",
