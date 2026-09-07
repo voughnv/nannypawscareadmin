@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Banknote,
@@ -18,6 +17,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { supabase } from "./lib/supabase";
 import {
   adminScaledFontSize,
   useAdminSettings,
@@ -32,6 +32,7 @@ const BRAND = {
 };
 
 const ROWS_PER_PAGE = 8;
+const BUSINESS_OWNER_ACCESS_PASSWORD = "businessowner@123456";
 
 const EARNINGS_CSS = `
   .business-earnings-page * {
@@ -183,14 +184,9 @@ export default function BusinessEarningPage() {
   const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
-  const financialClientRef = useRef(null);
-
   const [accessGranted, setAccessGranted] = useState(false);
-  const [ownerProfile, setOwnerProfile] = useState(null);
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [authenticating, setAuthenticating] = useState(false);
   const [authError, setAuthError] = useState("");
 
   const [transactions, setTransactions] = useState([]);
@@ -230,11 +226,10 @@ export default function BusinessEarningPage() {
   }, [search, dateFrom, dateTo]);
 
   useEffect(() => {
-    if (!accessGranted || !financialClientRef.current) return undefined;
+    if (!accessGranted) return undefined;
 
-    const client = financialClientRef.current;
-    const bookingChannel = client
-      .channel("business-owner-earnings-sync")
+    const bookingChannel = supabase
+      .channel("business-owner-earnings-booking-sync")
       .on(
         "postgres_changes",
         {
@@ -243,129 +238,53 @@ export default function BusinessEarningPage() {
           table: "BOOKING",
         },
         () => {
-          fetchFinancialData(client, false);
+          fetchFinancialData(false);
+        }
+      )
+      .subscribe();
+
+    const serviceChannel = supabase
+      .channel("business-owner-earnings-service-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "SERVICE_CATALOG",
+        },
+        () => {
+          fetchFinancialData(false);
         }
       )
       .subscribe();
 
     return () => {
-      client.removeChannel(bookingChannel);
+      supabase.removeChannel(bookingChannel);
+      supabase.removeChannel(serviceChannel);
     };
   }, [accessGranted]);
-
-  useEffect(() => {
-    return () => {
-      const client = financialClientRef.current;
-      if (client) {
-        client.auth.signOut().catch(() => {});
-      }
-    };
-  }, []);
 
   async function handleBusinessOwnerLogin(event) {
     event.preventDefault();
 
-    const cleanEmail = email.trim();
-    const cleanPassword = password;
-
-    if (!cleanEmail || !cleanPassword) {
-      setAuthError("Enter the Business Owner email and password to continue.");
+    if (!password) {
+      setAuthError("Enter the Business Owner password to continue.");
       return;
     }
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      setAuthError(
-        "Business Earnings authentication is not configured. Please check the Supabase environment settings."
-      );
+    if (password !== BUSINESS_OWNER_ACCESS_PASSWORD) {
+      setAuthError("Incorrect Business Owner password. Please try again.");
       return;
     }
 
-    setAuthenticating(true);
     setAuthError("");
-
-    const client = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
-
-    try {
-      const { error: signInError } = await client.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword,
-      });
-
-      if (signInError) {
-        throw new Error("INVALID_BUSINESS_OWNER_CREDENTIALS");
-      }
-
-      const { data: profileData, error: profileError } = await client.rpc(
-        "get_business_owner_access_profile"
-      );
-
-      if (profileError) {
-        console.error("Unable to verify Business Owner access:", profileError);
-        throw new Error("BUSINESS_OWNER_ACCESS_NOT_CONFIGURED");
-      }
-
-      const profile = Array.isArray(profileData)
-        ? profileData[0] || null
-        : profileData || null;
-
-      if (!profile) {
-        await client.auth.signOut();
-        throw new Error("NOT_BUSINESS_OWNER");
-      }
-
-      financialClientRef.current = client;
-      setOwnerProfile(profile);
-      setAccessGranted(true);
-      setPassword("");
-      setLoading(true);
-
-      await fetchFinancialData(client, true);
-    } catch (loginError) {
-      console.error("Business Earnings authentication failed:", loginError);
-
-      try {
-        await client.auth.signOut();
-      } catch {
-        // No action is required if an unauthenticated client cannot sign out.
-      }
-
-      financialClientRef.current = null;
-      setOwnerProfile(null);
-      setAccessGranted(false);
-
-      if (loginError?.message === "NOT_BUSINESS_OWNER") {
-        setAuthError(
-          "This account is not authorized to open Business Earnings. Use the Business Owner account."
-        );
-      } else if (
-        loginError?.message === "BUSINESS_OWNER_ACCESS_NOT_CONFIGURED"
-      ) {
-        setAuthError(
-          "Business Owner access has not been configured in Supabase yet."
-        );
-      } else {
-        setAuthError(
-          "The Business Owner credentials could not be verified. Check the email and password and try again."
-        );
-      }
-    } finally {
-      setAuthenticating(false);
-      setLoading(false);
-    }
+    setPassword("");
+    setShowPassword(false);
+    setAccessGranted(true);
+    await fetchFinancialData(true);
   }
 
-  async function fetchFinancialData(client = financialClientRef.current, firstLoad = false) {
-    if (!client) return;
-
+  async function fetchFinancialData(firstLoad = false) {
     if (firstLoad) {
       setLoading(true);
     }
@@ -373,41 +292,97 @@ export default function BusinessEarningPage() {
     setError("");
 
     try {
-      const [transactionResult, splitResult] = await Promise.all([
-        client.rpc("get_business_earnings_transactions"),
-        client.rpc("get_business_owner_current_split"),
+      const [bookingResult, splitResult] = await Promise.all([
+        supabase
+          .from("BOOKING")
+          .select(
+            "booking_id, service_type, payment_status, booking_status, paid_at, financial_service_price, pet_sitter_percentage_snapshot, business_owner_percentage_snapshot, pet_sitter_earnings, business_owner_earnings, financial_finalized_at"
+          )
+          .order("paid_at", { ascending: false }),
+        supabase
+          .from("SERVICE_CATALOG")
+          .select("pet_sitter_percentage, business_owner_percentage"),
       ]);
 
-      if (transactionResult.error) {
-        throw transactionResult.error;
+      if (bookingResult.error) {
+        throw bookingResult.error;
       }
 
-      if (splitResult.error) {
-        console.error(
-          "Unable to load current Maintenance revenue split:",
-          splitResult.error
+      const paidCompletedRows = (bookingResult.data || []).filter((row) => {
+        const bookingStatus = String(row?.booking_status || "")
+          .trim()
+          .toLowerCase();
+        const paymentStatus = String(row?.payment_status || "")
+          .trim()
+          .toLowerCase();
+
+        return (
+          (bookingStatus === "completed" || bookingStatus === "complete") &&
+          paymentStatus === "paid"
         );
-      }
+      });
 
-      const rows = Array.isArray(transactionResult.data)
-        ? transactionResult.data
-        : [];
-
-      const finalized = rows.filter((row) => Boolean(row.financial_finalized_at));
-      const missingSnapshot = rows.filter(
+      const finalized = paidCompletedRows.filter((row) =>
+        Boolean(row.financial_finalized_at)
+      );
+      const missingSnapshot = paidCompletedRows.filter(
         (row) => !row.financial_finalized_at
       ).length;
 
       setTransactions(finalized);
       setUnfinalizedCount(missingSnapshot);
 
-      const splitRows = Array.isArray(splitResult.data)
-        ? splitResult.data
-        : splitResult.data
-        ? [splitResult.data]
-        : [];
+      if (splitResult.error) {
+        console.error(
+          "Unable to load current Maintenance revenue split:",
+          splitResult.error
+        );
+        setCurrentSplit(null);
+      } else {
+        const configuredRows = (splitResult.data || []).filter((row) => {
+          const sitter = Number(row?.pet_sitter_percentage);
+          const owner = Number(row?.business_owner_percentage);
+          return Number.isFinite(sitter) && Number.isFinite(owner);
+        });
 
-      setCurrentSplit(splitRows[0] || null);
+        if (configuredRows.length === 0) {
+          setCurrentSplit(null);
+        } else {
+          const sitterValues = [
+            ...new Set(
+              configuredRows.map((row) =>
+                Number(row.pet_sitter_percentage).toFixed(2)
+              )
+            ),
+          ];
+          const ownerValues = [
+            ...new Set(
+              configuredRows.map((row) =>
+                Number(row.business_owner_percentage).toFixed(2)
+              )
+            ),
+          ];
+
+          const sitter = Number(sitterValues[0]);
+          const owner = Number(ownerValues[0]);
+
+          if (
+            sitterValues.length === 1 &&
+            ownerValues.length === 1 &&
+            Math.abs(sitter + owner - 100) < 0.005
+          ) {
+            setCurrentSplit({
+              pet_sitter_percentage: sitter,
+              business_owner_percentage: owner,
+            });
+          } else {
+            console.error(
+              "SERVICE_CATALOG revenue-sharing percentages are inconsistent."
+            );
+            setCurrentSplit(null);
+          }
+        }
+      }
     } catch (fetchError) {
       console.error("Unable to load Business Earnings:", fetchError);
 
@@ -416,19 +391,20 @@ export default function BusinessEarningPage() {
       }`.toLowerCase();
 
       if (
-        errorText.includes("42883") ||
-        errorText.includes("get_business_earnings_transactions")
+        errorText.includes("financial_service_price") ||
+        errorText.includes("financial_finalized_at") ||
+        errorText.includes("42703")
       ) {
         setError(
           "Business Earnings database setup is not complete yet. Run the Business Earnings SQL setup in Supabase first."
         );
       } else if (
         errorText.includes("permission") ||
-        errorText.includes("not authorized") ||
+        errorText.includes("row-level security") ||
         errorText.includes("42501")
       ) {
         setError(
-          "This Business Owner account does not have permission to view financial records."
+          "The current Admin session does not have permission to read Business Earnings data. Please check the existing RLS policies."
         );
       } else {
         setError(
@@ -443,19 +419,17 @@ export default function BusinessEarningPage() {
   }
 
   async function handleRefresh() {
-    if (!financialClientRef.current || refreshing) return;
+    if (!accessGranted || refreshing) return;
 
     setRefreshing(true);
-    await fetchFinancialData(financialClientRef.current, false);
+    await fetchFinancialData(false);
     setRefreshing(false);
   }
 
-  async function lockBusinessEarnings() {
-    const client = financialClientRef.current;
-
-    financialClientRef.current = null;
+  function lockBusinessEarnings() {
     setAccessGranted(false);
-    setOwnerProfile(null);
+    setPassword("");
+    setShowPassword(false);
     setTransactions([]);
     setUnfinalizedCount(0);
     setCurrentSplit(null);
@@ -464,14 +438,6 @@ export default function BusinessEarningPage() {
     setDateFrom("");
     setDateTo("");
     setCurrentPage(1);
-
-    if (client) {
-      try {
-        await client.auth.signOut();
-      } catch (signOutError) {
-        console.error("Unable to close Business Owner session:", signOutError);
-      }
-    }
   }
 
   const stats = useMemo(() => {
@@ -583,12 +549,11 @@ export default function BusinessEarningPage() {
           <div style={{ textAlign: "center", maxWidth: 560 }}>
             <p style={styles.authEyebrow}>Protected Financial Access</p>
             <h2 style={{ ...styles.authTitle, color: "var(--earn-strong)" }}>
-              Business Owner Authentication
+              Business Owner Access
             </h2>
             <p style={{ ...styles.authDescription, color: "var(--earn-muted)" }}>
-              Enter the Business Owner Supabase account credentials to open the
-              financial dashboard. The password is verified by Supabase and is
-              never stored in this page.
+              Enter the Business Owner password to open the financial dashboard.
+              This access gate is separate from the regular Admin login.
             </p>
           </div>
 
@@ -610,36 +575,15 @@ export default function BusinessEarningPage() {
 
             <label style={styles.fieldLabel}>
               <span style={{ ...styles.fieldTitle, color: "var(--earn-strong)" }}>
-                Business Owner Email
-              </span>
-              <input
-                type="email"
-                autoComplete="username"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="businessowner@example.com"
-                disabled={authenticating}
-                style={{
-                  ...styles.authInput,
-                  background: "var(--earn-input)",
-                  borderColor: "var(--earn-border-strong)",
-                  color: "var(--earn-text)",
-                }}
-              />
-            </label>
-
-            <label style={styles.fieldLabel}>
-              <span style={{ ...styles.fieldTitle, color: "var(--earn-strong)" }}>
                 Password
               </span>
               <div style={styles.passwordShell}>
                 <input
                   type={showPassword ? "text" : "password"}
-                  autoComplete="current-password"
+                  autoComplete="off"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="Enter Business Owner password"
-                  disabled={authenticating}
                   style={{
                     ...styles.authInput,
                     paddingRight: 48,
@@ -651,7 +595,6 @@ export default function BusinessEarningPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((previous) => !previous)}
-                  disabled={authenticating}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   style={{
                     ...styles.passwordToggle,
@@ -666,20 +609,15 @@ export default function BusinessEarningPage() {
             <div className="earnings-auth-actions" style={styles.authActions}>
               <div style={{ ...styles.securityNote, color: "var(--earn-muted)" }}>
                 <ShieldCheck size={17} color={BRAND.pink} />
-                Financial access remains active only while this page is open.
+                The password is required again after you lock or leave this page.
               </div>
 
               <button
                 type="submit"
-                disabled={authenticating}
-                style={primaryButtonStyle(authenticating)}
+                style={primaryButtonStyle(false)}
               >
-                {authenticating ? (
-                  <RefreshCw size={17} className="earnings-spinner-icon" />
-                ) : (
-                  <LockKeyhole size={17} />
-                )}
-                {authenticating ? "Verifying..." : "Open Business Earnings"}
+                <LockKeyhole size={17} />
+                Open Business Earnings
               </button>
             </div>
           </form>
@@ -820,11 +758,11 @@ export default function BusinessEarningPage() {
                 borderColor: "var(--earn-border)",
                 color: "var(--earn-muted)",
               }}
-              title="Verified Business Owner access"
+              title="Business Owner password access"
             >
               <ShieldCheck size={16} color={BRAND.pink} />
               <span>
-                Access: {ownerProfile?.admin_username || "Business Owner"}
+                Access: Business Owner
               </span>
             </div>
 
@@ -868,7 +806,7 @@ export default function BusinessEarningPage() {
               type="button"
               onClick={lockBusinessEarnings}
               style={styles.lockButton}
-              title="Close Business Owner financial access"
+              title="Lock Business Owner financial access"
             >
               <LogOut size={18} />
               Lock Access
