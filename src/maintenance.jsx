@@ -9,7 +9,6 @@ import {
   Pencil,
   RefreshCw,
   Save,
-  Scale,
   Search,
   X,
 } from "lucide-react";
@@ -946,8 +945,7 @@ export default function MaintenancePage() {
       const matchesCard =
         cardFilter === "All" ||
         (cardFilter === "Dog" && servicePetType === "dog") ||
-        (cardFilter === "Cat" && servicePetType === "cat") ||
-        (cardFilter === "WeightBased" && Boolean(service.weight_based));
+        (cardFilter === "Cat" && servicePetType === "cat");
 
       if (!matchesCard) return false;
       if (!query) return true;
@@ -974,15 +972,10 @@ export default function MaintenancePage() {
     const catServices = services.filter(
       (service) => String(service.pet_type || "").toLowerCase() === "cat"
     ).length;
-    const weightBased = services.filter((service) =>
-      Boolean(service.weight_based)
-    ).length;
-
     return {
       total: services.length,
       dogServices,
       catServices,
-      weightBased,
     };
   }, [services]);
 
@@ -1063,7 +1056,7 @@ export default function MaintenancePage() {
         className="maintenance-stats-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: 18,
           marginBottom: 24,
         }}
@@ -1100,17 +1093,6 @@ export default function MaintenancePage() {
           active={cardFilter === "Cat"}
           disabled={loading}
           onClick={() => handleCardFilter("Cat")}
-        />
-        <StatCard
-          icon={<Scale size={28} />}
-          label="Weight-Based Pricing"
-          value={loading ? "—" : stats.weightBased}
-          desc="Services with size-based rates"
-          iconBackground="#FCEBDD"
-          iconColor="#CE7026"
-          active={cardFilter === "WeightBased"}
-          disabled={loading}
-          onClick={() => handleCardFilter("WeightBased")}
         />
       </div>
 
