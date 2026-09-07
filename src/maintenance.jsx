@@ -74,6 +74,10 @@ const MAINTENANCE_CSS = `
   }
 
   .maintenance-page .maintenance-stat-card {
+    width: 100%;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
     transition:
       transform 160ms ease,
       border-color 160ms ease,
@@ -84,6 +88,19 @@ const MAINTENANCE_CSS = `
     transform: translateY(-3px);
     border-color: rgba(217, 67, 104, 0.42);
     box-shadow: 0 12px 24px rgba(58, 30, 20, 0.10);
+  }
+
+  .maintenance-page .maintenance-stat-card.is-active {
+    border-color: ${BRAND.pink};
+    box-shadow:
+      0 8px 18px rgba(217, 67, 104, 0.12),
+      0 0 0 2px rgba(217, 67, 104, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .maintenance-page .maintenance-stat-card:disabled {
+    cursor: default;
+    opacity: 0.78;
   }
 
   .maintenance-page .maintenance-row td {
@@ -175,8 +192,7 @@ const MAINTENANCE_CSS = `
       align-items: stretch !important;
     }
 
-    .maintenance-page .maintenance-search-shell,
-    .maintenance-page .maintenance-filter-select {
+    .maintenance-page .maintenance-search-shell {
       width: 100% !important;
     }
   }
@@ -224,7 +240,7 @@ export default function MaintenancePage() {
   const [success, setSuccess] = useState("");
 
   const [search, setSearch] = useState("");
-  const [petTypeFilter, setPetTypeFilter] = useState("All");
+  const [cardFilter, setCardFilter] = useState("All");
 
   const [selectedService, setSelectedService] = useState(null);
   const [serviceForm, setServiceForm] = useState({
@@ -619,12 +635,15 @@ export default function MaintenancePage() {
     const query = search.trim().toLowerCase();
 
     return services.filter((service) => {
-      const matchesType =
-        petTypeFilter === "All" ||
-        String(service.pet_type || "").toLowerCase() ===
-          petTypeFilter.toLowerCase();
+      const servicePetType = String(service.pet_type || "").toLowerCase();
 
-      if (!matchesType) return false;
+      const matchesCard =
+        cardFilter === "All" ||
+        (cardFilter === "Dog" && servicePetType === "dog") ||
+        (cardFilter === "Cat" && servicePetType === "cat") ||
+        (cardFilter === "WeightBased" && Boolean(service.weight_based));
+
+      if (!matchesCard) return false;
       if (!query) return true;
 
       return [
@@ -636,7 +655,11 @@ export default function MaintenancePage() {
         .filter((value) => value !== null && value !== undefined)
         .some((value) => String(value).toLowerCase().includes(query));
     });
-  }, [services, search, petTypeFilter]);
+  }, [services, search, cardFilter]);
+
+  function handleCardFilter(nextFilter) {
+    setCardFilter(nextFilter);
+  }
 
   const stats = useMemo(() => {
     const dogServices = services.filter(
@@ -742,6 +765,9 @@ export default function MaintenancePage() {
           desc="All configured services"
           iconBackground="#F9DCE5"
           iconColor="#D94D72"
+          active={cardFilter === "All"}
+          disabled={loading}
+          onClick={() => handleCardFilter("All")}
         />
         <StatCard
           icon={<Dog size={29} />}
@@ -750,6 +776,9 @@ export default function MaintenancePage() {
           desc="Services for dogs"
           iconBackground="#DDF3E7"
           iconColor="#0D9B4A"
+          active={cardFilter === "Dog"}
+          disabled={loading}
+          onClick={() => handleCardFilter("Dog")}
         />
         <StatCard
           icon={<Cat size={29} />}
@@ -758,6 +787,9 @@ export default function MaintenancePage() {
           desc="Services for cats"
           iconBackground="#FCEBDD"
           iconColor="#CE7026"
+          active={cardFilter === "Cat"}
+          disabled={loading}
+          onClick={() => handleCardFilter("Cat")}
         />
         <StatCard
           icon={<Scale size={28} />}
@@ -766,6 +798,9 @@ export default function MaintenancePage() {
           desc="Services with size rates"
           iconBackground="#E9E2F8"
           iconColor="#7451B8"
+          active={cardFilter === "WeightBased"}
+          disabled={loading}
+          onClick={() => handleCardFilter("WeightBased")}
         />
       </div>
 
@@ -836,27 +871,6 @@ export default function MaintenancePage() {
                 }}
               />
             </div>
-
-            <select
-              className="maintenance-filter-select maintenance-select"
-              value={petTypeFilter}
-              onChange={(event) => setPetTypeFilter(event.target.value)}
-              style={{
-                width: 170,
-                height: 48,
-                border: "1px solid var(--maint-border-strong)",
-                borderRadius: 7,
-                padding: "0 14px",
-                background: "var(--maint-input)",
-                color: "var(--maint-text)",
-                fontSize: adminScaledFontSize(14),
-                fontWeight: 700,
-              }}
-            >
-              <option value="All">All Pet Types</option>
-              <option value="Dog">Dog</option>
-              <option value="Cat">Cat</option>
-            </select>
 
             <button
               type="button"
@@ -1410,10 +1424,26 @@ export default function MaintenancePage() {
   );
 }
 
-function StatCard({ icon, label, value, desc, iconBackground, iconColor }) {
+function StatCard({
+  icon,
+  label,
+  value,
+  desc,
+  iconBackground,
+  iconColor,
+  active = false,
+  disabled = false,
+  onClick,
+}) {
   return (
-    <div
-      className="maintenance-card maintenance-stat-card"
+    <button
+      type="button"
+      className={`maintenance-card maintenance-stat-card${
+        active ? " is-active" : ""
+      }`}
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
       style={{
         height: 118,
         padding: 18,
@@ -1468,7 +1498,7 @@ function StatCard({ icon, label, value, desc, iconBackground, iconColor }) {
           {desc}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
