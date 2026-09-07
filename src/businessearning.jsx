@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Banknote,
+  CheckCircle2,
   Calendar,
   ChevronLeft,
   ChevronRight,
   Eye,
   EyeOff,
   HandCoins,
+  KeyRound,
   LockKeyhole,
   LogOut,
   ReceiptText,
@@ -32,7 +34,6 @@ const BRAND = {
 };
 
 const ROWS_PER_PAGE = 8;
-const BUSINESS_OWNER_ACCESS_PASSWORD = "businessowner@123456";
 
 const EARNINGS_CSS = `
   .business-earnings-page * {
@@ -185,9 +186,20 @@ export default function BusinessEarningPage() {
   const darkMode = Boolean(settings?.darkMode);
 
   const [accessGranted, setAccessGranted] = useState(false);
+  const [accessPassword, setAccessPassword] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authenticating, setAuthenticating] = useState(false);
+
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showChangePasswords, setShowChangePasswords] = useState(false);
+  const [changePasswordError, setChangePasswordError] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const [transactions, setTransactions] = useState([]);
   const [unfinalizedCount, setUnfinalizedCount] = useState(0);
@@ -228,6 +240,21 @@ export default function BusinessEarningPage() {
   useEffect(() => {
     if (!accessGranted) return undefined;
 
+    const earningsChannel = supabase
+      .channel("business-owner-earnings-transaction-sync")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "BUSINESS_EARNINGS",
+        },
+        () => {
+          fetchFinancialData(false);
+        }
+      )
+      .subscribe();
+
     const bookingChannel = supabase
       .channel("business-owner-earnings-booking-sync")
       .on(
@@ -259,6 +286,7 @@ export default function BusinessEarningPage() {
       .subscribe();
 
     return () => {
+      supabase.removeChannel(earningsChannel);
       supabase.removeChannel(bookingChannel);
       supabase.removeChannel(serviceChannel);
     };
@@ -272,19 +300,60 @@ export default function BusinessEarningPage() {
       return;
     }
 
-    if (password !== BUSINESS_OWNER_ACCESS_PASSWORD) {
-      setAuthError("Incorrect Business Owner password. Please try again.");
-      return;
-    }
-
+    setAuthenticating(true);
     setAuthError("");
-    setPassword("");
-    setShowPassword(false);
-    setAccessGranted(true);
-    await fetchFinancialData(true);
+
+    try {
+      const { data, error: verifyError } = await supabase.rpc(
+        "verify_business_owner_password",
+        { p_password: password }
+      );
+
+      if (verifyError) {
+        throw verifyError;
+      }
+
+      if (!data) {
+        setAuthError("Incorrect Business Owner password. Please try again.");
+        return;
+      }
+
+      const verifiedPassword = password;
+      setAccessPassword(verifiedPassword);
+      setPassword("");
+      setShowPassword(false);
+      setAccessGranted(true);
+      await fetchFinancialData(true, verifiedPassword);
+    } catch (loginError) {
+      console.error("Unable to verify Business Owner password:", loginError);
+
+      const errorText = `${loginError?.code || ""} ${
+        loginError?.message || ""
+      }`.toLowerCase();
+
+      if (
+        errorText.includes("verify_business_owner_password") ||
+        errorText.includes("pgrst202") ||
+        errorText.includes("42883")
+      ) {
+        setAuthError(
+          "Business Owner password access is not configured yet. Run the Business Earnings password setup SQL in Supabase first."
+        );
+      } else {
+        setAuthError(
+          "Business Owner access could not be verified. Please try again."
+        );
+      }
+    } finally {
+      setAuthenticating(false);
+    }
   }
 
-  async function fetchFinancialData(firstLoad = false) {
+  async function fetchFinancialData(firstLoad = false, passwordOverride = "") {
+    const activePassword = passwordOverride || accessPassword;
+
+    if (!activePassword) return;
+
     if (firstLoad) {
       setLoading(true);
     }
@@ -292,45 +361,33 @@ export default function BusinessEarningPage() {
     setError("");
 
     try {
-      const [bookingResult, splitResult] = await Promise.all([
-        supabase
-          .from("BOOKING")
-          .select(
-            "booking_id, service_type, payment_status, booking_status, paid_at, financial_service_price, pet_sitter_percentage_snapshot, business_owner_percentage_snapshot, pet_sitter_earnings, business_owner_earnings, financial_finalized_at"
-          )
-          .order("paid_at", { ascending: false }),
-        supabase
-          .from("SERVICE_CATALOG")
-          .select("pet_sitter_percentage, business_owner_percentage"),
+      const [earningsResult, missingResult, splitResult] = await Promise.all([
+        supabase.rpc("get_business_earnings_transactions", {
+          p_password: activePassword,
+        }),
+        supabase.rpc("get_business_earnings_missing_snapshot_count", {
+          p_password: activePassword,
+        }),
+        supabase.rpc("get_business_owner_current_split", {
+          p_password: activePassword,
+        }),
       ]);
 
-      if (bookingResult.error) {
-        throw bookingResult.error;
+      if (earningsResult.error) {
+        throw earningsResult.error;
       }
 
-      const paidCompletedRows = (bookingResult.data || []).filter((row) => {
-        const bookingStatus = String(row?.booking_status || "")
-          .trim()
-          .toLowerCase();
-        const paymentStatus = String(row?.payment_status || "")
-          .trim()
-          .toLowerCase();
+      setTransactions(earningsResult.data || []);
 
-        return (
-          (bookingStatus === "completed" || bookingStatus === "complete") &&
-          paymentStatus === "paid"
+      if (missingResult.error) {
+        console.error(
+          "Unable to check missing Business Earnings snapshots:",
+          missingResult.error
         );
-      });
-
-      const finalized = paidCompletedRows.filter((row) =>
-        Boolean(row.financial_finalized_at)
-      );
-      const missingSnapshot = paidCompletedRows.filter(
-        (row) => !row.financial_finalized_at
-      ).length;
-
-      setTransactions(finalized);
-      setUnfinalizedCount(missingSnapshot);
+        setUnfinalizedCount(0);
+      } else {
+        setUnfinalizedCount(Number(missingResult.data || 0));
+      }
 
       if (splitResult.error) {
         console.error(
@@ -339,36 +396,17 @@ export default function BusinessEarningPage() {
         );
         setCurrentSplit(null);
       } else {
-        const configuredRows = (splitResult.data || []).filter((row) => {
-          const sitter = Number(row?.pet_sitter_percentage);
-          const owner = Number(row?.business_owner_percentage);
-          return Number.isFinite(sitter) && Number.isFinite(owner);
-        });
+        const splitRow = Array.isArray(splitResult.data)
+          ? splitResult.data[0]
+          : splitResult.data;
 
-        if (configuredRows.length === 0) {
-          setCurrentSplit(null);
-        } else {
-          const sitterValues = [
-            ...new Set(
-              configuredRows.map((row) =>
-                Number(row.pet_sitter_percentage).toFixed(2)
-              )
-            ),
-          ];
-          const ownerValues = [
-            ...new Set(
-              configuredRows.map((row) =>
-                Number(row.business_owner_percentage).toFixed(2)
-              )
-            ),
-          ];
-
-          const sitter = Number(sitterValues[0]);
-          const owner = Number(ownerValues[0]);
+        if (splitRow) {
+          const sitter = Number(splitRow.pet_sitter_percentage);
+          const owner = Number(splitRow.business_owner_percentage);
 
           if (
-            sitterValues.length === 1 &&
-            ownerValues.length === 1 &&
+            Number.isFinite(sitter) &&
+            Number.isFinite(owner) &&
             Math.abs(sitter + owner - 100) < 0.005
           ) {
             setCurrentSplit({
@@ -376,11 +414,10 @@ export default function BusinessEarningPage() {
               business_owner_percentage: owner,
             });
           } else {
-            console.error(
-              "SERVICE_CATALOG revenue-sharing percentages are inconsistent."
-            );
             setCurrentSplit(null);
           }
+        } else {
+          setCurrentSplit(null);
         }
       }
     } catch (fetchError) {
@@ -391,20 +428,22 @@ export default function BusinessEarningPage() {
       }`.toLowerCase();
 
       if (
-        errorText.includes("financial_service_price") ||
-        errorText.includes("financial_finalized_at") ||
-        errorText.includes("42703")
+        errorText.includes("get_business_earnings_transactions") ||
+        errorText.includes("pgrst202") ||
+        errorText.includes("42883") ||
+        errorText.includes("business_earnings") &&
+          (errorText.includes("does not exist") || errorText.includes("42p01"))
       ) {
         setError(
-          "Business Earnings database setup is not complete yet. Run the Business Earnings SQL setup in Supabase first."
+          "Business Earnings database access is not configured yet. Run the Business Earnings password setup SQL in Supabase first."
         );
       } else if (
-        errorText.includes("permission") ||
-        errorText.includes("row-level security") ||
+        errorText.includes("incorrect business owner password") ||
+        errorText.includes("business owner authorization") ||
         errorText.includes("42501")
       ) {
         setError(
-          "The current Admin session does not have permission to read Business Earnings data. Please check the existing RLS policies."
+          "Business Owner access is no longer valid. Lock this page and enter the current Business Owner password again."
         );
       } else {
         setError(
@@ -426,14 +465,119 @@ export default function BusinessEarningPage() {
     setRefreshing(false);
   }
 
+  function openChangePasswordModal() {
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowChangePasswords(false);
+    setChangePasswordError("");
+    setShowChangePasswordModal(true);
+  }
+
+  function closeChangePasswordModal() {
+    if (changingPassword) return;
+
+    setShowChangePasswordModal(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowChangePasswords(false);
+    setChangePasswordError("");
+  }
+
+  async function handleChangePassword(event) {
+    event.preventDefault();
+
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      setChangePasswordError("Complete all password fields before saving.");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setChangePasswordError("The new password must contain at least 8 characters.");
+      return;
+    }
+
+    if (newPassword === currentPassword) {
+      setChangePasswordError(
+        "Choose a new password that is different from the current password."
+      );
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setChangePasswordError("The new password and confirmation do not match.");
+      return;
+    }
+
+    setChangingPassword(true);
+    setChangePasswordError("");
+
+    try {
+      const { data, error: changeError } = await supabase.rpc(
+        "change_business_owner_password",
+        {
+          p_current_password: currentPassword,
+          p_new_password: newPassword,
+        }
+      );
+
+      if (changeError) {
+        throw changeError;
+      }
+
+      if (!data) {
+        setChangePasswordError(
+          "The current Business Owner password is incorrect."
+        );
+        return;
+      }
+
+      setAccessPassword(newPassword);
+      setShowChangePasswordModal(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setShowChangePasswords(false);
+      setSuccessMessage("Business Owner access password updated successfully.");
+    } catch (changeError) {
+      console.error("Unable to change Business Owner password:", changeError);
+
+      const errorText = `${changeError?.code || ""} ${
+        changeError?.message || ""
+      }`.toLowerCase();
+
+      if (errorText.includes("current business owner password is incorrect")) {
+        setChangePasswordError("The current Business Owner password is incorrect.");
+      } else if (
+        errorText.includes("change_business_owner_password") ||
+        errorText.includes("pgrst202") ||
+        errorText.includes("42883")
+      ) {
+        setChangePasswordError(
+          "Password change is not configured yet. Run the Business Earnings password setup SQL in Supabase first."
+        );
+      } else {
+        setChangePasswordError(
+          "The Business Owner password could not be changed. Please try again."
+        );
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
   function lockBusinessEarnings() {
     setAccessGranted(false);
+    setAccessPassword("");
     setPassword("");
     setShowPassword(false);
     setTransactions([]);
     setUnfinalizedCount(0);
     setCurrentSplit(null);
     setError("");
+    setSuccessMessage("");
+    setShowChangePasswordModal(false);
     setSearch("");
     setDateFrom("");
     setDateTo("");
@@ -443,7 +587,7 @@ export default function BusinessEarningPage() {
   const stats = useMemo(() => {
     return transactions.reduce(
       (summary, transaction) => {
-        summary.totalRevenue += toMoneyNumber(transaction.financial_service_price);
+        summary.totalRevenue += toMoneyNumber(transaction.service_price_snapshot);
         summary.ownerEarnings += toMoneyNumber(transaction.business_owner_earnings);
         summary.sitterEarnings += toMoneyNumber(transaction.pet_sitter_earnings);
         summary.totalTransactions += 1;
@@ -465,7 +609,7 @@ export default function BusinessEarningPage() {
       const searchableValues = [
         transaction.booking_id,
         formatBookingId(transaction.booking_id),
-        transaction.service_type,
+        transaction.service_name_snapshot,
       ]
         .filter((value) => value !== null && value !== undefined)
         .map((value) => String(value).toLowerCase());
@@ -474,7 +618,7 @@ export default function BusinessEarningPage() {
         !keyword || searchableValues.some((value) => value.includes(keyword));
 
       const transactionDate = getDateOnlyValue(
-        transaction.financial_finalized_at || transaction.paid_at
+        transaction.financial_finalized_at
       );
 
       const matchesDateFrom =
@@ -614,10 +758,15 @@ export default function BusinessEarningPage() {
 
               <button
                 type="submit"
-                style={primaryButtonStyle(false)}
+                disabled={authenticating}
+                style={primaryButtonStyle(authenticating)}
               >
-                <LockKeyhole size={17} />
-                Open Business Earnings
+                {authenticating ? (
+                  <RefreshCw size={17} className="earnings-spinner-icon" />
+                ) : (
+                  <LockKeyhole size={17} />
+                )}
+                {authenticating ? "Verifying..." : "Open Business Earnings"}
               </button>
             </div>
           </form>
@@ -679,6 +828,21 @@ export default function BusinessEarningPage() {
           description="Unique paid bookings"
         />
       </section>
+
+      {successMessage ? (
+        <div style={styles.successBox}>
+          <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1 }}>{successMessage}</span>
+          <button
+            type="button"
+            onClick={() => setSuccessMessage("")}
+            style={styles.messageClose}
+            aria-label="Dismiss success message"
+          >
+            <X size={17} />
+          </button>
+        </div>
+      ) : null}
 
       {error ? (
         <div style={styles.errorBox}>
@@ -783,6 +947,21 @@ export default function BusinessEarningPage() {
                 </strong>
               </div>
             ) : null}
+
+            <button
+              type="button"
+              onClick={openChangePasswordModal}
+              style={{
+                ...styles.secondaryToolbarButton,
+                background: "var(--earn-card)",
+                borderColor: "var(--earn-border-strong)",
+                color: "var(--earn-strong)",
+              }}
+              title="Change Business Owner access password"
+            >
+              <KeyRound size={18} />
+              Change Password
+            </button>
 
             <button
               type="button"
@@ -926,16 +1105,16 @@ export default function BusinessEarningPage() {
                     <Td strong>{formatBookingId(transaction.booking_id)}</Td>
                     <Td muted>
                       {formatDateTime(
-                        transaction.financial_finalized_at || transaction.paid_at
+                        transaction.financial_finalized_at
                       )}
                     </Td>
                     <Td>
                       <strong style={{ color: "var(--earn-text)" }}>
-                        {transaction.service_type || "Not specified"}
+                        {transaction.service_name_snapshot || "Not specified"}
                       </strong>
                     </Td>
                     <Td align="right" strong>
-                      {formatPeso(transaction.financial_service_price)}
+                      {formatPeso(transaction.service_price_snapshot)}
                     </Td>
                     <Td align="center">
                       {formatPercentage(
@@ -1031,7 +1210,178 @@ export default function BusinessEarningPage() {
           </span>
         </div>
       </section>
+
+      {showChangePasswordModal ? (
+        <div
+          role="presentation"
+          style={styles.modalOverlay}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !changingPassword) {
+              closeChangePasswordModal();
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="business-owner-change-password-title"
+            style={{
+              ...styles.passwordModal,
+              background: "var(--earn-card)",
+              borderColor: "var(--earn-border)",
+              boxShadow: darkMode
+                ? "0 24px 55px rgba(0,0,0,0.42)"
+                : "0 24px 55px rgba(51,26,18,0.22)",
+            }}
+          >
+            <div style={{ ...styles.modalHeader, borderColor: "var(--earn-border)" }}>
+              <div>
+                <p style={styles.authEyebrow}>Protected Financial Access</p>
+                <h2
+                  id="business-owner-change-password-title"
+                  style={{ ...styles.modalTitle, color: "var(--earn-strong)" }}
+                >
+                  Change Business Owner Password
+                </h2>
+                <p style={{ ...styles.modalSubtitle, color: "var(--earn-muted)" }}>
+                  Update the password required to open Business Earnings.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeChangePasswordModal}
+                disabled={changingPassword}
+                aria-label="Close change password"
+                style={{
+                  ...styles.modalCloseButton,
+                  background: "var(--earn-card)",
+                  borderColor: "var(--earn-border-strong)",
+                  color: "var(--earn-strong)",
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleChangePassword}>
+              <div style={styles.modalBody}>
+                {changePasswordError ? (
+                  <div style={styles.authErrorBox}>
+                    <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>{changePasswordError}</span>
+                  </div>
+                ) : null}
+
+                <PasswordField
+                  label="Current Password"
+                  value={currentPassword}
+                  onChange={setCurrentPassword}
+                  visible={showChangePasswords}
+                  autoComplete="current-password"
+                  themeInput={{
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+
+                <PasswordField
+                  label="New Password"
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  visible={showChangePasswords}
+                  autoComplete="new-password"
+                  themeInput={{
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+
+                <PasswordField
+                  label="Confirm New Password"
+                  value={confirmNewPassword}
+                  onChange={setConfirmNewPassword}
+                  visible={showChangePasswords}
+                  autoComplete="new-password"
+                  themeInput={{
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+
+                <label style={{ ...styles.showPasswordRow, color: "var(--earn-muted)" }}>
+                  <input
+                    type="checkbox"
+                    checked={showChangePasswords}
+                    onChange={(event) => setShowChangePasswords(event.target.checked)}
+                  />
+                  Show passwords
+                </label>
+              </div>
+
+              <div style={{ ...styles.modalFooter, borderColor: "var(--earn-border)" }}>
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  disabled={changingPassword}
+                  style={{
+                    ...styles.modalSecondaryButton,
+                    background: "var(--earn-card)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-strong)",
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  style={{
+                    ...styles.modalPrimaryButton,
+                    opacity: changingPassword ? 0.7 : 1,
+                    cursor: changingPassword ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {changingPassword ? (
+                    <RefreshCw size={17} className="earnings-spinner-icon" />
+                  ) : (
+                    <KeyRound size={17} />
+                  )}
+                  {changingPassword ? "Saving..." : "Save New Password"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+  visible,
+  autoComplete,
+  themeInput,
+}) {
+  return (
+    <label style={styles.fieldLabel}>
+      <span style={{ ...styles.fieldTitle, color: "var(--earn-strong)" }}>
+        {label}
+      </span>
+      <input
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={{ ...styles.authInput, ...themeInput }}
+      />
+    </label>
   );
 }
 
@@ -1491,6 +1841,20 @@ const styles = {
     fontWeight: 700,
   },
 
+  successBox: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 14px",
+    marginBottom: 18,
+    borderRadius: 10,
+    border: "1px solid #BFE6CC",
+    background: "#ECF9F0",
+    color: "#167545",
+    fontSize: adminScaledFontSize(13),
+    fontWeight: 700,
+  },
+
   warningBox: {
     display: "flex",
     alignItems: "flex-start",
@@ -1628,6 +1992,107 @@ const styles = {
     alignItems: "center",
     fontSize: adminScaledFontSize(11.5),
     whiteSpace: "nowrap",
+  },
+
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 180,
+    background: "rgba(35, 20, 16, 0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+
+  passwordModal: {
+    width: "min(560px, 100%)",
+    borderRadius: 18,
+    border: "1px solid",
+    overflow: "hidden",
+  },
+
+  modalHeader: {
+    padding: "20px 22px 16px",
+    borderBottom: "1px solid",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+  },
+
+  modalTitle: {
+    margin: 0,
+    fontSize: adminScaledFontSize(22),
+    fontWeight: 900,
+  },
+
+  modalSubtitle: {
+    margin: "7px 0 0",
+    fontSize: adminScaledFontSize(12.5),
+    lineHeight: 1.5,
+  },
+
+  modalCloseButton: {
+    width: 36,
+    height: 36,
+    border: "1px solid",
+    borderRadius: 9,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+
+  modalBody: {
+    padding: "20px 22px 8px",
+  },
+
+  showPasswordRow: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    margin: "0 0 10px",
+    fontSize: adminScaledFontSize(12),
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
+  modalFooter: {
+    padding: "14px 22px 18px",
+    borderTop: "1px solid",
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+
+  modalSecondaryButton: {
+    height: 40,
+    border: "1px solid",
+    borderRadius: 9,
+    padding: "0 16px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: adminScaledFontSize(13),
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+
+  modalPrimaryButton: {
+    height: 40,
+    border: `1px solid ${BRAND.pink}`,
+    borderRadius: 9,
+    background: BRAND.pink,
+    color: "#FFFFFF",
+    padding: "0 16px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    fontSize: adminScaledFontSize(13),
+    fontWeight: 900,
   },
 
   datePanel: {
