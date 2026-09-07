@@ -192,7 +192,7 @@ export default function BusinessEarningPage() {
   const [authError, setAuthError] = useState("");
   const [authenticating, setAuthenticating] = useState(false);
 
-  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [showChangePasswordPanel, setShowChangePasswordPanel] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -322,6 +322,12 @@ export default function BusinessEarningPage() {
       setAccessPassword(verifiedPassword);
       setPassword("");
       setShowPassword(false);
+      setShowChangePasswordPanel(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmNewPassword("");
+      setShowChangePasswords(false);
+      setChangePasswordError("");
       setAccessGranted(true);
       await fetchFinancialData(true, verifiedPassword);
     } catch (loginError) {
@@ -465,19 +471,21 @@ export default function BusinessEarningPage() {
     setRefreshing(false);
   }
 
-  function openChangePasswordModal() {
+  function openChangePasswordPanel() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmNewPassword("");
     setShowChangePasswords(false);
     setChangePasswordError("");
-    setShowChangePasswordModal(true);
+    setAuthError("");
+    setSuccessMessage("");
+    setShowChangePasswordPanel(true);
   }
 
-  function closeChangePasswordModal() {
+  function closeChangePasswordPanel() {
     if (changingPassword) return;
 
-    setShowChangePasswordModal(false);
+    setShowChangePasswordPanel(false);
     setCurrentPassword("");
     setNewPassword("");
     setConfirmNewPassword("");
@@ -534,12 +542,17 @@ export default function BusinessEarningPage() {
       }
 
       setAccessPassword(newPassword);
-      setShowChangePasswordModal(false);
+      setShowChangePasswordPanel(false);
       setCurrentPassword("");
       setNewPassword("");
       setConfirmNewPassword("");
       setShowChangePasswords(false);
-      setSuccessMessage("Business Owner access password updated successfully.");
+      setPassword("");
+      setShowPassword(false);
+      setAuthError("");
+      setSuccessMessage(
+        "Business Owner access password updated successfully. Use the new password to open Business Earnings."
+      );
     } catch (changeError) {
       console.error("Unable to change Business Owner password:", changeError);
 
@@ -577,7 +590,12 @@ export default function BusinessEarningPage() {
     setCurrentSplit(null);
     setError("");
     setSuccessMessage("");
-    setShowChangePasswordModal(false);
+    setShowChangePasswordPanel(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowChangePasswords(false);
+    setChangePasswordError("");
     setSearch("");
     setDateFrom("");
     setDateTo("");
@@ -770,6 +788,166 @@ export default function BusinessEarningPage() {
               </button>
             </div>
           </form>
+
+          <div
+            style={{
+              ...styles.changePasswordLoginArea,
+              borderColor: "var(--earn-border)",
+            }}
+          >
+            {successMessage ? (
+              <div style={{ ...styles.successBox, marginBottom: 14 }}>
+                <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+                <span style={{ flex: 1 }}>{successMessage}</span>
+                <button
+                  type="button"
+                  onClick={() => setSuccessMessage("")}
+                  style={styles.messageClose}
+                  aria-label="Dismiss success message"
+                >
+                  <X size={15} />
+                </button>
+              </div>
+            ) : null}
+
+            {!showChangePasswordPanel ? (
+              <button
+                type="button"
+                onClick={openChangePasswordPanel}
+                style={{
+                  ...styles.changePasswordLinkButton,
+                  color: BRAND.pink,
+                }}
+              >
+                <KeyRound size={16} />
+                Change Business Owner Password
+              </button>
+            ) : (
+              <form
+                onSubmit={handleChangePassword}
+                style={{
+                  ...styles.changePasswordInlinePanel,
+                  background: "var(--earn-soft)",
+                  borderColor: "var(--earn-border)",
+                }}
+              >
+                <div style={styles.changePasswordInlineHeader}>
+                  <div>
+                    <p style={{ ...styles.changePasswordInlineTitle, color: "var(--earn-strong)" }}>
+                      Change Password
+                    </p>
+                    <p style={{ ...styles.changePasswordInlineSubtitle, color: "var(--earn-muted)" }}>
+                      Enter the current password and choose a new Business Owner password.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={closeChangePasswordPanel}
+                    disabled={changingPassword}
+                    aria-label="Close change password"
+                    style={{
+                      ...styles.inlineCloseButton,
+                      background: "var(--earn-card)",
+                      borderColor: "var(--earn-border-strong)",
+                      color: "var(--earn-strong)",
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {changePasswordError ? (
+                  <div style={styles.authErrorBox}>
+                    <AlertCircle size={18} style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1 }}>{changePasswordError}</span>
+                  </div>
+                ) : null}
+
+                <PasswordField
+                  label="Current Password"
+                  value={currentPassword}
+                  onChange={setCurrentPassword}
+                  visible={showChangePasswords}
+                  autoComplete="current-password"
+                  themeInput={{
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+
+                <PasswordField
+                  label="New Password"
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  visible={showChangePasswords}
+                  autoComplete="new-password"
+                  themeInput={{
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+
+                <PasswordField
+                  label="Confirm New Password"
+                  value={confirmNewPassword}
+                  onChange={setConfirmNewPassword}
+                  visible={showChangePasswords}
+                  autoComplete="new-password"
+                  themeInput={{
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+
+                <div style={styles.inlinePasswordFooter}>
+                  <label style={{ ...styles.showPasswordRow, color: "var(--earn-muted)", margin: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={showChangePasswords}
+                      onChange={(event) => setShowChangePasswords(event.target.checked)}
+                    />
+                    Show passwords
+                  </label>
+
+                  <div style={styles.inlinePasswordActions}>
+                    <button
+                      type="button"
+                      onClick={closeChangePasswordPanel}
+                      disabled={changingPassword}
+                      style={{
+                        ...styles.modalSecondaryButton,
+                        background: "var(--earn-card)",
+                        borderColor: "var(--earn-border-strong)",
+                        color: "var(--earn-strong)",
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={changingPassword}
+                      style={{
+                        ...styles.modalPrimaryButton,
+                        opacity: changingPassword ? 0.7 : 1,
+                        cursor: changingPassword ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {changingPassword ? (
+                        <RefreshCw size={17} className="earnings-spinner-icon" />
+                      ) : (
+                        <KeyRound size={17} />
+                      )}
+                      {changingPassword ? "Updating..." : "Update Password"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
         </section>
       </div>
     );
@@ -947,21 +1125,6 @@ export default function BusinessEarningPage() {
                 </strong>
               </div>
             ) : null}
-
-            <button
-              type="button"
-              onClick={openChangePasswordModal}
-              style={{
-                ...styles.secondaryToolbarButton,
-                background: "var(--earn-card)",
-                borderColor: "var(--earn-border-strong)",
-                color: "var(--earn-strong)",
-              }}
-              title="Change Business Owner access password"
-            >
-              <KeyRound size={18} />
-              Change Password
-            </button>
 
             <button
               type="button"
@@ -1211,152 +1374,6 @@ export default function BusinessEarningPage() {
         </div>
       </section>
 
-      {showChangePasswordModal ? (
-        <div
-          role="presentation"
-          style={styles.modalOverlay}
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !changingPassword) {
-              closeChangePasswordModal();
-            }
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="business-owner-change-password-title"
-            style={{
-              ...styles.passwordModal,
-              background: "var(--earn-card)",
-              borderColor: "var(--earn-border)",
-              boxShadow: darkMode
-                ? "0 24px 55px rgba(0,0,0,0.42)"
-                : "0 24px 55px rgba(51,26,18,0.22)",
-            }}
-          >
-            <div style={{ ...styles.modalHeader, borderColor: "var(--earn-border)" }}>
-              <div>
-                <p style={styles.authEyebrow}>Protected Financial Access</p>
-                <h2
-                  id="business-owner-change-password-title"
-                  style={{ ...styles.modalTitle, color: "var(--earn-strong)" }}
-                >
-                  Change Business Owner Password
-                </h2>
-                <p style={{ ...styles.modalSubtitle, color: "var(--earn-muted)" }}>
-                  Update the password required to open Business Earnings.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={closeChangePasswordModal}
-                disabled={changingPassword}
-                aria-label="Close change password"
-                style={{
-                  ...styles.modalCloseButton,
-                  background: "var(--earn-card)",
-                  borderColor: "var(--earn-border-strong)",
-                  color: "var(--earn-strong)",
-                }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <form onSubmit={handleChangePassword}>
-              <div style={styles.modalBody}>
-                {changePasswordError ? (
-                  <div style={styles.authErrorBox}>
-                    <AlertCircle size={18} style={{ flexShrink: 0 }} />
-                    <span style={{ flex: 1 }}>{changePasswordError}</span>
-                  </div>
-                ) : null}
-
-                <PasswordField
-                  label="Current Password"
-                  value={currentPassword}
-                  onChange={setCurrentPassword}
-                  visible={showChangePasswords}
-                  autoComplete="current-password"
-                  themeInput={{
-                    background: "var(--earn-input)",
-                    borderColor: "var(--earn-border-strong)",
-                    color: "var(--earn-text)",
-                  }}
-                />
-
-                <PasswordField
-                  label="New Password"
-                  value={newPassword}
-                  onChange={setNewPassword}
-                  visible={showChangePasswords}
-                  autoComplete="new-password"
-                  themeInput={{
-                    background: "var(--earn-input)",
-                    borderColor: "var(--earn-border-strong)",
-                    color: "var(--earn-text)",
-                  }}
-                />
-
-                <PasswordField
-                  label="Confirm New Password"
-                  value={confirmNewPassword}
-                  onChange={setConfirmNewPassword}
-                  visible={showChangePasswords}
-                  autoComplete="new-password"
-                  themeInput={{
-                    background: "var(--earn-input)",
-                    borderColor: "var(--earn-border-strong)",
-                    color: "var(--earn-text)",
-                  }}
-                />
-
-                <label style={{ ...styles.showPasswordRow, color: "var(--earn-muted)" }}>
-                  <input
-                    type="checkbox"
-                    checked={showChangePasswords}
-                    onChange={(event) => setShowChangePasswords(event.target.checked)}
-                  />
-                  Show passwords
-                </label>
-              </div>
-
-              <div style={{ ...styles.modalFooter, borderColor: "var(--earn-border)" }}>
-                <button
-                  type="button"
-                  onClick={closeChangePasswordModal}
-                  disabled={changingPassword}
-                  style={{
-                    ...styles.modalSecondaryButton,
-                    background: "var(--earn-card)",
-                    borderColor: "var(--earn-border-strong)",
-                    color: "var(--earn-strong)",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={changingPassword}
-                  style={{
-                    ...styles.modalPrimaryButton,
-                    opacity: changingPassword ? 0.7 : 1,
-                    cursor: changingPassword ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {changingPassword ? (
-                    <RefreshCw size={17} className="earnings-spinner-icon" />
-                  ) : (
-                    <KeyRound size={17} />
-                  )}
-                  {changingPassword ? "Saving..." : "Save New Password"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -1756,6 +1773,82 @@ const styles = {
     fontSize: adminScaledFontSize(11.5),
     fontWeight: 700,
     lineHeight: 1.45,
+  },
+
+  changePasswordLoginArea: {
+    width: "min(560px, 100%)",
+    marginTop: 18,
+    paddingTop: 16,
+    borderTop: "1px solid",
+  },
+
+  changePasswordLinkButton: {
+    width: "100%",
+    minHeight: 40,
+    border: 0,
+    background: "transparent",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: "7px 10px",
+    fontSize: adminScaledFontSize(12.5),
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  changePasswordInlinePanel: {
+    border: "1px solid",
+    borderRadius: 12,
+    padding: 16,
+  },
+
+  changePasswordInlineHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 14,
+    marginBottom: 14,
+  },
+
+  changePasswordInlineTitle: {
+    margin: 0,
+    fontSize: adminScaledFontSize(15),
+    fontWeight: 900,
+  },
+
+  changePasswordInlineSubtitle: {
+    margin: "4px 0 0",
+    fontSize: adminScaledFontSize(11.5),
+    lineHeight: 1.45,
+  },
+
+  inlineCloseButton: {
+    width: 32,
+    height: 32,
+    border: "1px solid",
+    borderRadius: 8,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+
+  inlinePasswordFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    marginTop: 4,
+  },
+
+  inlinePasswordActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    marginLeft: "auto",
   },
 
   statsGrid: {
