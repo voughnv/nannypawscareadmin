@@ -198,59 +198,6 @@ const MAINTENANCE_CSS = `
   }
 `;
 
-function getAdminSessionCredentials() {
-  let storedAdmin = null;
-
-  try {
-    const rawAdmin = localStorage.getItem("admin");
-    storedAdmin = rawAdmin ? JSON.parse(rawAdmin) : null;
-  } catch {
-    storedAdmin = null;
-  }
-
-  const adminId =
-    storedAdmin?.admin_id ??
-    storedAdmin?.id ??
-    localStorage.getItem("admin_id");
-
-  const sessionToken =
-    storedAdmin?.admin_session_token ||
-    storedAdmin?.session_token ||
-    storedAdmin?.sessionToken ||
-    localStorage.getItem("admin_session_token") ||
-    localStorage.getItem("adminSessionToken") ||
-    "";
-
-  if (
-    adminId === null ||
-    adminId === undefined ||
-    String(adminId).trim() === "" ||
-    String(sessionToken).trim() === ""
-  ) {
-    return null;
-  }
-
-  const numericAdminId = Number(adminId);
-
-  if (!Number.isFinite(numericAdminId)) {
-    return null;
-  }
-
-  return {
-    adminId: numericAdminId,
-    sessionToken: String(sessionToken),
-  };
-}
-
-function normalizeNullableNumber(value) {
-  if (value === null || value === undefined || String(value).trim() === "") {
-    return null;
-  }
-
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : null;
-}
-
 export default function MaintenancePage() {
   const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
@@ -526,44 +473,39 @@ export default function MaintenancePage() {
     setSavingService(true);
 
     try {
-      const credentials = getAdminSessionCredentials();
+      const updatePayload = {
+        base_price: basePrice,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (!credentials) {
-        throw new Error(
-          "Administrator session details are unavailable. Please log out and sign in again."
-        );
+      if (usesTierPrices) {
+        updatePayload.medium_price = mediumPrice;
+        updatePayload.large_price = largePrice;
       }
 
-      const { error } = await supabase.rpc("admin_update_service_price", {
-        p_admin_id: credentials.adminId,
-        p_session_token: credentials.sessionToken,
-        p_service_id: selectedService.service_id,
-        p_base_price: basePrice,
-        p_medium_price: usesTierPrices
-          ? mediumPrice
-          : normalizeNullableNumber(selectedService.medium_price),
-        p_large_price: usesTierPrices
-          ? largePrice
-          : normalizeNullableNumber(selectedService.large_price),
-      });
+      const { data, error } = await supabase
+        .from(SERVICE_TABLE)
+        .update(updatePayload)
+        .eq("service_id", selectedService.service_id)
+        .select(
+          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
+        )
+        .single();
 
       if (error) throw error;
 
-      await fetchServices(false);
+      setServices((previous) =>
+        previous.map((service) =>
+          service.service_id === data.service_id ? data : service
+        )
+      );
 
       setSelectedService(null);
       setSuccess("Service price updated successfully.");
     } catch (error) {
       console.error("Unable to update service price:", error);
-      const message = String(error?.message || "");
-      const sessionProblem =
-        message.toLowerCase().includes("administrator session") ||
-        message.toLowerCase().includes("session details");
-
       setServiceModalError(
-        sessionProblem
-          ? "Your administrator session could not be verified. Please log out, sign in again, and retry."
-          : "Unable to update the service price. Please try again."
+        "Unable to update the service price. Please try again."
       );
     } finally {
       setSavingService(false);
@@ -615,24 +557,59 @@ export default function MaintenancePage() {
     try {
       const normalizedSitterPercentage = roundTwoDecimals(sitterPercentage);
       const normalizedOwnerPercentage = roundTwoDecimals(ownerPercentage);
-      const credentials = getAdminSessionCredentials();
-
-      if (!credentials) {
-        throw new Error(
-          "Administrator session details are unavailable. Please log out and sign in again."
+      const serviceIds = services
+        .map((service) => service.service_id)
+        .filter(
+          (serviceId) =>
+            serviceId !== null &&
+            serviceId !== undefined &&
+            String(serviceId).trim() !== ""
         );
+
+      if (serviceIds.length === 0) {
+        throw new Error("No service records are available for update.");
       }
 
-      const { error } = await supabase.rpc("admin_update_revenue_share", {
-        p_admin_id: credentials.adminId,
-        p_session_token: credentials.sessionToken,
-        p_pet_sitter_percentage: normalizedSitterPercentage,
-        p_business_owner_percentage: normalizedOwnerPercentage,
-      });
+      const payload = {
+        pet_sitter_percentage: normalizedSitterPercentage,
+        business_owner_percentage: normalizedOwnerPercentage,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from(SERVICE_TABLE)
+        .update(payload)
+        .in("service_id", serviceIds)
+        .select(
+          "service_id, pet_sitter_percentage, business_owner_percentage, updated_at"
+        );
 
       if (error) throw error;
 
-      await fetchServices(false);
+      const updatedRows = data || [];
+
+      if (updatedRows.length !== serviceIds.length) {
+        throw new Error(
+          "Not all service records were updated. Please verify administrator access."
+        );
+      }
+
+      const updatedById = new Map(
+        updatedRows.map((row) => [String(row.service_id), row])
+      );
+
+      setServices((previous) =>
+        previous.map((service) => {
+          const updated = updatedById.get(String(service.service_id));
+
+          return updated
+            ? {
+                ...service,
+                ...updated,
+              }
+            : service;
+        })
+      );
 
       setRevenueConfigured(true);
       setRevenueForm({
@@ -648,16 +625,7 @@ export default function MaintenancePage() {
       setSuccess("Revenue sharing percentages updated successfully.");
     } catch (error) {
       console.error("Unable to update revenue sharing percentages:", error);
-      const message = String(error?.message || "");
-      const sessionProblem =
-        message.toLowerCase().includes("administrator session") ||
-        message.toLowerCase().includes("session details");
-
-      setRevenueError(
-        sessionProblem
-          ? "Your administrator session could not be verified. Please log out, sign in again, and retry."
-          : getRevenueSaveMessage(error)
-      );
+      setRevenueError(getRevenueSaveMessage(error));
     } finally {
       setRevenueSaving(false);
     }
