@@ -15,6 +15,7 @@ import ApplicantPage from "./applicant";
 import FeedbackPage from "./feedback";
 import SettingPage from "./setting";
 import ProfilePage from "./profile";
+import MaintenancePage from "./maintenance";
 import { ConfirmationProvider } from "./context/ConfirmationProvider";
 import { hasLocalAdminSession } from "./utils/adminSession";
 
@@ -45,6 +46,7 @@ function App() {
               <Route path="/messages" element={<MessagesPage />} />
               <Route path="/applicants" element={<ApplicantPage />} />
               <Route path="/feedbacks" element={<FeedbackPage />} />
+              <Route path="/maintenance" element={<MaintenancePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/settings" element={<SettingPage />} />
             </Route>
