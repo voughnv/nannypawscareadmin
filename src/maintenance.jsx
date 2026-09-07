@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import { useConfirmation } from "./context/ConfirmationProvider";
 import {
   adminScaledFontSize,
   useAdminSettings,
@@ -199,6 +200,7 @@ const MAINTENANCE_CSS = `
 `;
 
 export default function MaintenancePage() {
+  const requestConfirmation = useConfirmation();
   const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
@@ -470,6 +472,55 @@ export default function MaintenancePage() {
       return;
     }
 
+    const baseChanged = !moneyValuesEqual(selectedService.base_price, basePrice);
+    const mediumChanged =
+      usesTierPrices &&
+      !moneyValuesEqual(selectedService.medium_price, mediumPrice);
+    const largeChanged =
+      usesTierPrices &&
+      !moneyValuesEqual(selectedService.large_price, largePrice);
+
+    if (!baseChanged && !mediumChanged && !largeChanged) {
+      setSuccess("Service pricing is already up to date.");
+      return;
+    }
+
+    const priceChanges = [];
+
+    if (baseChanged) {
+      priceChanges.push(
+        `Base: ${formatPeso(selectedService.base_price)} → ${formatPeso(basePrice)}`
+      );
+    }
+
+    if (mediumChanged) {
+      priceChanges.push(
+        `Medium: ${formatPeso(selectedService.medium_price)} → ${formatPeso(
+          mediumPrice
+        )}`
+      );
+    }
+
+    if (largeChanged) {
+      priceChanges.push(
+        `Large: ${formatPeso(selectedService.large_price)} → ${formatPeso(
+          largePrice
+        )}`
+      );
+    }
+
+    const confirmed = await requestConfirmation({
+      title: "Update service price?",
+      message: `Save the pricing changes for ${
+        selectedService.service_name || "this service"
+      }? ${priceChanges.join(" • ")}`,
+      confirmText: "Save Price",
+      cancelText: "Cancel",
+      variant: "primary",
+    });
+
+    if (!confirmed) return;
+
     setSavingService(true);
 
     try {
@@ -552,43 +603,76 @@ export default function MaintenancePage() {
       return;
     }
 
+    const normalizedSitterPercentage = roundTwoDecimals(sitterPercentage);
+    const normalizedOwnerPercentage = roundTwoDecimals(ownerPercentage);
+    const serviceIds = services
+      .map((service) => service.service_id)
+      .filter(
+        (serviceId) =>
+          serviceId !== null &&
+          serviceId !== undefined &&
+          String(serviceId).trim() !== ""
+      );
+
+    if (serviceIds.length === 0) {
+      setRevenueError("No service records are available for update.");
+      return;
+    }
+
+    const revenueShareAlreadyMatches = services.every((service) => {
+      const currentSitter = Number(service.pet_sitter_percentage);
+      const currentOwner = Number(service.business_owner_percentage);
+
+      return (
+        Number.isFinite(currentSitter) &&
+        Number.isFinite(currentOwner) &&
+        Math.abs(currentSitter - normalizedSitterPercentage) < 0.005 &&
+        Math.abs(currentOwner - normalizedOwnerPercentage) < 0.005
+      );
+    });
+
+    if (revenueShareAlreadyMatches) {
+      setRevenueConfigured(true);
+      setRevenueError("");
+      setSuccess("Revenue sharing percentages are already up to date.");
+      return;
+    }
+
+    const currentSitterPercentage = getCommonRevenuePercentage(
+      services,
+      "pet_sitter_percentage"
+    );
+    const currentOwnerPercentage = getCommonRevenuePercentage(
+      services,
+      "business_owner_percentage"
+    );
+
+    const currentSplitText =
+      currentSitterPercentage !== null && currentOwnerPercentage !== null
+        ? `Current: ${formatPercentage(
+            currentSitterPercentage
+          )} Pet Sitter / ${formatPercentage(
+            currentOwnerPercentage
+          )} Business Owner. `
+        : "";
+
+    const confirmed = await requestConfirmation({
+      title: "Update revenue sharing?",
+      message: `${currentSplitText}New: ${formatPercentage(
+        normalizedSitterPercentage
+      )} Pet Sitter / ${formatPercentage(
+        normalizedOwnerPercentage
+      )} Business Owner. This new split will apply to future finalized transactions only.`,
+      confirmText: "Save Revenue Sharing",
+      cancelText: "Cancel",
+      variant: "primary",
+    });
+
+    if (!confirmed) return;
+
     setRevenueSaving(true);
 
     try {
-      const normalizedSitterPercentage = roundTwoDecimals(sitterPercentage);
-      const normalizedOwnerPercentage = roundTwoDecimals(ownerPercentage);
-      const serviceIds = services
-        .map((service) => service.service_id)
-        .filter(
-          (serviceId) =>
-            serviceId !== null &&
-            serviceId !== undefined &&
-            String(serviceId).trim() !== ""
-        );
-
-      if (serviceIds.length === 0) {
-        throw new Error("No service records are available for update.");
-      }
-
-      const revenueShareAlreadyMatches = services.every((service) => {
-        const currentSitter = Number(service.pet_sitter_percentage);
-        const currentOwner = Number(service.business_owner_percentage);
-
-        return (
-          Number.isFinite(currentSitter) &&
-          Number.isFinite(currentOwner) &&
-          Math.abs(currentSitter - normalizedSitterPercentage) < 0.005 &&
-          Math.abs(currentOwner - normalizedOwnerPercentage) < 0.005
-        );
-      });
-
-      if (revenueShareAlreadyMatches) {
-        setRevenueConfigured(true);
-        setRevenueError("");
-        setSuccess("Revenue sharing percentages are already up to date.");
-        return;
-      }
-
       // Revenue sharing is a separate configuration from service pricing.
       // Do not touch updated_at here; the Service Pricing "Last Updated" value
       // must change only when a service price is actually edited.
@@ -817,8 +901,8 @@ export default function MaintenancePage() {
           label="Weight-Based Pricing"
           value={loading ? "—" : stats.weightBased}
           desc="Services with size rates"
-          iconBackground="#E9E2F8"
-          iconColor="#7451B8"
+          iconBackground="#FCEBDD"
+          iconColor="#CE7026"
           active={cardFilter === "WeightBased"}
           disabled={loading}
           onClick={() => handleCardFilter("WeightBased")}
@@ -1828,6 +1912,30 @@ function roundTwoDecimals(value) {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
+function moneyValuesEqual(left, right) {
+  const normalize = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? roundTwoDecimals(number) : null;
+  };
+
+  return normalize(left) === normalize(right);
+}
+
+function getCommonRevenuePercentage(services, field) {
+  const values = (services || [])
+    .map((service) => Number(service?.[field]))
+    .filter((value) => Number.isFinite(value))
+    .map((value) => roundTwoDecimals(value));
+
+  if (values.length === 0) return null;
+
+  const first = values[0];
+  return values.every((value) => Math.abs(value - first) < 0.005)
+    ? first
+    : null;
+}
+
 function percentagesEqual100(sitter, owner) {
   if (!Number.isFinite(Number(sitter)) || !Number.isFinite(Number(owner))) {
     return false;
@@ -1868,8 +1976,8 @@ function pricingBadgeStyle(type) {
     height: 27,
     padding: "0 9px",
     borderRadius: 999,
-    background: weight ? "#EEE9FA" : "#EDF6FB",
-    color: weight ? "#6746A5" : "#286B8C",
+    background: weight ? "#FCEBDD" : "#EDF6FB",
+    color: weight ? "#CE7026" : "#286B8C",
     fontSize: adminScaledFontSize(11.5),
     fontWeight: 900,
   };
