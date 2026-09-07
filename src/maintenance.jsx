@@ -7,7 +7,6 @@ import {
   Dog,
   Info,
   Pencil,
-  Percent,
   RefreshCw,
   Save,
   Scale,
@@ -15,7 +14,6 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
-import { useConfirmation } from "./context/ConfirmationProvider";
 import {
   adminScaledFontSize,
   useAdminSettings,
@@ -31,8 +29,6 @@ const BRAND = {
 };
 
 const SERVICE_TABLE = "SERVICE_CATALOG";
-const REVENUE_TABLE = "REVENUE_SHARE_CONFIG";
-const REVENUE_CONFIG_ID = 1;
 
 const MAINTENANCE_CSS = `
   .maintenance-page * {
@@ -187,13 +183,12 @@ const MAINTENANCE_CSS = `
 `;
 
 export default function MaintenancePage() {
-  const requestConfirmation = useConfirmation();
   const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
   const themeStyle = useMemo(
     () => ({
-      "--maint-page": darkMode ? "#201A18" : "#FFFCFB",
+      "--maint-page": darkMode ? "#171311" : "#FFF9F8",
       "--maint-card": darkMode ? "#241D1A" : "#FFFFFF",
       "--maint-card-soft": darkMode ? "#2B2320" : "#FFFCFB",
       "--maint-head": darkMode ? "#2B2320" : "#FFFBFA",
@@ -217,10 +212,7 @@ export default function MaintenancePage() {
         ? "0 8px 18px rgba(0,0,0,0.24)"
         : "0 8px 18px rgba(51,26,18,0.07)",
       width: "100%",
-      minHeight: "100%",
-      background: "var(--maint-page)",
       color: "var(--maint-text)",
-      transition: "background 0.2s ease, color 0.2s ease",
     }),
     [darkMode]
   );
@@ -266,18 +258,8 @@ export default function MaintenancePage() {
       )
       .subscribe();
 
-    const revenueChannel = supabase
-      .channel("admin-maintenance-revenue-share")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: REVENUE_TABLE },
-        () => fetchRevenueConfig(false)
-      )
-      .subscribe();
-
     return () => {
       supabase.removeChannel(serviceChannel);
-      supabase.removeChannel(revenueChannel);
     };
   }, []);
 
@@ -287,82 +269,136 @@ export default function MaintenancePage() {
     setServiceError("");
     setRevenueError("");
 
-    await Promise.all([fetchServices(false), fetchRevenueConfig(false)]);
+    await fetchServices(false);
 
     setLoading(false);
     setRevenueLoading(false);
   }
 
+  function syncRevenueFromServices(serviceRows) {
+    const rows = Array.isArray(serviceRows) ? serviceRows : [];
+
+    if (rows.length === 0) {
+      setRevenueConfigured(false);
+      setRevenueForm({
+        pet_sitter_percentage: "60",
+        business_owner_percentage: "40",
+      });
+      return;
+    }
+
+    const firstConfiguredRow = rows.find((row) => {
+      const sitter = Number(row.pet_sitter_percentage);
+      const owner = Number(row.business_owner_percentage);
+
+      return (
+        Number.isFinite(sitter) &&
+        Number.isFinite(owner) &&
+        percentagesEqual100(sitter, owner)
+      );
+    });
+
+    if (!firstConfiguredRow) {
+      setRevenueConfigured(false);
+      setRevenueForm({
+        pet_sitter_percentage: "60",
+        business_owner_percentage: "40",
+      });
+      return;
+    }
+
+    const sitterPercentage = Number(
+      firstConfiguredRow.pet_sitter_percentage
+    );
+    const ownerPercentage = Number(
+      firstConfiguredRow.business_owner_percentage
+    );
+
+    setRevenueConfigured(true);
+    setRevenueForm({
+      pet_sitter_percentage: formatEditableNumber(sitterPercentage),
+      business_owner_percentage: formatEditableNumber(ownerPercentage),
+    });
+
+    const hasInconsistentRevenueShare = rows.some((row) => {
+      const rowSitter = Number(row.pet_sitter_percentage);
+      const rowOwner = Number(row.business_owner_percentage);
+
+      return (
+        !Number.isFinite(rowSitter) ||
+        !Number.isFinite(rowOwner) ||
+        Math.abs(rowSitter - sitterPercentage) >= 0.005 ||
+        Math.abs(rowOwner - ownerPercentage) >= 0.005
+      );
+    });
+
+    if (hasInconsistentRevenueShare) {
+      setRevenueError(
+        "Revenue sharing values differ between service records. Save the percentages below to synchronize all services."
+      );
+    } else {
+      setRevenueError("");
+    }
+  }
+
   async function fetchServices(showBusyState = true) {
-    if (showBusyState) setRefreshing(true);
+    if (showBusyState) {
+      setRefreshing(true);
+      setRevenueLoading(true);
+    }
+
     setServiceError("");
 
     try {
       const { data, error } = await supabase
         .from(SERVICE_TABLE)
         .select(
-          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, created_at, updated_at"
+          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
         )
         .order("service_id", { ascending: true });
 
       if (error) throw error;
-      setServices(data || []);
+
+      const serviceRows = data || [];
+      setServices(serviceRows);
+      syncRevenueFromServices(serviceRows);
     } catch (error) {
       console.error("Unable to load service catalog:", error);
+
+      const errorText = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+      const missingRevenueColumns =
+        errorText.includes("pet_sitter_percentage") ||
+        errorText.includes("business_owner_percentage");
+
       setServiceError(
-        "Unable to load the service catalog. Please refresh the page and try again."
+        missingRevenueColumns
+          ? "Revenue-sharing fields are not available in the service catalog yet. Apply the Maintenance database update and refresh the page."
+          : "Unable to load the service catalog. Please refresh the page and try again."
       );
-    } finally {
-      if (showBusyState) setRefreshing(false);
-    }
-  }
 
-  async function fetchRevenueConfig(showBusyState = true) {
-    if (showBusyState) setRevenueLoading(true);
-    setRevenueError("");
-
-    try {
-      const { data, error } = await supabase
-        .from(REVENUE_TABLE)
-        .select(
-          "config_id, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
-        )
-        .eq("config_id", REVENUE_CONFIG_ID)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (data) {
-        setRevenueConfigured(true);
-        setRevenueForm({
-          pet_sitter_percentage: formatEditableNumber(
-            data.pet_sitter_percentage
-          ),
-          business_owner_percentage: formatEditableNumber(
-            data.business_owner_percentage
-          ),
-        });
-      } else {
+      if (missingRevenueColumns) {
         setRevenueConfigured(false);
-        setRevenueForm({
-          pet_sitter_percentage: "60",
-          business_owner_percentage: "40",
-        });
+        setRevenueError(
+          "Revenue sharing cannot be loaded until the Maintenance database update is applied."
+        );
       }
-    } catch (error) {
-      console.error("Unable to load revenue share configuration:", error);
-      setRevenueConfigured(false);
-      setRevenueError(getRevenueLoadMessage(error));
     } finally {
-      if (showBusyState) setRevenueLoading(false);
+      if (showBusyState) {
+        setRefreshing(false);
+        setRevenueLoading(false);
+      }
     }
   }
 
   async function handleRefresh() {
     setRefreshing(true);
+    setRevenueLoading(true);
     setSuccess("");
-    await Promise.all([fetchServices(false), fetchRevenueConfig(false)]);
+
+    await fetchServices(false);
+
     setRefreshing(false);
+    setRevenueLoading(false);
   }
 
   function openServiceEditor(service) {
@@ -418,28 +454,6 @@ export default function MaintenancePage() {
       return;
     }
 
-    const priceChanges = [
-      `Base: ${formatPeso(selectedService.base_price)} → ${formatPeso(basePrice)}`,
-    ];
-
-    if (usesTierPrices) {
-      priceChanges.push(
-        `Medium: ${formatPeso(selectedService.medium_price)} → ${formatPeso(mediumPrice)}`,
-        `Large: ${formatPeso(selectedService.large_price)} → ${formatPeso(largePrice)}`
-      );
-    }
-
-    const confirmed = await requestConfirmation({
-      title: "Update service price?",
-      message: `Save the new pricing for ${
-        selectedService.service_name || "this service"
-      }? ${priceChanges.join(" • ")}`,
-      confirmText: "Save Price",
-      variant: "primary",
-    });
-
-    if (!confirmed) return;
-
     setSavingService(true);
 
     try {
@@ -458,7 +472,7 @@ export default function MaintenancePage() {
         .update(updatePayload)
         .eq("service_id", selectedService.service_id)
         .select(
-          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, created_at, updated_at"
+          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
         )
         .single();
 
@@ -515,46 +529,83 @@ export default function MaintenancePage() {
       return;
     }
 
-    const confirmed = await requestConfirmation({
-      title: "Update revenue sharing?",
-      message: `Set the Pet Sitter share to ${formatPercentage(
-        sitterPercentage
-      )} and the Business Owner share to ${formatPercentage(ownerPercentage)}?`,
-      confirmText: "Save Revenue Sharing",
-      variant: "primary",
-    });
-
-    if (!confirmed) return;
+    if (services.length === 0) {
+      setRevenueError(
+        "Revenue sharing cannot be saved because no service records are available."
+      );
+      return;
+    }
 
     setRevenueSaving(true);
 
     try {
+      const normalizedSitterPercentage = roundTwoDecimals(sitterPercentage);
+      const normalizedOwnerPercentage = roundTwoDecimals(ownerPercentage);
+      const serviceIds = services
+        .map((service) => service.service_id)
+        .filter(
+          (serviceId) =>
+            serviceId !== null &&
+            serviceId !== undefined &&
+            String(serviceId).trim() !== ""
+        );
+
+      if (serviceIds.length === 0) {
+        throw new Error("No service records are available for update.");
+      }
+
       const payload = {
-        config_id: REVENUE_CONFIG_ID,
-        pet_sitter_percentage: roundTwoDecimals(sitterPercentage),
-        business_owner_percentage: roundTwoDecimals(ownerPercentage),
+        pet_sitter_percentage: normalizedSitterPercentage,
+        business_owner_percentage: normalizedOwnerPercentage,
         updated_at: new Date().toISOString(),
       };
 
       const { data, error } = await supabase
-        .from(REVENUE_TABLE)
-        .upsert(payload, { onConflict: "config_id" })
+        .from(SERVICE_TABLE)
+        .update(payload)
+        .in("service_id", serviceIds)
         .select(
-          "config_id, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
-        )
-        .single();
+          "service_id, pet_sitter_percentage, business_owner_percentage, updated_at"
+        );
 
       if (error) throw error;
+
+      const updatedRows = data || [];
+
+      if (updatedRows.length !== serviceIds.length) {
+        throw new Error(
+          "Not all service records were updated. Please verify administrator access."
+        );
+      }
+
+      const updatedById = new Map(
+        updatedRows.map((row) => [String(row.service_id), row])
+      );
+
+      setServices((previous) =>
+        previous.map((service) => {
+          const updated = updatedById.get(String(service.service_id));
+
+          return updated
+            ? {
+                ...service,
+                ...updated,
+              }
+            : service;
+        })
+      );
 
       setRevenueConfigured(true);
       setRevenueForm({
         pet_sitter_percentage: formatEditableNumber(
-          data.pet_sitter_percentage
+          normalizedSitterPercentage
         ),
         business_owner_percentage: formatEditableNumber(
-          data.business_owner_percentage
+          normalizedOwnerPercentage
         ),
       });
+
+      setRevenueError("");
       setSuccess("Revenue sharing percentages updated successfully.");
     } catch (error) {
       console.error("Unable to update revenue sharing percentages:", error);
@@ -614,12 +665,7 @@ export default function MaintenancePage() {
   const validShareTotal = percentagesEqual100(sitterShare, ownerShare);
 
   return (
-    <div
-      className="maintenance-page"
-      style={{
-        ...themeStyle,
-      }}
-    >
+    <div className="maintenance-page" style={themeStyle}>
       <style>{MAINTENANCE_CSS}</style>
 
       <header
@@ -667,14 +713,7 @@ export default function MaintenancePage() {
           }}
         >
           <span>Dashboard</span>
-          <span
-            style={{
-              color: "#9A8C89",
-              fontSize: adminScaledFontSize(22),
-            }}
-          >
-            ›
-          </span>
+          <span style={{ color: "#9A8C89", fontSize: adminScaledFontSize(22) }}>›</span>
           <span>Maintenance</span>
         </div>
       </header>
@@ -697,34 +736,34 @@ export default function MaintenancePage() {
         }}
       >
         <StatCard
-          icon={<Coins size={30} />}
-          title="Service Records"
+          icon={<Coins size={28} />}
+          label="Service Records"
           value={loading ? "—" : stats.total}
-          desc="All service records"
+          desc="All configured services"
           iconBackground="#F9DCE5"
           iconColor="#D94D72"
         />
         <StatCard
-          icon={<Dog size={30} />}
-          title="Dog Services"
+          icon={<Dog size={29} />}
+          label="Dog Services"
           value={loading ? "—" : stats.dogServices}
           desc="Services for dogs"
           iconBackground="#DDF3E7"
           iconColor="#0D9B4A"
         />
         <StatCard
-          icon={<Cat size={30} />}
-          title="Cat Services"
+          icon={<Cat size={29} />}
+          label="Cat Services"
           value={loading ? "—" : stats.catServices}
           desc="Services for cats"
           iconBackground="#FCEBDD"
           iconColor="#CE7026"
         />
         <StatCard
-          icon={<Scale size={30} />}
-          title="Weight-Based"
+          icon={<Scale size={28} />}
+          label="Weight-Based Pricing"
           value={loading ? "—" : stats.weightBased}
-          desc="Tiered price services"
+          desc="Services with size rates"
           iconBackground="#E9E2F8"
           iconColor="#7451B8"
         />
@@ -733,7 +772,7 @@ export default function MaintenancePage() {
       <section className="maintenance-card" style={{ marginBottom: 24, padding: "22px 14px 16px" }}>
         <div
           style={{
-            padding: "0 12px 22px",
+            padding: "0 12px 20px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
@@ -756,11 +795,11 @@ export default function MaintenancePage() {
               style={{
                 margin: "6px 0 0",
                 color: "var(--maint-muted)",
-                fontSize: adminScaledFontSize(14),
+                fontSize: adminScaledFontSize(13),
                 lineHeight: 1.5,
               }}
             >
-              Prices are loaded directly from the SERVICE_CATALOG table used by the system.
+              Update the prices currently used for Nanny Paws Care services.
             </p>
           </div>
 
@@ -779,7 +818,7 @@ export default function MaintenancePage() {
                 display: "flex",
                 alignItems: "center",
                 gap: 9,
-                padding: "0 14px",
+                padding: "0 12px",
               }}
             >
               <Search size={22} color="var(--maint-muted)" />
@@ -810,7 +849,7 @@ export default function MaintenancePage() {
                 padding: "0 14px",
                 background: "var(--maint-input)",
                 color: "var(--maint-text)",
-                fontSize: adminScaledFontSize(13),
+                fontSize: adminScaledFontSize(14),
                 fontWeight: 700,
               }}
             >
@@ -823,16 +862,18 @@ export default function MaintenancePage() {
               type="button"
               onClick={handleRefresh}
               disabled={refreshing}
+              title="Refresh maintenance data"
               style={{
                 ...secondaryButtonStyle(),
                 height: 48,
+                minHeight: 48,
                 borderRadius: 7,
+                padding: "0 14px",
                 fontSize: adminScaledFontSize(14),
               }}
-              title="Refresh maintenance data"
             >
               <RefreshCw size={19} />
-              {refreshing ? "Loading..." : "Refresh"}
+              {refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -981,8 +1022,7 @@ export default function MaintenancePage() {
             borderBottom: "1px solid var(--maint-border)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <Percent size={22} color={BRAND.pink} />
+          <div>
             <h2
               style={{
                 margin: 0,
@@ -1370,18 +1410,16 @@ export default function MaintenancePage() {
   );
 }
 
-function StatCard({ icon, title, value, desc, iconBackground, iconColor }) {
+function StatCard({ icon, label, value, desc, iconBackground, iconColor }) {
   return (
     <div
       className="maintenance-card maintenance-stat-card"
       style={{
-        width: "100%",
         height: 118,
         padding: 18,
         display: "flex",
         alignItems: "center",
         gap: 16,
-        minWidth: 0,
       }}
     >
       <div
@@ -1400,36 +1438,35 @@ function StatCard({ icon, title, value, desc, iconBackground, iconColor }) {
         {icon}
       </div>
       <div style={{ minWidth: 0 }}>
-        <p
+        <div
           style={{
-            margin: 0,
             color: "var(--maint-text)",
             fontSize: adminScaledFontSize(14),
             fontWeight: 800,
           }}
         >
-          {title}
-        </p>
-        <h2
+          {label}
+        </div>
+        <div
           style={{
             margin: "4px 0 2px",
             color: "var(--maint-strong)",
             fontSize: adminScaledFontSize(28),
             fontWeight: 900,
-            lineHeight: 1.05,
+            lineHeight: 1,
           }}
         >
           {value}
-        </h2>
-        <p
+        </div>
+        <div
           style={{
-            margin: 0,
             color: "var(--maint-muted)",
             fontSize: adminScaledFontSize(12),
+            lineHeight: 1.25,
           }}
         >
           {desc}
-        </p>
+        </div>
       </div>
     </div>
   );
@@ -1440,7 +1477,7 @@ function TableHeading({ children, width, align = "left" }) {
     <th
       style={{
         width,
-        padding: "13px 11px",
+        padding: "15px 12px",
         textAlign: align,
         color: "var(--maint-text)",
         fontSize: adminScaledFontSize(12.5),
@@ -1457,7 +1494,7 @@ function TableCell({ children, align = "left", muted = false, strong = false }) 
   return (
     <td
       style={{
-        padding: "14px 11px",
+        padding: "16px 12px",
         textAlign: align,
         color: muted ? "var(--maint-muted)" : "var(--maint-text)",
         fontSize: adminScaledFontSize(12.5),
@@ -1753,20 +1790,6 @@ function isValidPercentageTyping(value) {
   if (!/^\d{0,3}(?:\.\d{0,2})?$/.test(value)) return false;
   const number = Number(value);
   return Number.isFinite(number) && number <= 100;
-}
-
-function getRevenueLoadMessage(error) {
-  const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
-
-  if (
-    text.includes("pgrst205") ||
-    text.includes("42p01") ||
-    text.includes("revenue_share_config") && text.includes("not")
-  ) {
-    return "Revenue sharing has not been configured in the database yet. Create the REVENUE_SHARE_CONFIG table before saving percentages.";
-  }
-
-  return "Unable to load revenue sharing settings. Please refresh the page and try again.";
 }
 
 function getRevenueSaveMessage(error) {
