@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
 import {
   CalendarDays,
+  Wallet,
   LogOut,
   Menu,
   MessageSquare,
@@ -25,6 +26,7 @@ const MENU_ITEMS = [
   { to: "/messages", text: "Messages", icon: MessagesSquare },
   { to: "/applicants", text: "Applicants", icon: Users },
   { to: "/feedbacks", text: "Feedbacks", icon: MessageSquare },
+  { to: "/business-earnings", text: "Business Earnings", icon: Wallet },
   { to: "/maintenance", text: "Maintenance", icon: Wrench },
 ];
 
