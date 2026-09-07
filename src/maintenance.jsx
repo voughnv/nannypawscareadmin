@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
   Cat,
@@ -131,7 +132,8 @@ const MAINTENANCE_CSS = `
   .maintenance-modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 3000;
+    /* Keep this editor below the app-wide ConfirmationProvider. */
+    z-index: 1200;
     background: rgba(31, 17, 13, 0.46);
     display: flex;
     align-items: center;
@@ -252,6 +254,7 @@ export default function MaintenancePage() {
   });
   const [savingService, setSavingService] = useState(false);
   const [serviceModalError, setServiceModalError] = useState("");
+  const [serviceConfirmationOpen, setServiceConfirmationOpen] = useState(false);
 
   const [revenueLoading, setRevenueLoading] = useState(true);
   const [revenueSaving, setRevenueSaving] = useState(false);
@@ -509,6 +512,12 @@ export default function MaintenancePage() {
       );
     }
 
+    // Temporarily hide the price editor while the shared confirmation dialog is open.
+    // This guarantees the confirmation dialog is the top-most modal regardless of
+    // the z-index used by ConfirmationProvider. The editor state is preserved and
+    // returns unchanged when the Admin cancels.
+    setServiceConfirmationOpen(true);
+
     const confirmed = await requestConfirmation({
       title: "Update service price?",
       message: `Save the pricing changes for ${
@@ -519,7 +528,10 @@ export default function MaintenancePage() {
       variant: "primary",
     });
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      setServiceConfirmationOpen(false);
+      return;
+    }
 
     setSavingService(true);
 
@@ -555,11 +567,15 @@ export default function MaintenancePage() {
       setSuccess("Service price updated successfully.");
     } catch (error) {
       console.error("Unable to update service price:", error);
+      // Restore the editor if the database update fails so the Admin can see
+      // the error and keep the entered values.
+      setServiceConfirmationOpen(false);
       setServiceModalError(
         "Unable to update the service price. Please try again."
       );
     } finally {
       setSavingService(false);
+      setServiceConfirmationOpen(false);
     }
   }
 
@@ -846,9 +862,32 @@ export default function MaintenancePage() {
         </div>
       </header>
 
-      {success ? (
-        <StatusAlert type="success" message={success} onClose={() => setSuccess("")} />
-      ) : null}
+      {success && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                ...themeStyle,
+                position: "fixed",
+                top: 22,
+                right: 22,
+                width: "min(430px, calc(100vw - 44px))",
+                zIndex: 12000,
+                pointerEvents: "auto",
+                filter: "drop-shadow(0 10px 24px rgba(31, 17, 13, 0.16))",
+              }}
+            >
+              <StatusAlert
+                type="success"
+                message={success}
+                onClose={() => setSuccess("")}
+                compact
+              />
+            </div>,
+            document.body
+          )
+        : null}
 
       {serviceError ? (
         <StatusAlert type="error" message={serviceError} onClose={() => setServiceError("")} />
@@ -1330,7 +1369,7 @@ export default function MaintenancePage() {
         </form>
       </section>
 
-      {selectedService ? (
+      {selectedService && !serviceConfirmationOpen ? (
         <div
           className="maintenance-modal-backdrop"
           role="presentation"
