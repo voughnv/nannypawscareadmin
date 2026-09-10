@@ -262,7 +262,7 @@ export default function MaintenancePage() {
   const [sitterError, setSitterError] = useState("");
   const [sitterSearch, setSitterSearch] = useState("");
   const [selectedRevenueSitter, setSelectedRevenueSitter] = useState(null);
-  const [percentageCut, setPercentageCut] = useState("");
+  const [sitterShareInput, setSitterShareInput] = useState("");
   const [savingRevenueShare, setSavingRevenueShare] = useState(false);
   const [revenueModalError, setRevenueModalError] = useState("");
   const [revenueConfirmationOpen, setRevenueConfirmationOpen] = useState(false);
@@ -362,7 +362,7 @@ export default function MaintenancePage() {
 
       setSitterError(
         missingPercentageCut
-          ? "The Pet Sitter percentage field is not available. Confirm that percentage_cut exists in the PET SITTER table, then refresh this page."
+          ? "The revenue percentage field is not available. Confirm that percentage_cut exists in the PET SITTER table, then refresh this page."
           : "Pet Sitter revenue-sharing records could not be loaded. Please refresh the page and try again."
       );
     } finally {
@@ -722,26 +722,26 @@ export default function MaintenancePage() {
 
   function openRevenueEditor(sitter) {
     setSelectedRevenueSitter(sitter);
-    setPercentageCut(
-      formatEditableNumber(
-        Number.isFinite(Number(sitter?.percentage_cut))
-          ? Number(sitter.percentage_cut)
-          : 60
-      )
-    );
+    const storedOwnerCut = Number(sitter?.percentage_cut);
+    const sitterShare =
+      Number.isFinite(storedOwnerCut) && storedOwnerCut >= 0 && storedOwnerCut <= 100
+        ? roundTwoDecimals(100 - storedOwnerCut)
+        : 60;
+
+    setSitterShareInput(formatEditableNumber(sitterShare));
     setRevenueModalError("");
   }
 
   function closeRevenueEditor() {
     if (savingRevenueShare) return;
     setSelectedRevenueSitter(null);
-    setPercentageCut("");
+    setSitterShareInput("");
     setRevenueModalError("");
   }
 
-  function updatePercentageCut(value) {
+  function updateSitterShare(value) {
     if (!isValidPercentageTyping(value)) return;
-    setPercentageCut(value);
+    setSitterShareInput(value);
     setRevenueModalError("");
   }
 
@@ -752,23 +752,33 @@ export default function MaintenancePage() {
     setRevenueModalError("");
     setSuccess("");
 
-    const nextCut = Number(percentageCut);
+    const nextSitterShare = Number(sitterShareInput);
 
-    if (!Number.isFinite(nextCut) || nextCut < 0 || nextCut > 100) {
+    if (!Number.isFinite(nextSitterShare) || nextSitterShare < 0 || nextSitterShare > 100) {
       setRevenueModalError(
         "Enter a Pet Sitter revenue share from 0% to 100%."
       );
       return;
     }
 
-    const normalizedCut = roundTwoDecimals(nextCut);
-    const ownerShare = roundTwoDecimals(100 - normalizedCut);
-    const currentCut = Number(selectedRevenueSitter.percentage_cut);
-    const normalizedCurrentCut = Number.isFinite(currentCut)
-      ? roundTwoDecimals(currentCut)
-      : null;
+    const normalizedSitterShare = roundTwoDecimals(nextSitterShare);
+    const ownerShare = roundTwoDecimals(100 - normalizedSitterShare);
 
-    if (normalizedCurrentCut !== null && Math.abs(normalizedCurrentCut - normalizedCut) < 0.005) {
+    // PET SITTER.percentage_cut stores the Business Owner share.
+    // The Pet Sitter share shown in Maintenance is the remaining percentage.
+    const currentOwnerCut = Number(selectedRevenueSitter.percentage_cut);
+    const normalizedCurrentOwnerCut = Number.isFinite(currentOwnerCut)
+      ? roundTwoDecimals(currentOwnerCut)
+      : null;
+    const normalizedCurrentSitterShare =
+      normalizedCurrentOwnerCut !== null
+        ? roundTwoDecimals(100 - normalizedCurrentOwnerCut)
+        : null;
+
+    if (
+      normalizedCurrentSitterShare !== null &&
+      Math.abs(normalizedCurrentSitterShare - normalizedSitterShare) < 0.005
+    ) {
       setSelectedRevenueSitter(null);
       showSuccessNearCards(
         `${getSitterFullName(selectedRevenueSitter)}'s revenue share is already up to date.`
@@ -778,16 +788,18 @@ export default function MaintenancePage() {
 
     setRevenueConfirmationOpen(true);
 
-    const currentText = normalizedCurrentCut === null
+    const currentText = normalizedCurrentSitterShare === null
       ? "Current Pet Sitter share: Not configured. "
-      : `Current: ${formatPercentage(normalizedCurrentCut)} Pet Sitter / ${formatPercentage(
-          100 - normalizedCurrentCut
+      : `Current: ${formatPercentage(
+          normalizedCurrentSitterShare
+        )} Pet Sitter / ${formatPercentage(
+          normalizedCurrentOwnerCut
         )} Business Owner. `;
 
     const confirmed = await requestConfirmation({
       title: "Confirm Pet Sitter revenue share",
       message: `${currentText}New: ${formatPercentage(
-        normalizedCut
+        normalizedSitterShare
       )} Pet Sitter / ${formatPercentage(
         ownerShare
       )} Business Owner for ${getSitterFullName(
@@ -808,7 +820,7 @@ export default function MaintenancePage() {
     try {
       const { data, error } = await supabase
         .from(SITTER_TABLE)
-        .update({ percentage_cut: normalizedCut })
+        .update({ percentage_cut: ownerShare })
         .eq("petsitter_id", selectedRevenueSitter.petsitter_id)
         .select(
           "petsitter_id, ps_fname, ps_lname, ps_email, percentage_cut, created_at"
@@ -824,10 +836,10 @@ export default function MaintenancePage() {
       );
 
       setSelectedRevenueSitter(null);
-      setPercentageCut("");
+      setSitterShareInput("");
       showSuccessNearCards(
         `${getSitterFullName(data)}'s revenue share was updated to ${formatPercentage(
-          normalizedCut
+          normalizedSitterShare
         )} for the Pet Sitter and ${formatPercentage(
           ownerShare
         )} for the Business Owner.`
@@ -902,9 +914,9 @@ export default function MaintenancePage() {
     );
   }, [sitters, sitterSearch]);
 
-  const selectedSitterCut = Number(percentageCut);
-  const selectedOwnerShare = Number.isFinite(selectedSitterCut)
-    ? roundTwoDecimals(100 - selectedSitterCut)
+  const selectedSitterShare = Number(sitterShareInput);
+  const selectedOwnerShare = Number.isFinite(selectedSitterShare)
+    ? roundTwoDecimals(100 - selectedSitterShare)
     : null;
 
   return (
@@ -1362,10 +1374,12 @@ export default function MaintenancePage() {
                 </tr>
               ) : (
                 filteredSitters.map((sitter) => {
-                  const sitterCut = Number(sitter.percentage_cut);
+                  const ownerCut = Number(sitter.percentage_cut);
                   const hasValidCut =
-                    Number.isFinite(sitterCut) && sitterCut >= 0 && sitterCut <= 100;
-                  const ownerCut = hasValidCut ? roundTwoDecimals(100 - sitterCut) : null;
+                    Number.isFinite(ownerCut) && ownerCut >= 0 && ownerCut <= 100;
+                  const sitterShare = hasValidCut
+                    ? roundTwoDecimals(100 - ownerCut)
+                    : null;
 
                   return (
                     <tr
@@ -1390,10 +1404,10 @@ export default function MaintenancePage() {
                       </TableCell>
                       <TableCell muted>{sitter.ps_email || "Not provided"}</TableCell>
                       <TableCell align="center" strong>
-                        {hasValidCut ? formatPercentage(sitterCut) : "Not configured"}
+                        {sitterShare === null ? "Not configured" : formatPercentage(sitterShare)}
                       </TableCell>
                       <TableCell align="center" strong>
-                        {ownerCut === null ? "—" : formatPercentage(ownerCut)}
+                        {hasValidCut ? formatPercentage(ownerCut) : "—"}
                       </TableCell>
                       <TableCell align="center">
                         <button
@@ -1553,8 +1567,8 @@ export default function MaintenancePage() {
 
                 <PercentageField
                   label="Pet Sitter Revenue Share"
-                  value={percentageCut}
-                  onChange={updatePercentageCut}
+                  value={sitterShareInput}
+                  onChange={updateSitterShare}
                 />
 
                 <div
@@ -1576,9 +1590,9 @@ export default function MaintenancePage() {
                   <ReadOnlyShareBox
                     label="Total Revenue Allocation"
                     value={
-                      Number.isFinite(selectedSitterCut) &&
-                      selectedSitterCut >= 0 &&
-                      selectedSitterCut <= 100
+                      Number.isFinite(selectedSitterShare) &&
+                      selectedSitterShare >= 0 &&
+                      selectedSitterShare <= 100
                         ? "100%"
                         : "—"
                     }
@@ -1602,7 +1616,7 @@ export default function MaintenancePage() {
                 >
                   <Info size={16} color={BRAND.pink} style={{ marginTop: 1, flexShrink: 0 }} />
                   <span>
-                    The Business Owner share is automatically calculated as 100% minus the Pet Sitter share.
+                    The Pet Sitter share is entered here. The Business Owner share is calculated automatically and stored as the sitter's percentage cut in the system.
                   </span>
                 </div>
               </div>
@@ -1628,15 +1642,15 @@ export default function MaintenancePage() {
                   type="submit"
                   disabled={
                     savingRevenueShare ||
-                    !Number.isFinite(selectedSitterCut) ||
-                    selectedSitterCut < 0 ||
-                    selectedSitterCut > 100
+                    !Number.isFinite(selectedSitterShare) ||
+                    selectedSitterShare < 0 ||
+                    selectedSitterShare > 100
                   }
                   style={primaryButtonStyle(
                     savingRevenueShare ||
-                      !Number.isFinite(selectedSitterCut) ||
-                      selectedSitterCut < 0 ||
-                      selectedSitterCut > 100
+                      !Number.isFinite(selectedSitterShare) ||
+                      selectedSitterShare < 0 ||
+                      selectedSitterShare > 100
                   )}
                 >
                   {savingRevenueShare ? (
