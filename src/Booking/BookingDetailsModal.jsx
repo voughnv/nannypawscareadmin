@@ -130,10 +130,12 @@ export default function BookingDetailsModal({
     booking?.admin_review_remarks || ""
   );
   const [remarksError, setRemarksError] = useState("");
+  const [pendingAction, setPendingAction] = useState("");
 
   useEffect(() => {
     setReviewRemarks(booking?.admin_review_remarks || "");
     setRemarksError("");
+    setPendingAction("");
   }, [booking]);
 
   if (!booking) return null;
@@ -159,11 +161,29 @@ export default function BookingDetailsModal({
     !isPaid &&
     (isCash || hasPaymentProof);
 
+  const actionBusy =
+    updating ||
+    Boolean(pendingAction);
+
+  async function runBookingAction(actionName, callback) {
+    if (actionBusy || typeof callback !== "function") {
+      return false;
+    }
+
+    setPendingAction(actionName);
+
+    try {
+      return await callback();
+    } finally {
+      setPendingAction("");
+    }
+  }
+
   return (
     <div
       className="booking-details-interactive"
       style={styles.modalOverlay}
-      onClick={updating ? undefined : onClose}
+      onClick={actionBusy ? undefined : onClose}
     >
       <style>{BOOKING_MODAL_INTERACTION_CSS}</style>
 
@@ -190,9 +210,9 @@ export default function BookingDetailsModal({
             className="booking-modal-close"
             style={{
               ...styles.closeBtn,
-              ...(updating ? styles.disabledButton : {}),
+              ...(actionBusy ? styles.disabledButton : {}),
             }}
-            disabled={updating}
+            disabled={actionBusy}
             onClick={onClose}
           >
             <X size={20} />
@@ -404,16 +424,21 @@ export default function BookingDetailsModal({
                 style={{
                   ...styles.actionButton,
                   ...styles.pendingButton,
-                  ...(updating
+                  ...(actionBusy
                     ? styles.disabledButton
                     : {}),
                 }}
-                disabled={updating}
+                disabled={actionBusy}
                 onClick={() =>
-                  onPending(booking)
+                  runBookingAction(
+                    "pending",
+                    () => onPending?.(booking)
+                  )
                 }
               >
-                {updating
+                {pendingAction === "pending"
+                  ? "Moving..."
+                  : updating
                   ? "Updating..."
                   : "Move to Pending"}
               </button>
@@ -427,21 +452,27 @@ export default function BookingDetailsModal({
                   style={{
                     ...styles.actionButton,
                     ...styles.cancelButton,
-                    ...(updating
+                    ...(actionBusy
                       ? styles.disabledButton
                       : {}),
                   }}
-                  disabled={updating}
-                  onClick={async () => {
+                  disabled={actionBusy}
+                  onClick={() => {
                     setRemarksError("");
 
-                    await onCancel?.(
-                      booking,
-                      reviewRemarks.trim()
+                    return runBookingAction(
+                      "cancel",
+                      () =>
+                        onCancel?.(
+                          booking,
+                          reviewRemarks.trim()
+                        )
                     );
                   }}
                 >
-                  Cancel Booking
+                  {pendingAction === "cancel"
+                    ? "Cancelling..."
+                    : "Cancel Booking"}
                 </button>
 
                 <button
@@ -450,16 +481,21 @@ export default function BookingDetailsModal({
                   style={{
                     ...styles.actionButton,
                     ...styles.confirmButton,
-                    ...(updating
+                    ...(actionBusy
                       ? styles.disabledButton
                       : {}),
                   }}
-                  disabled={updating}
+                  disabled={actionBusy}
                   onClick={() =>
-                    onApprove?.(booking)
+                    runBookingAction(
+                      "approve",
+                      () => onApprove?.(booking)
+                    )
                   }
                 >
-                  {updating
+                  {pendingAction === "approve"
+                    ? "Approving..."
+                    : updating
                     ? "Updating..."
                     : "Approve Booking"}
                 </button>
@@ -474,16 +510,19 @@ export default function BookingDetailsModal({
                   ...styles.actionButton,
                   ...styles.paidButton,
                   ...(!canMarkPaid ||
-                  updating
+                  actionBusy
                     ? styles.disabledButton
                     : {}),
                 }}
                 disabled={
-                  updating ||
+                  actionBusy ||
                   !canMarkPaid
                 }
                 onClick={() =>
-                  onPaid?.(booking)
+                  runBookingAction(
+                    "paid",
+                    () => onPaid?.(booking)
+                  )
                 }
                 title={
                   canMarkPaid
@@ -493,7 +532,9 @@ export default function BookingDetailsModal({
                     : "Payment proof has not yet been submitted."
                 }
               >
-                {updating
+                {pendingAction === "paid"
+                  ? "Recording Payment..."
+                  : updating
                   ? "Updating..."
                   : canMarkPaid
                   ? "Mark as Paid"
