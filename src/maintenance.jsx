@@ -29,6 +29,7 @@ const BRAND = {
 };
 
 const SERVICE_TABLE = "SERVICE_CATALOG";
+const PET_SITTER_TABLE = "PET SITTER";
 
 const MAINTENANCE_CSS = `
   .maintenance-page * {
@@ -256,14 +257,18 @@ export default function MaintenancePage() {
   const [serviceModalError, setServiceModalError] = useState("");
   const [serviceConfirmationOpen, setServiceConfirmationOpen] = useState(false);
 
-  const [revenueLoading, setRevenueLoading] = useState(true);
-  const [revenueSaving, setRevenueSaving] = useState(false);
-  const [revenueError, setRevenueError] = useState("");
-  const [revenueConfigured, setRevenueConfigured] = useState(false);
-  const [revenueForm, setRevenueForm] = useState({
+  const [sitters, setSitters] = useState([]);
+  const [sitterRevenueLoading, setSitterRevenueLoading] = useState(true);
+  const [sitterRevenueError, setSitterRevenueError] = useState("");
+  const [sitterSearch, setSitterSearch] = useState("");
+  const [selectedRevenueSitter, setSelectedRevenueSitter] = useState(null);
+  const [sitterRevenueForm, setSitterRevenueForm] = useState({
     pet_sitter_percentage: "60",
     business_owner_percentage: "40",
   });
+  const [savingSitterRevenue, setSavingSitterRevenue] = useState(false);
+  const [sitterRevenueModalError, setSitterRevenueModalError] = useState("");
+  const [sitterRevenueConfirmationOpen, setSitterRevenueConfirmationOpen] = useState(false);
 
   useEffect(() => {
     fetchMaintenanceData();
@@ -279,93 +284,39 @@ export default function MaintenancePage() {
       )
       .subscribe();
 
+    const sitterChannel = supabase
+      .channel("admin-maintenance-pet-sitter-revenue")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: PET_SITTER_TABLE },
+        () => fetchSitterRevenueShares(false)
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(serviceChannel);
+      supabase.removeChannel(sitterChannel);
     };
   }, []);
 
   async function fetchMaintenanceData() {
     setLoading(true);
-    setRevenueLoading(true);
+    setSitterRevenueLoading(true);
     setServiceError("");
-    setRevenueError("");
+    setSitterRevenueError("");
 
-    await fetchServices(false);
+    await Promise.all([
+      fetchServices(false),
+      fetchSitterRevenueShares(false),
+    ]);
 
     setLoading(false);
-    setRevenueLoading(false);
-  }
-
-  function syncRevenueFromServices(serviceRows) {
-    const rows = Array.isArray(serviceRows) ? serviceRows : [];
-
-    if (rows.length === 0) {
-      setRevenueConfigured(false);
-      setRevenueForm({
-        pet_sitter_percentage: "60",
-        business_owner_percentage: "40",
-      });
-      return;
-    }
-
-    const firstConfiguredRow = rows.find((row) => {
-      const sitter = Number(row.pet_sitter_percentage);
-      const owner = Number(row.business_owner_percentage);
-
-      return (
-        Number.isFinite(sitter) &&
-        Number.isFinite(owner) &&
-        percentagesEqual100(sitter, owner)
-      );
-    });
-
-    if (!firstConfiguredRow) {
-      setRevenueConfigured(false);
-      setRevenueForm({
-        pet_sitter_percentage: "60",
-        business_owner_percentage: "40",
-      });
-      return;
-    }
-
-    const sitterPercentage = Number(
-      firstConfiguredRow.pet_sitter_percentage
-    );
-    const ownerPercentage = Number(
-      firstConfiguredRow.business_owner_percentage
-    );
-
-    setRevenueConfigured(true);
-    setRevenueForm({
-      pet_sitter_percentage: formatEditableNumber(sitterPercentage),
-      business_owner_percentage: formatEditableNumber(ownerPercentage),
-    });
-
-    const hasInconsistentRevenueShare = rows.some((row) => {
-      const rowSitter = Number(row.pet_sitter_percentage);
-      const rowOwner = Number(row.business_owner_percentage);
-
-      return (
-        !Number.isFinite(rowSitter) ||
-        !Number.isFinite(rowOwner) ||
-        Math.abs(rowSitter - sitterPercentage) >= 0.005 ||
-        Math.abs(rowOwner - ownerPercentage) >= 0.005
-      );
-    });
-
-    if (hasInconsistentRevenueShare) {
-      setRevenueError(
-        "Revenue-sharing percentages are not consistent across the service catalog. Save the values below to apply one revenue split to all services."
-      );
-    } else {
-      setRevenueError("");
-    }
+    setSitterRevenueLoading(false);
   }
 
   async function fetchServices(showBusyState = true) {
     if (showBusyState) {
       setRefreshing(true);
-      setRevenueLoading(true);
     }
 
     setServiceError("");
@@ -374,52 +325,73 @@ export default function MaintenancePage() {
       const { data, error } = await supabase
         .from(SERVICE_TABLE)
         .select(
-          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
+          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, created_at, updated_at"
         )
         .order("service_id", { ascending: true });
 
       if (error) throw error;
-
-      const serviceRows = data || [];
-      setServices(serviceRows);
-      syncRevenueFromServices(serviceRows);
+      setServices(data || []);
     } catch (error) {
       console.error("Unable to load service catalog:", error);
-
-      const errorText = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
-      const missingRevenueColumns =
-        errorText.includes("pet_sitter_percentage") ||
-        errorText.includes("business_owner_percentage");
-
       setServiceError(
-        missingRevenueColumns
-          ? "Revenue-sharing settings are not available. Please apply the required system update, then refresh this page."
-          : "The service catalog could not be loaded. Please refresh the page and try again."
+        "The service catalog could not be loaded. Please refresh the page and try again."
       );
-
-      if (missingRevenueColumns) {
-        setRevenueConfigured(false);
-        setRevenueError(
-          "Revenue-sharing settings cannot be loaded until the required system update is applied."
-        );
-      }
     } finally {
       if (showBusyState) {
         setRefreshing(false);
-        setRevenueLoading(false);
+      }
+    }
+  }
+
+  async function fetchSitterRevenueShares(showBusyState = true) {
+    if (showBusyState) {
+      setSitterRevenueLoading(true);
+    }
+
+    setSitterRevenueError("");
+
+    try {
+      const { data, error } = await supabase
+        .from(PET_SITTER_TABLE)
+        .select(
+          "petsitter_id, ps_fname, ps_lname, ps_email, ps_photo_url, pet_sitter_percentage, business_owner_percentage"
+        )
+        .order("petsitter_id", { ascending: true });
+
+      if (error) throw error;
+      setSitters(data || []);
+    } catch (error) {
+      console.error("Unable to load Pet Sitter revenue sharing:", error);
+
+      const errorText = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+      const missingColumns =
+        errorText.includes("pet_sitter_percentage") ||
+        errorText.includes("business_owner_percentage");
+
+      setSitterRevenueError(
+        missingColumns
+          ? "Per-sitter revenue sharing is not configured yet. Run the provided database setup SQL, then refresh this page."
+          : "Pet Sitter revenue-sharing settings could not be loaded. Please refresh the page and try again."
+      );
+    } finally {
+      if (showBusyState) {
+        setSitterRevenueLoading(false);
       }
     }
   }
 
   async function handleRefresh() {
     setRefreshing(true);
-    setRevenueLoading(true);
+    setSitterRevenueLoading(true);
     setSuccess("");
 
-    await fetchServices(false);
+    await Promise.all([
+      fetchServices(false),
+      fetchSitterRevenueShares(false),
+    ]);
 
     setRefreshing(false);
-    setRevenueLoading(false);
+    setSitterRevenueLoading(false);
   }
 
   function openServiceEditor(service) {
@@ -699,7 +671,7 @@ export default function MaintenancePage() {
         .update(updatePayload)
         .eq("service_id", selectedService.service_id)
         .select(
-          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, pet_sitter_percentage, business_owner_percentage, created_at, updated_at"
+          "service_id, service_name, pet_type, description, base_price, medium_price, large_price, weight_based, note, created_at, updated_at"
         )
         .single();
 
@@ -759,19 +731,57 @@ export default function MaintenancePage() {
     }
   }
 
-  function updateRevenueField(field, value) {
-    if (!isValidPercentageTyping(value)) return;
-    setRevenueForm((previous) => ({ ...previous, [field]: value }));
-    setRevenueError("");
+  function getSitterDisplayName(sitter) {
+    const fullName = [sitter?.ps_fname, sitter?.ps_lname]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" ");
+
+    return fullName || `Pet Sitter ${sitter?.petsitter_id || ""}`.trim();
   }
 
-  async function saveRevenueShare(event) {
+  function openSitterRevenueEditor(sitter) {
+    setSelectedRevenueSitter(sitter);
+    setSitterRevenueModalError("");
+    setSitterRevenueForm({
+      pet_sitter_percentage: formatEditableNumber(
+        Number.isFinite(Number(sitter?.pet_sitter_percentage))
+          ? Number(sitter.pet_sitter_percentage)
+          : 60
+      ),
+      business_owner_percentage: formatEditableNumber(
+        Number.isFinite(Number(sitter?.business_owner_percentage))
+          ? Number(sitter.business_owner_percentage)
+          : 40
+      ),
+    });
+  }
+
+  function closeSitterRevenueEditor() {
+    if (savingSitterRevenue) return;
+    setSelectedRevenueSitter(null);
+    setSitterRevenueModalError("");
+  }
+
+  function updateSitterRevenueField(field, value) {
+    if (!isValidPercentageTyping(value)) return;
+
+    setSitterRevenueForm((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+    setSitterRevenueModalError("");
+  }
+
+  async function saveSitterRevenueShare(event) {
     event.preventDefault();
-    setRevenueError("");
+    if (!selectedRevenueSitter) return;
+
+    setSitterRevenueModalError("");
     setSuccess("");
 
-    const sitterPercentage = Number(revenueForm.pet_sitter_percentage);
-    const ownerPercentage = Number(revenueForm.business_owner_percentage);
+    const sitterPercentage = Number(sitterRevenueForm.pet_sitter_percentage);
+    const ownerPercentage = Number(sitterRevenueForm.business_owner_percentage);
 
     if (
       !Number.isFinite(sitterPercentage) ||
@@ -781,158 +791,101 @@ export default function MaintenancePage() {
       ownerPercentage < 0 ||
       ownerPercentage > 100
     ) {
-      setRevenueError("Enter a percentage from 0% to 100% for each revenue share.");
-      return;
-    }
-
-    if (!percentagesEqual100(sitterPercentage, ownerPercentage)) {
-      setRevenueError(
-        "The Pet Sitter and Business Owner revenue shares must total exactly 100%."
+      setSitterRevenueModalError(
+        "Enter a percentage from 0% to 100% for each revenue share."
       );
       return;
     }
 
-    if (services.length === 0) {
-      setRevenueError(
-        "Revenue-sharing settings cannot be updated because no services are available."
+    if (!percentagesEqual100(sitterPercentage, ownerPercentage)) {
+      setSitterRevenueModalError(
+        "The Pet Sitter and Business Owner revenue shares must total exactly 100%."
       );
       return;
     }
 
     const normalizedSitterPercentage = roundTwoDecimals(sitterPercentage);
     const normalizedOwnerPercentage = roundTwoDecimals(ownerPercentage);
-    const serviceIds = services
-      .map((service) => service.service_id)
-      .filter(
-        (serviceId) =>
-          serviceId !== null &&
-          serviceId !== undefined &&
-          String(serviceId).trim() !== ""
-      );
+    const currentSitterPercentage = Number(selectedRevenueSitter.pet_sitter_percentage);
+    const currentOwnerPercentage = Number(selectedRevenueSitter.business_owner_percentage);
 
-    if (serviceIds.length === 0) {
-      setRevenueError("No services are available for this update.");
-      return;
-    }
+    const alreadyMatches =
+      Number.isFinite(currentSitterPercentage) &&
+      Number.isFinite(currentOwnerPercentage) &&
+      Math.abs(currentSitterPercentage - normalizedSitterPercentage) < 0.005 &&
+      Math.abs(currentOwnerPercentage - normalizedOwnerPercentage) < 0.005;
 
-    const revenueShareAlreadyMatches = services.every((service) => {
-      const currentSitter = Number(service.pet_sitter_percentage);
-      const currentOwner = Number(service.business_owner_percentage);
-
-      return (
-        Number.isFinite(currentSitter) &&
-        Number.isFinite(currentOwner) &&
-        Math.abs(currentSitter - normalizedSitterPercentage) < 0.005 &&
-        Math.abs(currentOwner - normalizedOwnerPercentage) < 0.005
-      );
-    });
-
-    if (revenueShareAlreadyMatches) {
-      setRevenueConfigured(true);
-      setRevenueError("");
+    if (alreadyMatches) {
+      setSelectedRevenueSitter(null);
       showSuccessNearCards(
-        "Revenue-sharing settings are already up to date."
+        `${getSitterDisplayName(selectedRevenueSitter)} already has this revenue-sharing allocation.`
       );
       return;
     }
 
-    const currentSitterPercentage = getCommonRevenuePercentage(
-      services,
-      "pet_sitter_percentage"
-    );
-    const currentOwnerPercentage = getCommonRevenuePercentage(
-      services,
-      "business_owner_percentage"
-    );
-
+    const sitterName = getSitterDisplayName(selectedRevenueSitter);
     const currentSplitText =
-      currentSitterPercentage !== null && currentOwnerPercentage !== null
-        ? `Current: ${formatPercentage(
-            currentSitterPercentage
-          )} Pet Sitter / ${formatPercentage(
-            currentOwnerPercentage
-          )} Business Owner. `
+      Number.isFinite(currentSitterPercentage) &&
+      Number.isFinite(currentOwnerPercentage)
+        ? `Current: ${formatPercentage(currentSitterPercentage)} Pet Sitter / ${formatPercentage(currentOwnerPercentage)} Business Owner. `
         : "";
 
+    setSitterRevenueConfirmationOpen(true);
+
     const confirmed = await requestConfirmation({
-      title: "Confirm revenue-sharing update",
-      message: `${currentSplitText}New: ${formatPercentage(
+      title: "Confirm Pet Sitter revenue share",
+      message: `${currentSplitText}New for ${sitterName}: ${formatPercentage(
         normalizedSitterPercentage
       )} Pet Sitter / ${formatPercentage(
         normalizedOwnerPercentage
-      )} Business Owner. The new revenue split will apply only to bookings finalized as Completed and Paid after this change. Existing earnings records will remain unchanged.`,
-      confirmText: "Save Revenue Sharing",
+      )} Business Owner. This change applies to bookings for this Pet Sitter that are finalized as Completed and Paid after the update. Existing earnings records remain unchanged.`,
+      confirmText: "Save Revenue Share",
       cancelText: "Cancel",
       variant: "primary",
     });
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      setSitterRevenueConfirmationOpen(false);
+      return;
+    }
 
-    setRevenueSaving(true);
+    setSavingSitterRevenue(true);
 
     try {
-      // Revenue sharing is a separate configuration from service pricing.
-      // Do not touch updated_at here; the Service Pricing "Last Updated" value
-      // must change only when a service price is actually edited.
-      const payload = {
-        pet_sitter_percentage: normalizedSitterPercentage,
-        business_owner_percentage: normalizedOwnerPercentage,
-      };
-
       const { data, error } = await supabase
-        .from(SERVICE_TABLE)
-        .update(payload)
-        .in("service_id", serviceIds)
+        .from(PET_SITTER_TABLE)
+        .update({
+          pet_sitter_percentage: normalizedSitterPercentage,
+          business_owner_percentage: normalizedOwnerPercentage,
+        })
+        .eq("petsitter_id", selectedRevenueSitter.petsitter_id)
         .select(
-          "service_id, pet_sitter_percentage, business_owner_percentage"
-        );
+          "petsitter_id, ps_fname, ps_lname, ps_email, ps_photo_url, pet_sitter_percentage, business_owner_percentage"
+        )
+        .single();
 
       if (error) throw error;
 
-      const updatedRows = data || [];
-
-      if (updatedRows.length !== serviceIds.length) {
-        throw new Error(
-          "Some services could not be updated. Please verify administrator access and try again."
-        );
-      }
-
-      const updatedById = new Map(
-        updatedRows.map((row) => [String(row.service_id), row])
+      setSitters((previous) =>
+        previous.map((sitter) =>
+          sitter.petsitter_id === data.petsitter_id
+            ? { ...sitter, ...data }
+            : sitter
+        )
       );
 
-      setServices((previous) =>
-        previous.map((service) => {
-          const updated = updatedById.get(String(service.service_id));
-
-          return updated
-            ? {
-                ...service,
-                ...updated,
-              }
-            : service;
-        })
-      );
-
-      setRevenueConfigured(true);
-      setRevenueForm({
-        pet_sitter_percentage: formatEditableNumber(
-          normalizedSitterPercentage
-        ),
-        business_owner_percentage: formatEditableNumber(
-          normalizedOwnerPercentage
-        ),
-      });
-
-      setRevenueError("");
+      setSelectedRevenueSitter(null);
+      setSitterRevenueError("");
       showSuccessNearCards(
-        "Revenue-sharing settings updated successfully."
+        `${getSitterDisplayName(data)}'s revenue-sharing allocation was updated successfully.`
       );
     } catch (error) {
-      console.error("Unable to update revenue sharing percentages:", error);
-      setRevenueError(getRevenueSaveMessage(error));
+      console.error("Unable to update Pet Sitter revenue sharing:", error);
+      setSitterRevenueConfirmationOpen(false);
+      setSitterRevenueModalError(getSitterRevenueSaveMessage(error));
     } finally {
-      setRevenueSaving(false);
+      setSavingSitterRevenue(false);
+      setSitterRevenueConfirmationOpen(false);
     }
   }
 
@@ -979,12 +932,37 @@ export default function MaintenancePage() {
     };
   }, [services]);
 
-  const sitterShare = Number(revenueForm.pet_sitter_percentage || 0);
-  const ownerShare = Number(revenueForm.business_owner_percentage || 0);
-  const shareTotal =
-    (Number.isFinite(sitterShare) ? sitterShare : 0) +
-    (Number.isFinite(ownerShare) ? ownerShare : 0);
-  const validShareTotal = percentagesEqual100(sitterShare, ownerShare);
+  const filteredRevenueSitters = useMemo(() => {
+    const query = sitterSearch.trim().toLowerCase();
+
+    if (!query) return sitters;
+
+    return sitters.filter((sitter) =>
+      [
+        sitter.petsitter_id,
+        sitter.ps_fname,
+        sitter.ps_lname,
+        sitter.ps_email,
+        getSitterDisplayName(sitter),
+      ]
+        .filter((value) => value !== null && value !== undefined)
+        .some((value) => String(value).toLowerCase().includes(query))
+    );
+  }, [sitters, sitterSearch]);
+
+  const selectedSitterShare = Number(
+    sitterRevenueForm.pet_sitter_percentage || 0
+  );
+  const selectedOwnerShare = Number(
+    sitterRevenueForm.business_owner_percentage || 0
+  );
+  const selectedShareTotal =
+    (Number.isFinite(selectedSitterShare) ? selectedSitterShare : 0) +
+    (Number.isFinite(selectedOwnerShare) ? selectedOwnerShare : 0);
+  const validSelectedShareTotal = percentagesEqual100(
+    selectedSitterShare,
+    selectedOwnerShare
+  );
 
   return (
     <div className="maintenance-page" style={themeStyle}>
@@ -1019,7 +997,7 @@ export default function MaintenancePage() {
               lineHeight: 1.5,
             }}
           >
-            Manage service prices and revenue-sharing settings used across Nanny Paws Care.
+            Manage service information, pricing, and individual Pet Sitter revenue-sharing allocations used across Nanny Paws Care.
           </p>
         </div>
 
@@ -1326,6 +1304,11 @@ export default function MaintenancePage() {
           style={{
             padding: "20px",
             borderBottom: "1px solid var(--maint-border)",
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
           }}
         >
           <div>
@@ -1337,185 +1320,381 @@ export default function MaintenancePage() {
                 fontWeight: 900,
               }}
             >
-              Revenue Sharing
+              Pet Sitter Revenue Sharing
             </h2>
+            <p
+              style={{
+                margin: "7px 0 0",
+                color: "var(--maint-muted)",
+                fontSize: adminScaledFontSize(13),
+                lineHeight: 1.55,
+                maxWidth: 760,
+              }}
+            >
+              Set an individual revenue allocation for each Pet Sitter. Updating one Pet Sitter does not change the percentage assigned to other Pet Sitters.
+            </p>
           </div>
-          <p
+
+          <div
+            className="maintenance-search-shell"
             style={{
-              margin: "7px 0 0",
-              color: "var(--maint-muted)",
-              fontSize: adminScaledFontSize(13),
-              lineHeight: 1.55,
-              maxWidth: 820,
+              width: 360,
+              height: 48,
+              border: "1px solid var(--maint-border-strong)",
+              borderRadius: 7,
+              background: "var(--maint-input)",
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              padding: "0 12px",
             }}
           >
-            Set the percentage of service revenue allocated to the Pet Sitter and Business Owner.
-            The total revenue allocation must equal 100%.
-          </p>
+            <Search size={22} color="var(--maint-muted)" />
+            <input
+              value={sitterSearch}
+              onChange={(event) => setSitterSearch(event.target.value)}
+              placeholder="Search Pet Sitter by name, email, or ID"
+              style={{
+                width: "100%",
+                border: 0,
+                outline: 0,
+                background: "transparent",
+                color: "var(--maint-text)",
+                fontSize: adminScaledFontSize(14),
+              }}
+            />
+          </div>
         </div>
 
-        <form onSubmit={saveRevenueShare} style={{ padding: 20 }}>
-          {revenueError ? (
+        {sitterRevenueError ? (
+          <div style={{ padding: "16px 20px 0" }}>
             <StatusAlert
               type="error"
-              message={revenueError}
-              onClose={() => setRevenueError("")}
+              message={sitterRevenueError}
+              onClose={() => setSitterRevenueError("")}
               compact
             />
-          ) : null}
+          </div>
+        ) : null}
 
-          {!revenueConfigured && !revenueError && !revenueLoading ? (
-            <div
-              style={{
-                marginBottom: 16,
-                padding: "11px 13px",
-                borderRadius: 9,
-                border: "1px solid var(--maint-warning-border)",
-                background: "var(--maint-warning-bg)",
-                color: "var(--maint-warning-text)",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 9,
-                fontSize: adminScaledFontSize(12.5),
-                lineHeight: 1.5,
-                fontWeight: 700,
-              }}
-            >
-              <Info size={17} style={{ marginTop: 1, flexShrink: 0 }} />
-              No active revenue-sharing configuration was found. The default split of 60% for the Pet Sitter and 40% for the Business Owner is shown below. Save these settings to make the split active.
-            </div>
-          ) : null}
-
-          {revenueLoading ? (
-            <div
-              style={{
-                minHeight: 120,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                color: "var(--maint-muted)",
-                fontWeight: 700,
-                fontSize: adminScaledFontSize(13),
-              }}
-            >
-              <span className="maintenance-spinner" />
-              Loading revenue-sharing settings...
-            </div>
-          ) : (
-            <>
-              <div
-                className="maintenance-revenue-grid"
+        <div style={{ width: "100%", overflowX: "auto" }}>
+          <table
+            style={{
+              width: "100%",
+              minWidth: 900,
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+            }}
+          >
+            <thead>
+              <tr
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr 220px",
-                  gap: 18,
-                  alignItems: "end",
+                  background: "var(--maint-head)",
+                  borderTop: "1px solid var(--maint-border)",
+                  borderBottom: "1px solid var(--maint-border)",
                 }}
               >
-                <PercentageField
-                  label="Pet Sitter Revenue Share"
-                  value={revenueForm.pet_sitter_percentage}
-                  onChange={(value) =>
-                    updateRevenueField("pet_sitter_percentage", value)
-                  }
-                />
-                <PercentageField
-                  label="Business Owner Revenue Share"
-                  value={revenueForm.business_owner_percentage}
-                  onChange={(value) =>
-                    updateRevenueField("business_owner_percentage", value)
-                  }
-                />
+                <TableHeading width="90px">Sitter ID</TableHeading>
+                <TableHeading width="250px">Pet Sitter</TableHeading>
+                <TableHeading width="260px">Email</TableHeading>
+                <TableHeading width="150px">Pet Sitter Share</TableHeading>
+                <TableHeading width="170px">Business Owner Share</TableHeading>
+                <TableHeading width="100px" align="center">Action</TableHeading>
+              </tr>
+            </thead>
+            <tbody>
+              {sitterRevenueLoading ? (
+                <tr>
+                  <td colSpan={6} style={emptyCellStyle()}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                      <span className="maintenance-spinner" />
+                      Loading Pet Sitter revenue-sharing settings...
+                    </span>
+                  </td>
+                </tr>
+              ) : filteredRevenueSitters.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={emptyCellStyle()}>
+                    No Pet Sitters match the current search.
+                  </td>
+                </tr>
+              ) : (
+                filteredRevenueSitters.map((sitter) => (
+                  <tr
+                    key={sitter.petsitter_id}
+                    className="maintenance-row"
+                    style={{ borderBottom: "1px solid var(--maint-border)" }}
+                  >
+                    <TableCell align="center" muted strong>
+                      {sitter.petsitter_id}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        style={{
+                          display: "block",
+                          color: "var(--maint-text)",
+                          fontWeight: 900,
+                          fontSize: adminScaledFontSize(13),
+                        }}
+                      >
+                        {getSitterDisplayName(sitter)}
+                      </span>
+                    </TableCell>
+                    <TableCell muted>
+                      {sitter.ps_email || "No email available"}
+                    </TableCell>
+                    <TableCell strong>
+                      {formatPercentage(sitter.pet_sitter_percentage)}
+                    </TableCell>
+                    <TableCell strong>
+                      {formatPercentage(sitter.business_owner_percentage)}
+                    </TableCell>
+                    <TableCell align="center">
+                      <button
+                        type="button"
+                        onClick={() => openSitterRevenueEditor(sitter)}
+                        style={iconActionButtonStyle()}
+                        title={`Edit ${getSitterDisplayName(sitter)} revenue share`}
+                        aria-label={`Edit ${getSitterDisplayName(sitter)} revenue share`}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                    </TableCell>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {!sitterRevenueLoading ? (
+          <div
+            style={{
+              padding: "14px 20px",
+              color: "var(--maint-muted)",
+              fontSize: adminScaledFontSize(12),
+              fontWeight: 700,
+            }}
+          >
+            Showing {filteredRevenueSitters.length} of {sitters.length} Pet Sitter
+            {sitters.length === 1 ? "" : "s"}.
+          </div>
+        ) : null}
+
+        <div
+          style={{
+            margin: "0 20px 20px",
+            padding: "12px 14px",
+            border: "1px solid var(--maint-border)",
+            borderRadius: 10,
+            background: "var(--maint-card-soft)",
+            color: "var(--maint-muted)",
+            fontSize: adminScaledFontSize(12.5),
+            lineHeight: 1.55,
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 9,
+          }}
+        >
+          <Info size={17} color={BRAND.pink} style={{ marginTop: 1, flexShrink: 0 }} />
+          <span>
+            Revenue-sharing changes apply to bookings assigned to the selected Pet Sitter that are finalized as Completed and Paid after the update. Historical Business Earnings records keep the percentages captured when each transaction was finalized.
+          </span>
+        </div>
+      </section>
+
+      {selectedRevenueSitter && !sitterRevenueConfirmationOpen ? (
+        <div
+          className="maintenance-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeSitterRevenueEditor();
+          }}
+        >
+          <div
+            className="maintenance-modal"
+            style={{ ...themeStyle, width: "min(560px, 100%)", minHeight: "auto" }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="maintenance-sitter-revenue-modal-title"
+          >
+            <form onSubmit={saveSitterRevenueShare}>
+              <div
+                style={{
+                  padding: "20px 20px 16px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 14,
+                  borderBottom: "1px solid var(--maint-border)",
+                }}
+              >
                 <div>
-                  <div
+                  <h3
+                    id="maintenance-sitter-revenue-modal-title"
                     style={{
-                      marginBottom: 7,
+                      margin: 0,
                       color: "var(--maint-strong)",
-                      fontSize: adminScaledFontSize(12.5),
+                      fontSize: adminScaledFontSize(20),
                       fontWeight: 900,
                     }}
                   >
-                    Total Revenue Allocation
+                    Edit Revenue Share
+                  </h3>
+                  <p
+                    style={{
+                      margin: "6px 0 0",
+                      color: "var(--maint-muted)",
+                      fontSize: adminScaledFontSize(12.5),
+                    }}
+                  >
+                    Set the revenue allocation for this Pet Sitter only.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeSitterRevenueEditor}
+                  disabled={savingSitterRevenue}
+                  style={closeButtonStyle()}
+                  aria-label="Close revenue-share editor"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div style={{ padding: 20 }}>
+                {sitterRevenueModalError ? (
+                  <StatusAlert
+                    type="error"
+                    message={sitterRevenueModalError}
+                    onClose={() => setSitterRevenueModalError("")}
+                    compact
+                  />
+                ) : null}
+
+                <div
+                  style={{
+                    padding: "13px 14px",
+                    border: "1px solid var(--maint-border)",
+                    borderRadius: 10,
+                    background: "var(--maint-card-soft)",
+                    marginBottom: 18,
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "var(--maint-strong)",
+                      fontSize: adminScaledFontSize(14),
+                      fontWeight: 900,
+                    }}
+                  >
+                    {getSitterDisplayName(selectedRevenueSitter)}
                   </div>
                   <div
                     style={{
-                      height: 44,
-                      borderRadius: 9,
-                      border: `1px solid ${
-                        validShareTotal ? "#B8DEC5" : "#F0C0C7"
-                      }`,
-                      background: validShareTotal
-                        ? "var(--maint-success-bg)"
-                        : "var(--maint-error-bg)",
-                      color: validShareTotal
-                        ? "var(--maint-success-text)"
-                        : "var(--maint-error-text)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 8,
-                      fontSize: adminScaledFontSize(15),
-                      fontWeight: 900,
+                      marginTop: 5,
+                      color: "var(--maint-muted)",
+                      fontSize: adminScaledFontSize(12),
                     }}
                   >
-                    {validShareTotal ? (
-                      <CheckCircle2 size={17} />
-                    ) : (
-                      <AlertCircle size={17} />
-                    )}
-                    {formatPercentage(shareTotal)}
+                    Sitter ID: {selectedRevenueSitter.petsitter_id}
+                    {selectedRevenueSitter.ps_email
+                      ? ` • ${selectedRevenueSitter.ps_email}`
+                      : ""}
                   </div>
+                </div>
+
+                <div
+                  className="maintenance-revenue-grid"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 18,
+                  }}
+                >
+                  <PercentageField
+                    label="Pet Sitter Revenue Share"
+                    value={sitterRevenueForm.pet_sitter_percentage}
+                    onChange={(value) =>
+                      updateSitterRevenueField("pet_sitter_percentage", value)
+                    }
+                  />
+                  <PercentageField
+                    label="Business Owner Revenue Share"
+                    value={sitterRevenueForm.business_owner_percentage}
+                    onChange={(value) =>
+                      updateSitterRevenueField("business_owner_percentage", value)
+                    }
+                  />
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 18,
+                    height: 44,
+                    borderRadius: 9,
+                    border: `1px solid ${
+                      validSelectedShareTotal ? "#B8DEC5" : "#F0C0C7"
+                    }`,
+                    background: validSelectedShareTotal
+                      ? "var(--maint-success-bg)"
+                      : "var(--maint-error-bg)",
+                    color: validSelectedShareTotal
+                      ? "var(--maint-success-text)"
+                      : "var(--maint-error-text)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    fontSize: adminScaledFontSize(14),
+                    fontWeight: 900,
+                  }}
+                >
+                  {validSelectedShareTotal ? (
+                    <CheckCircle2 size={17} />
+                  ) : (
+                    <AlertCircle size={17} />
+                  )}
+                  Total Revenue Allocation: {formatPercentage(selectedShareTotal)}
                 </div>
               </div>
 
               <div
                 style={{
-                  marginTop: 18,
-                  padding: "12px 14px",
-                  border: "1px solid var(--maint-border)",
-                  borderRadius: 10,
-                  background: "var(--maint-card-soft)",
-                  color: "var(--maint-muted)",
-                  fontSize: adminScaledFontSize(12.5),
-                  lineHeight: 1.55,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 9,
-                }}
-              >
-                <Info size={17} color={BRAND.pink} style={{ marginTop: 1, flexShrink: 0 }} />
-                <span>
-                  Changes to the revenue split apply only to bookings finalized as Completed and Paid after the update. Existing earnings records retain the service price and revenue split captured when each transaction was finalized.
-                </span>
-              </div>
-
-              <div
-                style={{
-                  marginTop: 18,
+                  padding: "15px 20px 20px",
                   display: "flex",
                   justifyContent: "flex-end",
+                  gap: 10,
+                  borderTop: "1px solid var(--maint-border)",
                 }}
               >
                 <button
+                  type="button"
+                  onClick={closeSitterRevenueEditor}
+                  disabled={savingSitterRevenue}
+                  style={secondaryButtonStyle()}
+                >
+                  Cancel
+                </button>
+                <button
                   type="submit"
-                  disabled={revenueSaving || !validShareTotal}
+                  disabled={savingSitterRevenue || !validSelectedShareTotal}
                   style={primaryButtonStyle(
-                    revenueSaving || !validShareTotal
+                    savingSitterRevenue || !validSelectedShareTotal
                   )}
                 >
-                  {revenueSaving ? (
+                  {savingSitterRevenue ? (
                     <span className="maintenance-spinner" />
                   ) : (
                     <Save size={17} />
                   )}
-                  {revenueSaving ? "Saving..." : "Save Revenue Sharing"}
+                  {savingSitterRevenue ? "Saving..." : "Save Revenue Share"}
                 </button>
               </div>
-            </>
-          )}
-        </form>
-      </section>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {selectedService && !serviceConfirmationOpen ? (
         <div
@@ -2245,20 +2424,6 @@ function moneyValuesEqual(left, right) {
   return normalize(left) === normalize(right);
 }
 
-function getCommonRevenuePercentage(services, field) {
-  const values = (services || [])
-    .map((service) => Number(service?.[field]))
-    .filter((value) => Number.isFinite(value))
-    .map((value) => roundTwoDecimals(value));
-
-  if (values.length === 0) return null;
-
-  const first = values[0];
-  return values.every((value) => Math.abs(value - first) < 0.005)
-    ? first
-    : null;
-}
-
 function percentagesEqual100(sitter, owner) {
   if (!Number.isFinite(Number(sitter)) || !Number.isFinite(Number(owner))) {
     return false;
@@ -2277,7 +2442,7 @@ function isValidPercentageTyping(value) {
   return Number.isFinite(number) && number <= 100;
 }
 
-function getRevenueSaveMessage(error) {
+function getSitterRevenueSaveMessage(error) {
   const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
 
   if (text.includes("row-level security") || text.includes("rls")) {
