@@ -498,39 +498,45 @@ export default function BookingsPage() {
       setError(
         `This booking can no longer be changed to ${newStatus.toLowerCase()}.`
       );
-      return;
+      return false;
+    }
+
+    if (updatingId === booking.booking_id) {
+      return false;
     }
 
     setUpdatingId(booking.booking_id);
     setError("");
 
+    const updatePayload = {
+      booking_status: newStatus,
+      ...extraUpdates,
+    };
+
     try {
-      const { data, error: updateError } = await supabase
+      /*
+        Do not require PostgREST to return the full updated row here.
+        The Admin page already has the booking record locally, and Supabase
+        Realtime will keep it synchronized afterward. This avoids treating a
+        successful UPDATE as a failed action only because RETURNING/SELECT
+        access was restricted.
+      */
+      const { error: updateError, count } = await supabase
         .from("BOOKING")
-        .update({
-          booking_status: newStatus,
-          ...extraUpdates,
-        })
-        .eq("booking_id", booking.booking_id)
-        .select(BOOKING_FIELDS)
-        .single();
+        .update(updatePayload, { count: "exact" })
+        .eq("booking_id", booking.booking_id);
 
       if (updateError) throw updateError;
 
-      const updatedSitter =
-        petSitters.find(
-          (sitter) =>
-            normalizeReferenceKey(sitter.petsitter_id) ===
-            normalizeReferenceKey(data.ps_id)
-        ) ||
-        booking.sitterRecord ||
-        null;
+      if (count === 0) {
+        throw new Error(
+          "No booking record was updated. Refresh the page and try again."
+        );
+      }
 
       const updatedBooking = {
         ...booking,
-        ...data,
-        sitterRecord: updatedSitter,
-        sitterName: getSitterName(updatedSitter, data.ps_id),
+        ...updatePayload,
       };
 
       setBookings((previous) =>
@@ -541,22 +547,38 @@ export default function BookingsPage() {
 
       setSelectedBooking((previous) =>
         previous?.booking_id === booking.booking_id
-          ? updatedBooking
+          ? {
+              ...previous,
+              ...updatePayload,
+            }
           : previous
       );
 
+      return true;
     } catch (updateError) {
-      console.error("Unable to update booking:", updateError);
+      console.error("Unable to update booking:", {
+        code: updateError?.code,
+        message: updateError?.message,
+        details: updateError?.details,
+        hint: updateError?.hint,
+        error: updateError,
+      });
+
       setError(
-        "The booking status could not be updated. Please try again."
+        getBookingMutationErrorMessage(
+          updateError,
+          "The booking status could not be updated. Please try again."
+        )
       );
+
+      return false;
     } finally {
       setUpdatingId(null);
     }
   }
 
   async function approveBooking(booking) {
-    await updateBookingStatus(booking, "Confirmed");
+    return updateBookingStatus(booking, "Confirmed");
   }
 
   async function cancelBooking(booking, reviewRemarks) {
@@ -573,11 +595,9 @@ export default function BookingsPage() {
 
     if (!confirmed) return false;
 
-    await updateBookingStatus(booking, "Cancelled", {
+    return updateBookingStatus(booking, "Cancelled", {
       admin_review_remarks: cleanRemarks || null,
     });
-
-    return true;
   }
 
   async function markBookingPaid(booking) {
@@ -597,6 +617,10 @@ export default function BookingsPage() {
 
     if (paymentState === "Paid") {
       return true;
+    }
+
+    if (updatingId === booking.booking_id) {
+      return false;
     }
 
     const isCash =
@@ -646,29 +670,47 @@ export default function BookingsPage() {
       const paidAt =
         new Date().toISOString();
 
+      const paymentUpdate = {
+        payment_status: "Paid",
+        paid_at: paidAt,
+      };
+
+      /*
+        Only perform the BOOKING update here. The database trigger is
+        responsible for creating the immutable BUSINESS_EARNINGS snapshot
+        after a booking becomes both Completed and Paid.
+
+        We intentionally do not chain .select().single() to this UPDATE.
+        A payment should not be reported as failed merely because the API
+        cannot return the updated row after writing it.
+      */
       const {
-        data,
         error: updateError,
+        count,
       } = await supabase
         .from("BOOKING")
-        .update({
-          payment_status: "Paid",
-          paid_at: paidAt,
-        })
+        .update(
+          paymentUpdate,
+          { count: "exact" }
+        )
         .eq(
           "booking_id",
           booking.booking_id
-        )
-        .select(BOOKING_FIELDS)
-        .single();
+        );
 
       if (updateError) {
         throw updateError;
       }
 
+      if (count === 0) {
+        throw new Error(
+          "No booking record was updated. Refresh the page and try again."
+        );
+      }
+
       const updatedBooking = {
         ...booking,
-        ...data,
+        ...paymentUpdate,
       };
 
       setBookings((previous) =>
@@ -677,7 +719,7 @@ export default function BookingsPage() {
           booking.booking_id
             ? {
                 ...item,
-                ...data,
+                ...paymentUpdate,
               }
             : item
         )
@@ -687,7 +729,10 @@ export default function BookingsPage() {
         (previous) =>
           previous?.booking_id ===
           booking.booking_id
-            ? updatedBooking
+            ? {
+                ...previous,
+                ...paymentUpdate,
+              }
             : previous
       );
 
@@ -695,11 +740,20 @@ export default function BookingsPage() {
     } catch (updateError) {
       console.error(
         "Unable to record booking payment:",
-        updateError
+        {
+          code: updateError?.code,
+          message: updateError?.message,
+          details: updateError?.details,
+          hint: updateError?.hint,
+          error: updateError,
+        }
       );
 
       setError(
-        "The payment status could not be updated. Please try again."
+        getBookingMutationErrorMessage(
+          updateError,
+          "The payment status could not be updated. Please try again."
+        )
       );
 
       return false;
@@ -709,7 +763,7 @@ export default function BookingsPage() {
   }
 
   async function setPendingBooking(booking) {
-    await updateBookingStatus(booking, "Pending");
+    return updateBookingStatus(booking, "Pending");
   }
 
   function openReportCard(statusValue, title) {
@@ -1333,6 +1387,69 @@ export default function BookingsPage() {
       )}
     </div>
   );
+}
+
+
+function getBookingMutationErrorMessage(error, fallbackMessage) {
+  const errorText = [
+    error?.code,
+    error?.message,
+    error?.details,
+    error?.hint,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  /*
+    This specifically identifies the obsolete BOOKING financial-snapshot
+    trigger used before Business Earnings was moved to its own table.
+  */
+  if (
+    errorText.includes("financial_finalized_at") ||
+    errorText.includes("financial_service_price") ||
+    errorText.includes("pet_sitter_percentage_snapshot") ||
+    errorText.includes("business_owner_percentage_snapshot") ||
+    errorText.includes("snapshot_booking_financial_values") ||
+    errorText.includes("protect_booking_financial_snapshot")
+  ) {
+    return (
+      "The booking could not be updated because an outdated Business Earnings " +
+      "database trigger is still active. Run the Booking payment trigger repair " +
+      "SQL in Supabase, then try again."
+    );
+  }
+
+  if (
+    errorText.includes("revenue sharing") ||
+    errorText.includes("revenue split") ||
+    errorText.includes("service_catalog")
+  ) {
+    return (
+      "The booking could not be finalized because the Maintenance revenue " +
+      "sharing configuration is incomplete or inconsistent. Verify that the " +
+      "Pet Sitter and Business Owner shares total 100%, then try again."
+    );
+  }
+
+  if (
+    errorText.includes("row-level security") ||
+    errorText.includes("violates row-level security") ||
+    errorText.includes("42501")
+  ) {
+    return (
+      "The booking update was blocked by a database access policy. Please " +
+      "check the BOOKING and Business Earnings policies, then try again."
+    );
+  }
+
+  if (
+    errorText.includes("no booking record was updated")
+  ) {
+    return "No booking record was updated. Refresh the page and try again.";
+  }
+
+  return fallbackMessage;
 }
 
 function StatCard({
