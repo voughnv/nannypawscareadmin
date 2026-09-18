@@ -251,6 +251,8 @@ export default function BusinessEarningPage() {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [payoutPeriod, setPayoutPeriod] = useState("month");
+  const [customPayoutStart, setCustomPayoutStart] = useState("");
+  const [customPayoutEnd, setCustomPayoutEnd] = useState("");
   const [payoutRows, setPayoutRows] = useState([]);
   const [payoutLoading, setPayoutLoading] = useState(false);
   const [payoutError, setPayoutError] = useState("");
@@ -289,8 +291,32 @@ export default function BusinessEarningPage() {
     setPayoutNotice("");
     setSelectedPayoutSitterId(null);
     setPayoutConfirmationOpen(false);
+
+    if (payoutPeriod === "custom") {
+      if (!customPayoutStart || !customPayoutEnd) {
+        setPayoutRows([]);
+        setPayoutLoading(false);
+        setPayoutError("");
+        return;
+      }
+
+      if (customPayoutEnd < customPayoutStart) {
+        setPayoutRows([]);
+        setPayoutLoading(false);
+        setPayoutError(
+          "The pay-through date cannot be earlier than the previous payout date."
+        );
+        return;
+      }
+    }
+
     fetchPayoutSummary(true);
-  }, [payoutPeriod, accessGranted]);
+  }, [
+    payoutPeriod,
+    customPayoutStart,
+    customPayoutEnd,
+    accessGranted,
+  ]);
 
   useEffect(() => {
     if (!accessGranted) return undefined;
@@ -495,7 +521,26 @@ export default function BusinessEarningPage() {
 
     if (!activePassword) return;
 
-    const range = getCurrentPayoutRange(payoutPeriod);
+    const range = getSelectedPayoutRange(
+      payoutPeriod,
+      customPayoutStart,
+      customPayoutEnd
+    );
+
+    if (!range.start || !range.end) {
+      setPayoutRows([]);
+      if (showBusyState) setPayoutLoading(false);
+      return;
+    }
+
+    if (range.end < range.start) {
+      setPayoutRows([]);
+      setPayoutError(
+        "The pay-through date cannot be earlier than the previous payout date."
+      );
+      if (showBusyState) setPayoutLoading(false);
+      return;
+    }
 
     if (showBusyState) {
       setPayoutLoading(true);
@@ -548,7 +593,19 @@ export default function BusinessEarningPage() {
   async function updatePetSitterPayoutStatus(row, markPaid) {
     if (!row?.petsitter_id || payoutUpdatingId !== null) return;
 
-    const range = getCurrentPayoutRange(payoutPeriod);
+    const range = getSelectedPayoutRange(
+      payoutPeriod,
+      customPayoutStart,
+      customPayoutEnd
+    );
+
+    if (!range.start || !range.end || range.end < range.start) {
+      setPayoutError(
+        "Select a valid payout date range before updating the Pet Sitter payout status."
+      );
+      return;
+    }
+
     const sitterName = row.sitter_name || `Pet Sitter ${row.petsitter_id}`;
     const amount = formatPeso(row.total_earnings);
     const periodLabel = formatPayoutRange(range.start, range.end);
@@ -767,6 +824,8 @@ export default function BusinessEarningPage() {
     setPayoutNotice("");
     setPayoutSearch("");
     setPayoutPeriod("month");
+    setCustomPayoutStart("");
+    setCustomPayoutEnd("");
     setPayoutUpdatingId(null);
     setSelectedPayoutSitterId(null);
     setPayoutConfirmationOpen(false);
@@ -858,9 +917,17 @@ export default function BusinessEarningPage() {
   );
 
   const payoutRange = useMemo(
-    () => getCurrentPayoutRange(payoutPeriod),
-    [payoutPeriod]
+    () =>
+      getSelectedPayoutRange(
+        payoutPeriod,
+        customPayoutStart,
+        customPayoutEnd
+      ),
+    [payoutPeriod, customPayoutStart, customPayoutEnd]
   );
+
+  const payoutRangeReady = Boolean(payoutRange.start && payoutRange.end);
+  const manilaToday = getManilaTodayDate();
 
   const filteredPayoutRows = useMemo(() => {
     const keyword = payoutSearch.trim().toLowerCase();
@@ -911,6 +978,7 @@ export default function BusinessEarningPage() {
         const finalizedDate = getDateOnlyValue(transaction?.financial_finalized_at);
 
         return (
+          payoutRangeReady &&
           finalizedDate &&
           finalizedDate >= payoutRange.start &&
           finalizedDate <= payoutRange.end
@@ -921,7 +989,13 @@ export default function BusinessEarningPage() {
         const rightTime = new Date(right?.financial_finalized_at || 0).getTime();
         return rightTime - leftTime;
       });
-  }, [transactions, selectedPayoutSitterId, payoutRange.start, payoutRange.end]);
+  }, [
+    transactions,
+    selectedPayoutSitterId,
+    payoutRange.start,
+    payoutRange.end,
+    payoutRangeReady,
+  ]);
 
   if (!accessGranted) {
     return (
@@ -1662,6 +1736,16 @@ export default function BusinessEarningPage() {
             </button>
             <button
               type="button"
+              onClick={() => {
+                setPayoutPeriod("custom");
+                setCustomPayoutEnd((current) => current || getManilaTodayDate());
+              }}
+              style={payoutPeriodButtonStyle(payoutPeriod === "custom")}
+            >
+              Custom Dates
+            </button>
+            <button
+              type="button"
               onClick={() => setPayoutPeriod("month")}
               style={payoutPeriodButtonStyle(payoutPeriod === "month")}
             >
@@ -1669,6 +1753,68 @@ export default function BusinessEarningPage() {
             </button>
           </div>
         </div>
+
+        {payoutPeriod === "custom" ? (
+          <div
+            style={{
+              ...styles.payoutCustomRangePanel,
+              background: "var(--earn-soft)",
+              borderColor: "var(--earn-border)",
+            }}
+          >
+            <div style={styles.payoutCustomRangeFields}>
+              <label style={{ ...styles.payoutCustomDateLabel, color: "var(--earn-strong)" }}>
+                Previous Payout Date
+                <input
+                  className="earnings-date-input"
+                  type="date"
+                  value={customPayoutStart}
+                  max={customPayoutEnd || manilaToday}
+                  onChange={(event) => {
+                    const nextValue = sanitizeDateInput(event.target.value);
+                    setCustomPayoutStart(nextValue);
+                    setPayoutError("");
+                  }}
+                  style={{
+                    ...styles.payoutCustomDateInput,
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+              </label>
+
+              <label style={{ ...styles.payoutCustomDateLabel, color: "var(--earn-strong)" }}>
+                Pay Through Date
+                <input
+                  className="earnings-date-input"
+                  type="date"
+                  value={customPayoutEnd}
+                  min={customPayoutStart || undefined}
+                  max={manilaToday}
+                  onChange={(event) => {
+                    const nextValue = sanitizeDateInput(event.target.value);
+                    setCustomPayoutEnd(nextValue);
+                    setPayoutError("");
+                  }}
+                  style={{
+                    ...styles.payoutCustomDateInput,
+                    background: "var(--earn-input)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-text)",
+                  }}
+                />
+              </label>
+            </div>
+
+            <div style={{ ...styles.payoutCustomRangeHelp, color: "var(--earn-muted)" }}>
+              <Calendar size={17} color={BRAND.pink} style={{ flexShrink: 0 }} />
+              <span>
+                Select the date of the previous payout and the date through which you want to pay Pet Sitter earnings. Only finalized earnings within this selected period are included.
+              </span>
+            </div>
+          </div>
+        ) : null}
 
         <div className="payout-toolbar" style={styles.payoutToolbar}>
           <div
@@ -1692,9 +1838,13 @@ export default function BusinessEarningPage() {
             <Calendar size={17} color={BRAND.pink} />
             <span>
               <strong style={{ color: "var(--earn-strong)" }}>
-                {formatPayoutRange(payoutRange.start, payoutRange.end)}
+                {payoutRangeReady
+                  ? formatPayoutRange(payoutRange.start, payoutRange.end)
+                  : "Select payout dates"}
               </strong>
-              {" • "}Total Sitter Earnings: {formatPeso(payoutPeriodTotal)}
+              {payoutRangeReady
+                ? <> {" • "}Total Sitter Earnings: {formatPeso(payoutPeriodTotal)}</>
+                : null}
             </span>
           </div>
         </div>
@@ -1835,7 +1985,9 @@ export default function BusinessEarningPage() {
               ) : (
                 <tr>
                   <td colSpan={7} style={styles.emptyCell}>
-                    No Pet Sitters match the current search.
+                    {payoutPeriod === "custom" && !payoutRangeReady
+                      ? "Select the previous payout date and pay-through date to load Pet Sitter earnings."
+                      : "No Pet Sitters match the current search."}
                   </td>
                 </tr>
               )}
@@ -1927,7 +2079,11 @@ export default function BusinessEarningPage() {
               >
                 <PayoutSummaryBox
                   label="Selected Period"
-                  value={formatPayoutRange(payoutRange.start, payoutRange.end)}
+                  value={
+                    payoutRangeReady
+                      ? formatPayoutRange(payoutRange.start, payoutRange.end)
+                      : "Not selected"
+                  }
                 />
                 <PayoutSummaryBox
                   label="Completed Paid Bookings"
@@ -2452,6 +2608,36 @@ function getVisiblePages(currentPage, totalPages) {
     "ellipsis-right",
     totalPages,
   ];
+}
+
+function getSelectedPayoutRange(period, customStart = "", customEnd = "") {
+  if (period === "custom") {
+    return {
+      start: String(customStart || "").trim(),
+      end: String(customEnd || "").trim(),
+    };
+  }
+
+  return getCurrentPayoutRange(period);
+}
+
+function getManilaTodayDate() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => ["year", "month", "day"].includes(part.type))
+      .map((part) => [part.type, Number(part.value)])
+  );
+
+  return `${values.year}-${String(values.month).padStart(2, "0")}-${String(
+    values.day
+  ).padStart(2, "0")}`;
 }
 
 function getCurrentPayoutRange(period) {
@@ -3196,6 +3382,51 @@ const styles = {
     alignItems: "center",
     gap: 8,
     flexShrink: 0,
+    flexWrap: "wrap",
+  },
+
+  payoutCustomRangePanel: {
+    padding: "15px 22px",
+    borderBottom: "1px solid",
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    gap: 18,
+    flexWrap: "wrap",
+  },
+
+  payoutCustomRangeFields: {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+
+  payoutCustomDateLabel: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 7,
+    fontSize: adminScaledFontSize(12),
+    fontWeight: 850,
+  },
+
+  payoutCustomDateInput: {
+    width: 180,
+    height: 42,
+    border: "1px solid",
+    borderRadius: 8,
+    padding: "0 10px",
+    fontSize: adminScaledFontSize(12.5),
+    fontWeight: 700,
+  },
+
+  payoutCustomRangeHelp: {
+    maxWidth: 560,
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 8,
+    fontSize: adminScaledFontSize(11.8),
+    lineHeight: 1.5,
   },
 
   payoutToolbar: {
