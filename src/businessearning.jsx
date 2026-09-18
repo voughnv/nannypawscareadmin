@@ -170,6 +170,39 @@ const EARNINGS_CSS = `
     .business-earnings-page .earnings-auth-actions button {
       width: 100%;
     }
+
+    .business-earnings-page .payout-detail-summary-grid {
+      grid-template-columns: 1fr !important;
+    }
+
+    .business-earnings-page .payout-detail-footer {
+      align-items: stretch !important;
+    }
+  }
+
+  .business-earnings-page .payout-row {
+    cursor: pointer;
+  }
+
+  .business-earnings-page .payout-row:focus-visible {
+    outline: 2px solid rgba(217, 67, 104, 0.42);
+    outline-offset: -2px;
+  }
+
+  .business-earnings-page .payout-row:hover td {
+    background: var(--earn-hover);
+  }
+
+  .business-earnings-page .payout-row:hover td:first-child {
+    box-shadow: inset 3px 0 0 ${BRAND.pink};
+  }
+
+  .business-earnings-page .payout-modal-table-row td {
+    transition: background-color 150ms ease;
+  }
+
+  .business-earnings-page .payout-modal-table-row:hover td {
+    background: var(--earn-hover);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -224,6 +257,8 @@ export default function BusinessEarningPage() {
   const [payoutNotice, setPayoutNotice] = useState("");
   const [payoutSearch, setPayoutSearch] = useState("");
   const [payoutUpdatingId, setPayoutUpdatingId] = useState(null);
+  const [selectedPayoutSitterId, setSelectedPayoutSitterId] = useState(null);
+  const [payoutConfirmationOpen, setPayoutConfirmationOpen] = useState(false);
 
   const theme = useMemo(
     () => ({
@@ -252,6 +287,8 @@ export default function BusinessEarningPage() {
     if (!accessGranted) return;
 
     setPayoutNotice("");
+    setSelectedPayoutSitterId(null);
+    setPayoutConfirmationOpen(false);
     fetchPayoutSummary(true);
   }, [payoutPeriod, accessGranted]);
 
@@ -516,6 +553,8 @@ export default function BusinessEarningPage() {
     const amount = formatPeso(row.total_earnings);
     const periodLabel = formatPayoutRange(range.start, range.end);
 
+    setPayoutConfirmationOpen(true);
+
     const confirmed = await requestConfirmation({
       title: markPaid ? "Mark Pet Sitter payout as paid?" : "Mark Pet Sitter payout as unpaid?",
       message: markPaid
@@ -526,7 +565,10 @@ export default function BusinessEarningPage() {
       variant: markPaid ? "primary" : "danger",
     });
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      setPayoutConfirmationOpen(false);
+      return;
+    }
 
     setPayoutUpdatingId(row.petsitter_id);
     setPayoutError("");
@@ -576,7 +618,20 @@ export default function BusinessEarningPage() {
       );
     } finally {
       setPayoutUpdatingId(null);
+      setPayoutConfirmationOpen(false);
     }
+  }
+
+  function openPayoutSitterModal(row) {
+    if (!row?.petsitter_id) return;
+    setSelectedPayoutSitterId(row.petsitter_id);
+    setPayoutNotice("");
+    setPayoutError("");
+  }
+
+  function closePayoutSitterModal() {
+    if (payoutUpdatingId !== null || payoutConfirmationOpen) return;
+    setSelectedPayoutSitterId(null);
   }
 
   async function handleRefresh() {
@@ -713,6 +768,8 @@ export default function BusinessEarningPage() {
     setPayoutSearch("");
     setPayoutPeriod("month");
     setPayoutUpdatingId(null);
+    setSelectedPayoutSitterId(null);
+    setPayoutConfirmationOpen(false);
     setError("");
     setSuccessMessage("");
     setShowChangePasswordPanel(false);
@@ -825,6 +882,46 @@ export default function BusinessEarningPage() {
       ),
     [payoutRows]
   );
+
+  const selectedPayoutRow = useMemo(() => {
+    if (selectedPayoutSitterId === null || selectedPayoutSitterId === undefined) {
+      return null;
+    }
+
+    const selectedKey = normalizeReferenceKey(selectedPayoutSitterId);
+
+    return (
+      payoutRows.find(
+        (row) => normalizeReferenceKey(row?.petsitter_id) === selectedKey
+      ) || null
+    );
+  }, [payoutRows, selectedPayoutSitterId]);
+
+  const selectedPayoutBookings = useMemo(() => {
+    if (selectedPayoutSitterId === null || selectedPayoutSitterId === undefined) {
+      return [];
+    }
+
+    const selectedKey = normalizeReferenceKey(selectedPayoutSitterId);
+
+    return transactions
+      .filter((transaction) => {
+        if (normalizeReferenceKey(transaction?.ps_id) !== selectedKey) return false;
+
+        const finalizedDate = getDateOnlyValue(transaction?.financial_finalized_at);
+
+        return (
+          finalizedDate &&
+          finalizedDate >= payoutRange.start &&
+          finalizedDate <= payoutRange.end
+        );
+      })
+      .sort((left, right) => {
+        const leftTime = new Date(left?.financial_finalized_at || 0).getTime();
+        const rightTime = new Date(right?.financial_finalized_at || 0).getTime();
+        return rightTime - leftTime;
+      });
+  }, [transactions, selectedPayoutSitterId, payoutRange.start, payoutRange.end]);
 
   if (!accessGranted) {
     return (
@@ -1647,13 +1744,14 @@ export default function BusinessEarningPage() {
                 <Th width="170px" align="right">Sitter Earnings</Th>
                 <Th width="140px" align="center">Payout Status</Th>
                 <Th width="180px">Paid On</Th>
-                <Th width="150px" align="center">Action</Th>
+                <Th width="170px" align="right">Remaining Balance</Th>
+                <Th width="130px" align="center">View</Th>
               </tr>
             </thead>
             <tbody>
               {payoutLoading ? (
                 <tr>
-                  <td colSpan={6} style={styles.emptyCell}>
+                  <td colSpan={7} style={styles.emptyCell}>
                     <span style={styles.loadingContent}>
                       <RefreshCw size={20} className="earnings-spinner-icon" />
                       Loading Pet Sitter payout records...
@@ -1663,15 +1761,27 @@ export default function BusinessEarningPage() {
               ) : filteredPayoutRows.length > 0 ? (
                 filteredPayoutRows.map((row) => {
                   const status = normalizePayoutStatus(row.payout_status);
-                  const hasEarnings = Number(row.booking_count || 0) > 0;
-                  const isPaid = status === "PAID";
-                  const isUpdating = payoutUpdatingId === row.petsitter_id;
 
                   return (
                     <tr
                       key={row.petsitter_id}
-                      className="earnings-row"
-                      style={{ borderBottom: "1px solid var(--earn-border)" }}
+                      className="payout-row"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`View payout details for ${
+                        row.sitter_name || `Pet Sitter ${row.petsitter_id}`
+                      }`}
+                      onClick={() => openPayoutSitterModal(row)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openPayoutSitterModal(row);
+                        }
+                      }}
+                      style={{
+                        borderBottom: "1px solid var(--earn-border)",
+                        cursor: "pointer",
+                      }}
                     >
                       <Td>
                         <strong style={{ color: "var(--earn-text)" }}>
@@ -1694,38 +1804,29 @@ export default function BusinessEarningPage() {
                         </span>
                       </Td>
                       <Td muted>
-                        {status === "PAID" && row.paid_at
-                          ? formatDateTime(row.paid_at)
-                          : status === "PARTIALLY_PAID"
-                            ? "Partial payout"
-                            : "—"}
+                        {row.paid_at
+                          ? status === "PARTIALLY_PAID"
+                            ? `Latest: ${formatDateTime(row.paid_at)}`
+                            : formatDateTime(row.paid_at)
+                          : "—"}
+                      </Td>
+                      <Td align="right" strong>
+                        {formatPeso(row.remaining_balance)}
                       </Td>
                       <Td align="center">
                         <button
                           type="button"
-                          disabled={!hasEarnings || isUpdating}
-                          onClick={() =>
-                            updatePetSitterPayoutStatus(row, !isPaid)
-                          }
-                          style={payoutActionButtonStyle({
-                            disabled: !hasEarnings || isUpdating,
-                            isPaid,
-                          })}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openPayoutSitterModal(row);
+                          }}
+                          style={payoutViewButtonStyle()}
+                          aria-label={`View ${
+                            row.sitter_name || `Pet Sitter ${row.petsitter_id}`
+                          } payout details`}
                         >
-                          {isUpdating ? (
-                            <RefreshCw size={15} className="earnings-spinner-icon" />
-                          ) : isPaid ? (
-                            <X size={15} />
-                          ) : (
-                            <CheckCircle2 size={15} />
-                          )}
-                          {!hasEarnings
-                            ? "No Earnings"
-                            : isUpdating
-                              ? "Updating..."
-                              : isPaid
-                                ? "Mark Unpaid"
-                                : "Mark Paid"}
+                          <Eye size={15} />
+                          View Details
                         </button>
                       </Td>
                     </tr>
@@ -1733,7 +1834,7 @@ export default function BusinessEarningPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} style={styles.emptyCell}>
+                  <td colSpan={7} style={styles.emptyCell}>
                     No Pet Sitters match the current search.
                   </td>
                 </tr>
@@ -1755,6 +1856,267 @@ export default function BusinessEarningPage() {
           </span>
         </div>
       </section>
+
+
+
+      {selectedPayoutRow && !payoutConfirmationOpen ? (
+        <div
+          style={styles.payoutModalOverlay}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closePayoutSitterModal();
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pet-sitter-payout-modal-title"
+            style={{
+              ...styles.payoutDetailModal,
+              background: "var(--earn-card)",
+              borderColor: "var(--earn-border)",
+              boxShadow: "var(--earn-shadow)",
+            }}
+          >
+            <div
+              style={{
+                ...styles.payoutDetailModalHeader,
+                borderColor: "var(--earn-border)",
+              }}
+            >
+              <div style={{ minWidth: 0 }}>
+                <p style={styles.payoutModalEyebrow}>Pet Sitter Payout Details</p>
+                <h2
+                  id="pet-sitter-payout-modal-title"
+                  style={{ ...styles.payoutDetailModalTitle, color: "var(--earn-strong)" }}
+                >
+                  {selectedPayoutRow.sitter_name ||
+                    `Pet Sitter ${selectedPayoutRow.petsitter_id}`}
+                </h2>
+                <p style={{ ...styles.payoutDetailModalSubtitle, color: "var(--earn-muted)" }}>
+                  Sitter ID: {selectedPayoutRow.petsitter_id}
+                  {selectedPayoutRow.sitter_email
+                    ? ` • ${selectedPayoutRow.sitter_email}`
+                    : ""}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePayoutSitterModal}
+                disabled={payoutUpdatingId !== null}
+                aria-label="Close Pet Sitter payout details"
+                style={{
+                  ...styles.modalCloseButton,
+                  background: "var(--earn-card)",
+                  borderColor: "var(--earn-border-strong)",
+                  color: "var(--earn-strong)",
+                  opacity: payoutUpdatingId !== null ? 0.55 : 1,
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={styles.payoutDetailBody}>
+              <div
+                className="payout-detail-summary-grid"
+                style={styles.payoutDetailSummaryGrid}
+              >
+                <PayoutSummaryBox
+                  label="Selected Period"
+                  value={formatPayoutRange(payoutRange.start, payoutRange.end)}
+                />
+                <PayoutSummaryBox
+                  label="Completed Paid Bookings"
+                  value={Number(selectedPayoutRow.booking_count || 0)}
+                />
+                <PayoutSummaryBox
+                  label="Sitter Earnings"
+                  value={formatPeso(selectedPayoutRow.total_earnings)}
+                  strong
+                />
+                <PayoutSummaryBox
+                  label="Remaining Balance"
+                  value={formatPeso(selectedPayoutRow.remaining_balance)}
+                  strong
+                />
+                <PayoutSummaryBox
+                  label="Payout Status"
+                  value={
+                    <span
+                      style={payoutStatusBadgeStyle(
+                        normalizePayoutStatus(selectedPayoutRow.payout_status)
+                      )}
+                    >
+                      {formatPayoutStatus(selectedPayoutRow.payout_status)}
+                    </span>
+                  }
+                />
+              </div>
+
+              <div style={styles.payoutDetailSectionHeader}>
+                <div>
+                  <h3 style={{ ...styles.payoutDetailSectionTitle, color: "var(--earn-strong)" }}>
+                    Bookings Included in This Payout Period
+                  </h3>
+                  <p style={{ ...styles.payoutDetailSectionSubtitle, color: "var(--earn-muted)" }}>
+                    These are the completed and paid bookings that contribute to this Pet Sitter's earnings for the selected period.
+                  </p>
+                </div>
+                <div style={{ ...styles.payoutDetailPaidOn, color: "var(--earn-muted)" }}>
+                  {normalizePayoutStatus(selectedPayoutRow.payout_status) === "PAID" &&
+                  selectedPayoutRow.paid_at
+                    ? `Paid on ${formatDateTime(selectedPayoutRow.paid_at)}`
+                    : normalizePayoutStatus(selectedPayoutRow.payout_status) ===
+                        "PARTIALLY_PAID" && selectedPayoutRow.paid_at
+                      ? `Latest payout recorded on ${formatDateTime(selectedPayoutRow.paid_at)}.`
+                      : "No payout date recorded."}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  ...styles.payoutDetailTableShell,
+                  borderColor: "var(--earn-border)",
+                }}
+              >
+                <div style={styles.tableWrapper}>
+                  <table style={styles.payoutDetailTable}>
+                    <thead>
+                      <tr
+                        style={{
+                          ...styles.tableHeadRow,
+                          background: "var(--earn-soft)",
+                          borderColor: "var(--earn-border)",
+                        }}
+                      >
+                        <Th width="120px">Booking ID</Th>
+                        <Th width="165px">Finalized Date</Th>
+                        <Th width="220px">Service</Th>
+                        <Th width="130px" align="right">Service Price</Th>
+                        <Th width="115px" align="center">Sitter Share</Th>
+                        <Th width="150px" align="right">Sitter Earnings</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedPayoutBookings.length > 0 ? (
+                        selectedPayoutBookings.map((transaction) => (
+                          <tr
+                            key={transaction.booking_id}
+                            className="payout-modal-table-row"
+                            style={{ borderBottom: "1px solid var(--earn-border)" }}
+                          >
+                            <Td strong>{formatBookingId(transaction.booking_id)}</Td>
+                            <Td muted>{formatDateTime(transaction.financial_finalized_at)}</Td>
+                            <Td>
+                              <strong style={{ color: "var(--earn-text)" }}>
+                                {transaction.service_name_snapshot || "Not specified"}
+                              </strong>
+                            </Td>
+                            <Td align="right" strong>
+                              {formatPeso(transaction.service_price_snapshot)}
+                            </Td>
+                            <Td align="center">
+                              {formatPercentage(
+                                transaction.pet_sitter_percentage_snapshot
+                              )}
+                            </Td>
+                            <Td align="right" strong>
+                              {formatPeso(transaction.pet_sitter_earnings)}
+                            </Td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} style={styles.emptyCell}>
+                            No completed and paid bookings were finalized for this Pet Sitter during the selected period.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            <div
+              className="payout-detail-footer"
+              style={{
+                ...styles.payoutDetailFooter,
+                borderColor: "var(--earn-border)",
+                background: "var(--earn-soft)",
+              }}
+            >
+              <div style={{ ...styles.payoutDetailFooterNote, color: "var(--earn-muted)" }}>
+                <ShieldCheck size={16} color={BRAND.pink} />
+                Payout status is separate from the customer's booking payment status.
+              </div>
+
+              <div style={styles.payoutDetailFooterActions}>
+                <button
+                  type="button"
+                  onClick={closePayoutSitterModal}
+                  disabled={payoutUpdatingId !== null}
+                  style={{
+                    ...styles.modalSecondaryButton,
+                    background: "var(--earn-card)",
+                    borderColor: "var(--earn-border-strong)",
+                    color: "var(--earn-strong)",
+                    opacity: payoutUpdatingId !== null ? 0.55 : 1,
+                  }}
+                >
+                  Close
+                </button>
+
+                <button
+                  type="button"
+                  disabled={
+                    Number(selectedPayoutRow.booking_count || 0) <= 0 ||
+                    payoutUpdatingId !== null
+                  }
+                  onClick={() => {
+                    const status = normalizePayoutStatus(
+                      selectedPayoutRow.payout_status
+                    );
+                    updatePetSitterPayoutStatus(
+                      selectedPayoutRow,
+                      status !== "PAID"
+                    );
+                  }}
+                  style={payoutActionButtonStyle({
+                    disabled:
+                      Number(selectedPayoutRow.booking_count || 0) <= 0 ||
+                      payoutUpdatingId !== null,
+                    isPaid:
+                      normalizePayoutStatus(selectedPayoutRow.payout_status) ===
+                      "PAID",
+                  })}
+                >
+                  {payoutUpdatingId === selectedPayoutRow.petsitter_id ? (
+                    <RefreshCw size={15} className="earnings-spinner-icon" />
+                  ) : normalizePayoutStatus(selectedPayoutRow.payout_status) ===
+                    "PAID" ? (
+                    <X size={15} />
+                  ) : (
+                    <CheckCircle2 size={15} />
+                  )}
+                  {Number(selectedPayoutRow.booking_count || 0) <= 0
+                    ? "No Earnings"
+                    : payoutUpdatingId === selectedPayoutRow.petsitter_id
+                      ? "Updating..."
+                      : normalizePayoutStatus(selectedPayoutRow.payout_status) ===
+                          "PAID"
+                        ? "Mark Unpaid"
+                        : "Mark Paid"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
     </div>
   );
@@ -1804,6 +2166,31 @@ function StatCard({ icon, iconStyle, title, value, description }) {
         <p style={{ ...styles.statDescription, color: "var(--earn-muted)" }}>
           {description}
         </p>
+      </div>
+    </div>
+  );
+}
+
+function PayoutSummaryBox({ label, value, strong = false }) {
+  return (
+    <div
+      style={{
+        ...styles.payoutSummaryBox,
+        background: "var(--earn-soft)",
+        borderColor: "var(--earn-border)",
+      }}
+    >
+      <span style={{ ...styles.payoutSummaryLabel, color: "var(--earn-muted)" }}>
+        {label}
+      </span>
+      <div
+        style={{
+          ...styles.payoutSummaryValue,
+          color: "var(--earn-strong)",
+          fontWeight: strong ? 900 : 800,
+        }}
+      >
+        {value}
       </div>
     </div>
   );
@@ -2212,6 +2599,26 @@ function payoutPeriodButtonStyle(active) {
     fontSize: adminScaledFontSize(12.5),
     fontWeight: 850,
     cursor: "pointer",
+  };
+}
+
+function payoutViewButtonStyle() {
+  return {
+    minWidth: 104,
+    height: 34,
+    borderRadius: 8,
+    border: "1px solid var(--earn-border-strong)",
+    background: "var(--earn-card)",
+    color: "var(--earn-strong)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "0 10px",
+    fontSize: adminScaledFontSize(11.5),
+    fontWeight: 850,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   };
 }
 
@@ -2756,6 +3163,7 @@ const styles = {
   payoutCard: {
     width: "100%",
     marginTop: 24,
+    marginBottom: 24,
     borderRadius: 16,
     border: "1px solid",
     overflow: "hidden",
@@ -2845,7 +3253,7 @@ const styles = {
 
   payoutTable: {
     width: "100%",
-    minWidth: 1050,
+    minWidth: 1220,
     borderCollapse: "collapse",
     tableLayout: "fixed",
   },
@@ -2857,6 +3265,159 @@ const styles = {
     fontWeight: 650,
     overflow: "hidden",
     textOverflow: "ellipsis",
+  },
+
+  payoutModalOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1200,
+    background: "rgba(35, 20, 16, 0.50)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 22,
+    backdropFilter: "blur(2px)",
+  },
+
+  payoutDetailModal: {
+    width: "min(1120px, 100%)",
+    maxHeight: "calc(100vh - 44px)",
+    borderRadius: 18,
+    border: "1px solid",
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  payoutDetailModalHeader: {
+    padding: "20px 22px 17px",
+    borderBottom: "1px solid",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 16,
+    flexShrink: 0,
+  },
+
+  payoutModalEyebrow: {
+    margin: "0 0 5px",
+    color: BRAND.pink,
+    fontSize: adminScaledFontSize(11),
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+  },
+
+  payoutDetailModalTitle: {
+    margin: 0,
+    fontSize: adminScaledFontSize(23),
+    fontWeight: 900,
+  },
+
+  payoutDetailModalSubtitle: {
+    margin: "6px 0 0",
+    fontSize: adminScaledFontSize(12.5),
+    lineHeight: 1.5,
+  },
+
+  payoutDetailBody: {
+    padding: 22,
+    overflowY: "auto",
+    minHeight: 0,
+  },
+
+  payoutDetailSummaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: 12,
+  },
+
+  payoutSummaryBox: {
+    minHeight: 86,
+    border: "1px solid",
+    borderRadius: 11,
+    padding: "13px 14px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 7,
+  },
+
+  payoutSummaryLabel: {
+    fontSize: adminScaledFontSize(10.8),
+    fontWeight: 800,
+  },
+
+  payoutSummaryValue: {
+    fontSize: adminScaledFontSize(15),
+    lineHeight: 1.35,
+  },
+
+  payoutDetailSectionHeader: {
+    marginTop: 22,
+    marginBottom: 12,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 18,
+    flexWrap: "wrap",
+  },
+
+  payoutDetailSectionTitle: {
+    margin: 0,
+    fontSize: adminScaledFontSize(17),
+    fontWeight: 900,
+  },
+
+  payoutDetailSectionSubtitle: {
+    margin: "5px 0 0",
+    maxWidth: 720,
+    fontSize: adminScaledFontSize(11.8),
+    lineHeight: 1.5,
+  },
+
+  payoutDetailPaidOn: {
+    fontSize: adminScaledFontSize(11.5),
+    fontWeight: 750,
+  },
+
+  payoutDetailTableShell: {
+    border: "1px solid",
+    borderRadius: 11,
+    overflow: "hidden",
+  },
+
+  payoutDetailTable: {
+    width: "100%",
+    minWidth: 900,
+    borderCollapse: "collapse",
+    tableLayout: "fixed",
+  },
+
+  payoutDetailFooter: {
+    padding: "14px 22px",
+    borderTop: "1px solid",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 16,
+    flexWrap: "wrap",
+    flexShrink: 0,
+  },
+
+  payoutDetailFooterNote: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: adminScaledFontSize(11.5),
+    fontWeight: 700,
+  },
+
+  payoutDetailFooterActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    marginLeft: "auto",
   },
 
   modalOverlay: {
