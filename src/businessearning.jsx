@@ -304,7 +304,7 @@ export default function BusinessEarningPage() {
         setPayoutRows([]);
         setPayoutLoading(false);
         setPayoutError(
-          "The pay-through date cannot be earlier than the previous payout date."
+          "The end date cannot be earlier than the start date."
         );
         return;
       }
@@ -536,7 +536,7 @@ export default function BusinessEarningPage() {
     if (range.end < range.start) {
       setPayoutRows([]);
       setPayoutError(
-        "The pay-through date cannot be earlier than the previous payout date."
+        "The end date cannot be earlier than the start date."
       );
       if (showBusyState) setPayoutLoading(false);
       return;
@@ -1742,7 +1742,7 @@ export default function BusinessEarningPage() {
               }}
               style={payoutPeriodButtonStyle(payoutPeriod === "custom")}
             >
-              Custom Dates
+              Custom Date Range
             </button>
             <button
               type="button"
@@ -1764,7 +1764,7 @@ export default function BusinessEarningPage() {
           >
             <div style={styles.payoutCustomRangeFields}>
               <label style={{ ...styles.payoutCustomDateLabel, color: "var(--earn-strong)" }}>
-                Previous Payout Date
+                Start Date
                 <input
                   className="earnings-date-input"
                   type="date"
@@ -1785,7 +1785,7 @@ export default function BusinessEarningPage() {
               </label>
 
               <label style={{ ...styles.payoutCustomDateLabel, color: "var(--earn-strong)" }}>
-                Pay Through Date
+                End Date
                 <input
                   className="earnings-date-input"
                   type="date"
@@ -1810,7 +1810,7 @@ export default function BusinessEarningPage() {
             <div style={{ ...styles.payoutCustomRangeHelp, color: "var(--earn-muted)" }}>
               <Calendar size={17} color={BRAND.pink} style={{ flexShrink: 0 }} />
               <span>
-                Select the date of the previous payout and the date through which you want to pay Pet Sitter earnings. Only finalized earnings within this selected period are included.
+                Select the start and end dates for the payout period. Only finalized Pet Sitter earnings within this selected date range are included.
               </span>
             </div>
           </div>
@@ -1894,6 +1894,7 @@ export default function BusinessEarningPage() {
                 <Th width="170px" align="right">Sitter Earnings</Th>
                 <Th width="140px" align="center">Payout Status</Th>
                 <Th width="180px">Paid On</Th>
+                <Th width="160px" align="right">Amount Paid</Th>
                 <Th width="170px" align="right">Remaining Balance</Th>
                 <Th width="130px" align="center">View</Th>
               </tr>
@@ -1901,7 +1902,7 @@ export default function BusinessEarningPage() {
             <tbody>
               {payoutLoading ? (
                 <tr>
-                  <td colSpan={7} style={styles.emptyCell}>
+                  <td colSpan={8} style={styles.emptyCell}>
                     <span style={styles.loadingContent}>
                       <RefreshCw size={20} className="earnings-spinner-icon" />
                       Loading Pet Sitter payout records...
@@ -1961,6 +1962,9 @@ export default function BusinessEarningPage() {
                           : "—"}
                       </Td>
                       <Td align="right" strong>
+                        {formatPeso(getPayoutAmountPaid(row))}
+                      </Td>
+                      <Td align="right" strong>
                         {formatPeso(row.remaining_balance)}
                       </Td>
                       <Td align="center">
@@ -1984,9 +1988,9 @@ export default function BusinessEarningPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} style={styles.emptyCell}>
+                  <td colSpan={8} style={styles.emptyCell}>
                     {payoutPeriod === "custom" && !payoutRangeReady
-                      ? "Select the previous payout date and pay-through date to load Pet Sitter earnings."
+                      ? "Select a start date and end date to load Pet Sitter earnings."
                       : "No Pet Sitters match the current search."}
                   </td>
                 </tr>
@@ -2503,6 +2507,29 @@ function formatBookingId(id) {
 function toMoneyNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+function getPayoutAmountPaid(row) {
+  const totalEarnings = Math.max(0, toMoneyNumber(row?.total_earnings));
+
+  if (
+    row?.remaining_balance !== null &&
+    row?.remaining_balance !== undefined &&
+    row?.remaining_balance !== ""
+  ) {
+    const remainingBalance = Math.max(
+      0,
+      toMoneyNumber(row.remaining_balance)
+    );
+
+    return roundTwoDecimals(
+      Math.max(0, Math.min(totalEarnings, totalEarnings - remainingBalance))
+    );
+  }
+
+  return normalizePayoutStatus(row?.payout_status) === "PAID"
+    ? roundTwoDecimals(totalEarnings)
+    : 0;
 }
 
 function formatPeso(value) {
@@ -3484,7 +3511,7 @@ const styles = {
 
   payoutTable: {
     width: "100%",
-    minWidth: 1220,
+    minWidth: 1380,
     borderCollapse: "collapse",
     tableLayout: "fixed",
   },
