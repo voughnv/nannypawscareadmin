@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { supabase } from "./lib/supabase";
+import { useConfirmation } from "./context/ConfirmationProvider";
 import {
   adminScaledFontSize,
   useAdminSettings,
@@ -146,7 +147,9 @@ const EARNINGS_CSS = `
     .business-earnings-page .earnings-header,
     .business-earnings-page .earnings-toolbar,
     .business-earnings-page .earnings-date-panel,
-    .business-earnings-page .earnings-pagination {
+    .business-earnings-page .earnings-pagination,
+    .business-earnings-page .payout-header,
+    .business-earnings-page .payout-toolbar {
       flex-direction: column;
       align-items: stretch !important;
     }
@@ -182,6 +185,7 @@ const EARNINGS_CSS = `
 `;
 
 export default function BusinessEarningPage() {
+  const requestConfirmation = useConfirmation();
   const { settings } = useAdminSettings();
   const darkMode = Boolean(settings?.darkMode);
 
@@ -203,7 +207,6 @@ export default function BusinessEarningPage() {
 
   const [transactions, setTransactions] = useState([]);
   const [unfinalizedCount, setUnfinalizedCount] = useState(0);
-  const [currentSplit, setCurrentSplit] = useState(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -213,6 +216,14 @@ export default function BusinessEarningPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const [payoutPeriod, setPayoutPeriod] = useState("month");
+  const [payoutRows, setPayoutRows] = useState([]);
+  const [payoutLoading, setPayoutLoading] = useState(false);
+  const [payoutError, setPayoutError] = useState("");
+  const [payoutNotice, setPayoutNotice] = useState("");
+  const [payoutSearch, setPayoutSearch] = useState("");
+  const [payoutUpdatingId, setPayoutUpdatingId] = useState(null);
 
   const theme = useMemo(
     () => ({
@@ -238,6 +249,13 @@ export default function BusinessEarningPage() {
   }, [search, dateFrom, dateTo]);
 
   useEffect(() => {
+    if (!accessGranted) return;
+
+    setPayoutNotice("");
+    fetchPayoutSummary(true);
+  }, [payoutPeriod, accessGranted]);
+
+  useEffect(() => {
     if (!accessGranted) return undefined;
 
     const earningsChannel = supabase
@@ -251,6 +269,7 @@ export default function BusinessEarningPage() {
         },
         () => {
           fetchFinancialData(false);
+          fetchPayoutSummary(false);
         }
       )
       .subscribe();
@@ -266,21 +285,22 @@ export default function BusinessEarningPage() {
         },
         () => {
           fetchFinancialData(false);
+          fetchPayoutSummary(false);
         }
       )
       .subscribe();
 
-    const serviceChannel = supabase
-      .channel("business-owner-earnings-service-sync")
+    const sitterChannel = supabase
+      .channel("business-owner-earnings-sitter-sync")
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "SERVICE_CATALOG",
+          table: "PET SITTER",
         },
         () => {
-          fetchFinancialData(false);
+          fetchPayoutSummary(false);
         }
       )
       .subscribe();
@@ -288,7 +308,7 @@ export default function BusinessEarningPage() {
     return () => {
       supabase.removeChannel(earningsChannel);
       supabase.removeChannel(bookingChannel);
-      supabase.removeChannel(serviceChannel);
+      supabase.removeChannel(sitterChannel);
     };
   }, [accessGranted]);
 
@@ -367,14 +387,11 @@ export default function BusinessEarningPage() {
     setError("");
 
     try {
-      const [earningsResult, missingResult, splitResult] = await Promise.all([
+      const [earningsResult, missingResult] = await Promise.all([
         supabase.rpc("get_business_earnings_transactions", {
           p_password: activePassword,
         }),
         supabase.rpc("get_business_earnings_missing_snapshot_count", {
-          p_password: activePassword,
-        }),
-        supabase.rpc("get_business_owner_current_split", {
           p_password: activePassword,
         }),
       ]);
@@ -399,37 +416,6 @@ export default function BusinessEarningPage() {
         setUnfinalizedCount(Number(missingResult.data || 0));
       }
 
-      if (splitResult.error) {
-        console.error(
-          "Unable to load current Maintenance revenue split:",
-          splitResult.error
-        );
-        setCurrentSplit(null);
-      } else {
-        const splitRow = Array.isArray(splitResult.data)
-          ? splitResult.data[0]
-          : splitResult.data;
-
-        if (splitRow) {
-          const sitter = Number(splitRow.pet_sitter_percentage);
-          const owner = Number(splitRow.business_owner_percentage);
-
-          if (
-            Number.isFinite(sitter) &&
-            Number.isFinite(owner) &&
-            Math.abs(sitter + owner - 100) < 0.005
-          ) {
-            setCurrentSplit({
-              pet_sitter_percentage: sitter,
-              business_owner_percentage: owner,
-            });
-          } else {
-            setCurrentSplit(null);
-          }
-        } else {
-          setCurrentSplit(null);
-        }
-      }
     } catch (fetchError) {
       console.error("Unable to load Business Earnings:", fetchError);
 
@@ -467,11 +453,140 @@ export default function BusinessEarningPage() {
     }
   }
 
+  async function fetchPayoutSummary(showBusyState = true, passwordOverride = "") {
+    const activePassword = passwordOverride || accessPassword;
+
+    if (!activePassword) return;
+
+    const range = getCurrentPayoutRange(payoutPeriod);
+
+    if (showBusyState) {
+      setPayoutLoading(true);
+    }
+
+    setPayoutError("");
+
+    try {
+      const { data, error: payoutFetchError } = await supabase.rpc(
+        "get_pet_sitter_payout_summary",
+        {
+          p_password: activePassword,
+          p_period_start: range.start,
+          p_period_end: range.end,
+        }
+      );
+
+      if (payoutFetchError) throw payoutFetchError;
+
+      setPayoutRows(data || []);
+    } catch (payoutFetchError) {
+      console.error("Unable to load Pet Sitter payout summary:", payoutFetchError);
+
+      const errorText = `${payoutFetchError?.code || ""} ${
+        payoutFetchError?.message || ""
+      }`.toLowerCase();
+
+      if (
+        errorText.includes("get_pet_sitter_payout_summary") ||
+        errorText.includes("pgrst202") ||
+        errorText.includes("42883")
+      ) {
+        setPayoutError(
+          "Pet Sitter payout tracking is not yet configured. Please apply the payout setup in the database."
+        );
+      } else {
+        setPayoutError(
+          "Pet Sitter payout information could not be loaded. Please refresh the page and try again."
+        );
+      }
+
+      setPayoutRows([]);
+    } finally {
+      if (showBusyState) {
+        setPayoutLoading(false);
+      }
+    }
+  }
+
+  async function updatePetSitterPayoutStatus(row, markPaid) {
+    if (!row?.petsitter_id || payoutUpdatingId !== null) return;
+
+    const range = getCurrentPayoutRange(payoutPeriod);
+    const sitterName = row.sitter_name || `Pet Sitter ${row.petsitter_id}`;
+    const amount = formatPeso(row.total_earnings);
+    const periodLabel = formatPayoutRange(range.start, range.end);
+
+    const confirmed = await requestConfirmation({
+      title: markPaid ? "Mark Pet Sitter payout as paid?" : "Mark Pet Sitter payout as unpaid?",
+      message: markPaid
+        ? `Confirm that ${sitterName} has received ${amount} for ${periodLabel}. This records the payout status only and does not change the booking or earnings amount.`
+        : `Mark ${sitterName}'s ${amount} payout for ${periodLabel} as unpaid? The earnings amount will remain unchanged.`,
+      confirmText: markPaid ? "Mark as Paid" : "Mark as Unpaid",
+      cancelText: "Cancel",
+      variant: markPaid ? "primary" : "danger",
+    });
+
+    if (!confirmed) return;
+
+    setPayoutUpdatingId(row.petsitter_id);
+    setPayoutError("");
+    setPayoutNotice("");
+
+    try {
+      const { data, error: payoutUpdateError } = await supabase.rpc(
+        "set_pet_sitter_payout_status",
+        {
+          p_password: accessPassword,
+          p_sitter_id: row.petsitter_id,
+          p_period_start: range.start,
+          p_period_end: range.end,
+          p_paid: markPaid,
+        }
+      );
+
+      if (payoutUpdateError) throw payoutUpdateError;
+
+      const updatedCount = Number(data || 0);
+
+      if (updatedCount <= 0) {
+        throw new Error("No finalized Pet Sitter earnings were found for the selected period.");
+      }
+
+      await fetchPayoutSummary(false);
+
+      setPayoutNotice(
+        `${sitterName}'s payout for ${periodLabel} was marked as ${
+          markPaid ? "Paid" : "Unpaid"
+        }.`
+      );
+    } catch (payoutUpdateError) {
+      console.error("Unable to update Pet Sitter payout status:", payoutUpdateError);
+
+      const errorText = `${payoutUpdateError?.code || ""} ${
+        payoutUpdateError?.message || ""
+      }`.toLowerCase();
+
+      setPayoutError(
+        errorText.includes("set_pet_sitter_payout_status") ||
+          errorText.includes("pgrst202") ||
+          errorText.includes("42883")
+          ? "Pet Sitter payout tracking is not yet configured. Please apply the payout setup in the database."
+          : payoutUpdateError?.message ||
+              "The Pet Sitter payout status could not be updated. Please try again."
+      );
+    } finally {
+      setPayoutUpdatingId(null);
+    }
+  }
+
   async function handleRefresh() {
     if (!accessGranted || refreshing) return;
 
     setRefreshing(true);
-    await fetchFinancialData(false);
+    await Promise.all([
+      fetchFinancialData(false),
+      fetchPayoutSummary(false),
+    ]);
     setRefreshing(false);
   }
 
@@ -591,7 +706,13 @@ export default function BusinessEarningPage() {
     setShowPassword(false);
     setTransactions([]);
     setUnfinalizedCount(0);
-    setCurrentSplit(null);
+    setPayoutRows([]);
+    setPayoutLoading(false);
+    setPayoutError("");
+    setPayoutNotice("");
+    setPayoutSearch("");
+    setPayoutPeriod("month");
+    setPayoutUpdatingId(null);
     setError("");
     setSuccessMessage("");
     setShowChangePasswordPanel(false);
@@ -677,6 +798,32 @@ export default function BusinessEarningPage() {
   const lastVisible = Math.min(
     currentPage * ROWS_PER_PAGE,
     filteredTransactions.length
+  );
+
+  const payoutRange = useMemo(
+    () => getCurrentPayoutRange(payoutPeriod),
+    [payoutPeriod]
+  );
+
+  const filteredPayoutRows = useMemo(() => {
+    const keyword = payoutSearch.trim().toLowerCase();
+
+    if (!keyword) return payoutRows;
+
+    return payoutRows.filter((row) =>
+      [row.petsitter_id, row.sitter_name, row.sitter_email]
+        .filter((value) => value !== null && value !== undefined)
+        .some((value) => String(value).toLowerCase().includes(keyword))
+    );
+  }, [payoutRows, payoutSearch]);
+
+  const payoutPeriodTotal = useMemo(
+    () =>
+      payoutRows.reduce(
+        (total, row) => total + toMoneyNumber(row.total_earnings),
+        0
+      ),
+    [payoutRows]
   );
 
   if (!accessGranted) {
@@ -1113,23 +1260,18 @@ export default function BusinessEarningPage() {
               </span>
             </div>
 
-            {currentSplit ? (
-              <div
-                style={{
-                  ...styles.currentSplit,
-                  background: "var(--earn-soft)",
-                  borderColor: "var(--earn-border)",
-                  color: "var(--earn-muted)",
-                }}
-                title="Current revenue-sharing allocation from Maintenance. Historical transactions retain their saved allocation."
-              >
-                Current Revenue Split:&nbsp;
-                <strong style={{ color: "var(--earn-strong)" }}>
-                  {formatPercentage(currentSplit.pet_sitter_percentage)} Pet Sitter /{" "}
-                  {formatPercentage(currentSplit.business_owner_percentage)} Business Owner
-                </strong>
-              </div>
-            ) : null}
+            <div
+              style={{
+                ...styles.currentSplit,
+                background: "var(--earn-soft)",
+                borderColor: "var(--earn-border)",
+                color: "var(--earn-muted)",
+              }}
+              title="Revenue-sharing percentages are configured individually for each Pet Sitter in Maintenance."
+            >
+              Revenue Sharing:&nbsp;
+              <strong style={{ color: "var(--earn-strong)" }}>Per Pet Sitter</strong>
+            </div>
 
             <button
               type="button"
@@ -1391,6 +1533,225 @@ export default function BusinessEarningPage() {
             finalized earnings record. Each transaction retains the service price
             and revenue split recorded when it was finalized; changes in Maintenance
             apply only to future finalized transactions.
+          </span>
+        </div>
+      </section>
+
+      <section
+        style={{
+          ...styles.payoutCard,
+          background: "var(--earn-card)",
+          borderColor: "var(--earn-border)",
+          boxShadow: "var(--earn-shadow)",
+        }}
+      >
+        <div className="payout-header" style={styles.payoutHeader}>
+          <div>
+            <h2 style={{ ...styles.payoutTitle, color: "var(--earn-strong)" }}>
+              Pet Sitter Payouts
+            </h2>
+            <p style={{ ...styles.payoutSubtitle, color: "var(--earn-muted)" }}>
+              Review each Pet Sitter's earnings for the selected period and record whether the payout has been issued.
+            </p>
+          </div>
+
+          <div style={styles.payoutPeriodButtons}>
+            <button
+              type="button"
+              onClick={() => setPayoutPeriod("week")}
+              style={payoutPeriodButtonStyle(payoutPeriod === "week")}
+            >
+              This Week
+            </button>
+            <button
+              type="button"
+              onClick={() => setPayoutPeriod("month")}
+              style={payoutPeriodButtonStyle(payoutPeriod === "month")}
+            >
+              This Month
+            </button>
+          </div>
+        </div>
+
+        <div className="payout-toolbar" style={styles.payoutToolbar}>
+          <div
+            className="earnings-search-shell"
+            style={{
+              ...styles.payoutSearchBox,
+              background: "var(--earn-input)",
+              borderColor: "var(--earn-border-strong)",
+            }}
+          >
+            <Search size={20} color="var(--earn-muted)" />
+            <input
+              value={payoutSearch}
+              onChange={(event) => setPayoutSearch(event.target.value)}
+              placeholder="Search Pet Sitter"
+              style={{ ...styles.searchInput, color: "var(--earn-text)" }}
+            />
+          </div>
+
+          <div style={{ ...styles.payoutPeriodSummary, color: "var(--earn-muted)" }}>
+            <Calendar size={17} color={BRAND.pink} />
+            <span>
+              <strong style={{ color: "var(--earn-strong)" }}>
+                {formatPayoutRange(payoutRange.start, payoutRange.end)}
+              </strong>
+              {" • "}Total Sitter Earnings: {formatPeso(payoutPeriodTotal)}
+            </span>
+          </div>
+        </div>
+
+        {payoutNotice ? (
+          <div style={{ ...styles.payoutMessage, ...styles.payoutSuccessMessage }}>
+            <CheckCircle2 size={18} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{payoutNotice}</span>
+            <button
+              type="button"
+              onClick={() => setPayoutNotice("")}
+              style={styles.messageClose}
+              aria-label="Dismiss payout message"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        ) : null}
+
+        {payoutError ? (
+          <div style={{ ...styles.payoutMessage, ...styles.payoutErrorMessage }}>
+            <AlertCircle size={18} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{payoutError}</span>
+            <button
+              type="button"
+              onClick={() => setPayoutError("")}
+              style={styles.messageClose}
+              aria-label="Dismiss payout error"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        ) : null}
+
+        <div style={styles.tableWrapper}>
+          <table style={styles.payoutTable}>
+            <thead>
+              <tr
+                style={{
+                  ...styles.tableHeadRow,
+                  background: "var(--earn-soft)",
+                  borderColor: "var(--earn-border)",
+                }}
+              >
+                <Th width="260px">Pet Sitter</Th>
+                <Th width="150px" align="center">Completed Paid Bookings</Th>
+                <Th width="170px" align="right">Sitter Earnings</Th>
+                <Th width="140px" align="center">Payout Status</Th>
+                <Th width="180px">Paid On</Th>
+                <Th width="150px" align="center">Action</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {payoutLoading ? (
+                <tr>
+                  <td colSpan={6} style={styles.emptyCell}>
+                    <span style={styles.loadingContent}>
+                      <RefreshCw size={20} className="earnings-spinner-icon" />
+                      Loading Pet Sitter payout records...
+                    </span>
+                  </td>
+                </tr>
+              ) : filteredPayoutRows.length > 0 ? (
+                filteredPayoutRows.map((row) => {
+                  const status = normalizePayoutStatus(row.payout_status);
+                  const hasEarnings = Number(row.booking_count || 0) > 0;
+                  const isPaid = status === "PAID";
+                  const isUpdating = payoutUpdatingId === row.petsitter_id;
+
+                  return (
+                    <tr
+                      key={row.petsitter_id}
+                      className="earnings-row"
+                      style={{ borderBottom: "1px solid var(--earn-border)" }}
+                    >
+                      <Td>
+                        <strong style={{ color: "var(--earn-text)" }}>
+                          {row.sitter_name || `Pet Sitter ${row.petsitter_id}`}
+                        </strong>
+                        <div style={styles.payoutSitterMeta}>
+                          ID: {row.petsitter_id}
+                          {row.sitter_email ? ` • ${row.sitter_email}` : ""}
+                        </div>
+                      </Td>
+                      <Td align="center" strong>
+                        {Number(row.booking_count || 0)}
+                      </Td>
+                      <Td align="right" strong>
+                        {formatPeso(row.total_earnings)}
+                      </Td>
+                      <Td align="center">
+                        <span style={payoutStatusBadgeStyle(status)}>
+                          {formatPayoutStatus(status)}
+                        </span>
+                      </Td>
+                      <Td muted>
+                        {status === "PAID" && row.paid_at
+                          ? formatDateTime(row.paid_at)
+                          : status === "PARTIALLY_PAID"
+                            ? "Partial payout"
+                            : "—"}
+                      </Td>
+                      <Td align="center">
+                        <button
+                          type="button"
+                          disabled={!hasEarnings || isUpdating}
+                          onClick={() =>
+                            updatePetSitterPayoutStatus(row, !isPaid)
+                          }
+                          style={payoutActionButtonStyle({
+                            disabled: !hasEarnings || isUpdating,
+                            isPaid,
+                          })}
+                        >
+                          {isUpdating ? (
+                            <RefreshCw size={15} className="earnings-spinner-icon" />
+                          ) : isPaid ? (
+                            <X size={15} />
+                          ) : (
+                            <CheckCircle2 size={15} />
+                          )}
+                          {!hasEarnings
+                            ? "No Earnings"
+                            : isUpdating
+                              ? "Updating..."
+                              : isPaid
+                                ? "Mark Unpaid"
+                                : "Mark Paid"}
+                        </button>
+                      </Td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={6} style={styles.emptyCell}>
+                    No Pet Sitters match the current search.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div
+          style={{
+            ...styles.footerNote,
+            borderColor: "var(--earn-border)",
+            color: "var(--earn-muted)",
+          }}
+        >
+          <ShieldCheck size={17} color={BRAND.pink} style={{ flexShrink: 0 }} />
+          <span>
+            Payout status is tracked separately from booking payment status. Marking a Pet Sitter as Paid or Unpaid does not change the finalized booking amount or historical earnings allocation.
           </span>
         </div>
       </section>
@@ -1704,6 +2065,177 @@ function getVisiblePages(currentPage, totalPages) {
     "ellipsis-right",
     totalPages,
   ];
+}
+
+function getCurrentPayoutRange(period) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => ["year", "month", "day"].includes(part.type))
+      .map((part) => [part.type, Number(part.value)])
+  );
+
+  const today = new Date(Date.UTC(values.year, values.month - 1, values.day));
+
+  if (period === "week") {
+    const dayIndex = today.getUTCDay();
+    const daysSinceMonday = dayIndex === 0 ? 6 : dayIndex - 1;
+    const start = new Date(today);
+    start.setUTCDate(start.getUTCDate() - daysSinceMonday);
+
+    const end = new Date(start);
+    end.setUTCDate(end.getUTCDate() + 6);
+
+    return {
+      start: formatUtcDateOnly(start),
+      end: formatUtcDateOnly(end),
+    };
+  }
+
+  const start = new Date(Date.UTC(values.year, values.month - 1, 1));
+  const end = new Date(Date.UTC(values.year, values.month, 0));
+
+  return {
+    start: formatUtcDateOnly(start),
+    end: formatUtcDateOnly(end),
+  };
+}
+
+function formatUtcDateOnly(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatPayoutRange(start, end) {
+  const startDate = new Date(`${start}T00:00:00+08:00`);
+  const endDate = new Date(`${end}T00:00:00+08:00`);
+
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+    return `${start} to ${end}`;
+  }
+
+  const startLabel = new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+  }).format(startDate);
+
+  const endLabel = new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(endDate);
+
+  return `${startLabel} – ${endLabel}`;
+}
+
+function normalizePayoutStatus(status) {
+  const normalized = String(status || "").trim().toUpperCase();
+
+  if (normalized === "PAID") return "PAID";
+  if (normalized === "PARTIALLY_PAID") return "PARTIALLY_PAID";
+  if (normalized === "NO_EARNINGS") return "NO_EARNINGS";
+  return "UNPAID";
+}
+
+function formatPayoutStatus(status) {
+  const normalized = normalizePayoutStatus(status);
+
+  if (normalized === "PAID") return "Paid";
+  if (normalized === "PARTIALLY_PAID") return "Partially Paid";
+  if (normalized === "NO_EARNINGS") return "No Earnings";
+  return "Unpaid";
+}
+
+function payoutStatusBadgeStyle(status) {
+  const normalized = normalizePayoutStatus(status);
+
+  const variants = {
+    PAID: {
+      border: "#D3ECDD",
+      background: "#E7F6ED",
+      color: "#167545",
+    },
+    PARTIALLY_PAID: {
+      border: "#F1DBA8",
+      background: "#FFF7E1",
+      color: "#896300",
+    },
+    NO_EARNINGS: {
+      border: "var(--earn-border)",
+      background: "var(--earn-soft)",
+      color: "var(--earn-muted)",
+    },
+    UNPAID: {
+      border: "#F2C7CF",
+      background: "#FFF0F2",
+      color: "#B42335",
+    },
+  };
+
+  const variant = variants[normalized] || variants.UNPAID;
+
+  return {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: normalized === "PARTIALLY_PAID" ? 104 : 82,
+    height: 27,
+    padding: "0 9px",
+    borderRadius: 7,
+    border: `1px solid ${variant.border}`,
+    background: variant.background,
+    color: variant.color,
+    fontSize: adminScaledFontSize(10.8),
+    fontWeight: 850,
+    whiteSpace: "nowrap",
+  };
+}
+
+function payoutPeriodButtonStyle(active) {
+  return {
+    height: 38,
+    borderRadius: 8,
+    border: `1px solid ${active ? BRAND.pink : "var(--earn-border-strong)"}`,
+    background: active ? BRAND.pink : "var(--earn-card)",
+    color: active ? "#FFFFFF" : "var(--earn-text)",
+    padding: "0 14px",
+    fontSize: adminScaledFontSize(12.5),
+    fontWeight: 850,
+    cursor: "pointer",
+  };
+}
+
+function payoutActionButtonStyle({ disabled = false, isPaid = false }) {
+  return {
+    minWidth: 112,
+    height: 34,
+    borderRadius: 8,
+    border: `1px solid ${
+      isPaid ? "#E8B7C1" : disabled ? "var(--earn-border)" : "#B9DFC7"
+    }`,
+    background: isPaid ? "#FFF4F6" : disabled ? "var(--earn-soft)" : "#EDF9F1",
+    color: isPaid ? "#B42335" : disabled ? "var(--earn-muted)" : "#167545",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    padding: "0 11px",
+    fontSize: adminScaledFontSize(11.5),
+    fontWeight: 850,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.58 : 1,
+    whiteSpace: "nowrap",
+  };
 }
 
 function primaryButtonStyle(disabled = false) {
@@ -2219,6 +2751,112 @@ const styles = {
     alignItems: "center",
     fontSize: adminScaledFontSize(11.5),
     whiteSpace: "nowrap",
+  },
+
+  payoutCard: {
+    width: "100%",
+    marginTop: 24,
+    borderRadius: 16,
+    border: "1px solid",
+    overflow: "hidden",
+  },
+
+  payoutHeader: {
+    padding: "20px 22px",
+    borderBottom: "1px solid var(--earn-border)",
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 18,
+  },
+
+  payoutTitle: {
+    margin: 0,
+    fontSize: adminScaledFontSize(21),
+    fontWeight: 900,
+  },
+
+  payoutSubtitle: {
+    margin: "6px 0 0",
+    maxWidth: 760,
+    fontSize: adminScaledFontSize(12.5),
+    lineHeight: 1.5,
+  },
+
+  payoutPeriodButtons: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+  },
+
+  payoutToolbar: {
+    padding: "16px 22px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 14,
+    flexWrap: "wrap",
+    borderBottom: "1px solid var(--earn-border)",
+  },
+
+  payoutSearchBox: {
+    width: 330,
+    maxWidth: "100%",
+    height: 44,
+    border: "1px solid",
+    borderRadius: 7,
+    display: "flex",
+    alignItems: "center",
+    padding: "0 12px",
+  },
+
+  payoutPeriodSummary: {
+    minHeight: 40,
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: adminScaledFontSize(12),
+    fontWeight: 700,
+  },
+
+  payoutMessage: {
+    margin: "14px 22px 0",
+    padding: "11px 13px",
+    borderRadius: 9,
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    fontSize: adminScaledFontSize(12.5),
+    fontWeight: 700,
+  },
+
+  payoutSuccessMessage: {
+    border: "1px solid #BFE6CC",
+    background: "#ECF9F0",
+    color: "#167545",
+  },
+
+  payoutErrorMessage: {
+    border: "1px solid #F1BFC5",
+    background: "#FFF0F2",
+    color: "#B42335",
+  },
+
+  payoutTable: {
+    width: "100%",
+    minWidth: 1050,
+    borderCollapse: "collapse",
+    tableLayout: "fixed",
+  },
+
+  payoutSitterMeta: {
+    marginTop: 4,
+    color: "var(--earn-muted)",
+    fontSize: adminScaledFontSize(10.8),
+    fontWeight: 650,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
 
   modalOverlay: {
