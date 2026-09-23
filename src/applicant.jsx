@@ -697,7 +697,12 @@ export default function ApplicantPage() {
       }
 
       if (result.error) {
-        throw result.error;
+        throw tagApplicantActionError(
+          result.error,
+          record.has_application_record
+            ? "APPLICATION_UPDATE"
+            : "APPLICATION_INSERT"
+        );
       }
 
       const updated = {
@@ -808,6 +813,23 @@ export default function ApplicantPage() {
       .trim()
       .toLowerCase();
 
+    const firstName = String(
+      record.a_fname || ""
+    )
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const lastName = String(
+      record.a_lname || ""
+    )
+      .trim()
+      .replace(/\s+/g, " ");
+
+    const contactNumber =
+      normalizeSitterContactNumber(
+        record.a_contactno
+      );
+
     const username =
       buildSitterUsername(record);
 
@@ -833,7 +855,10 @@ export default function ApplicantPage() {
       .maybeSingle();
 
     if (existingEmailError) {
-      throw existingEmailError;
+      throw tagApplicantActionError(
+        existingEmailError,
+        "PET_SITTER_LOOKUP"
+      );
     }
 
     if (existingByEmail) {
@@ -857,12 +882,63 @@ export default function ApplicantPage() {
       .maybeSingle();
 
     if (usernameError) {
-      throw usernameError;
+      throw tagApplicantActionError(
+        usernameError,
+        "PET_SITTER_LOOKUP"
+      );
     }
 
     if (usernameMatch) {
       throw new Error(
         `A Pet Sitter account with the username "${username}" already exists. Please review the existing account before trying again.`
+      );
+    }
+
+    /*
+      Keep acceptance validation aligned with the Pet Sitters page.
+      That page treats full name, username, contact number, and email
+      as duplicate-sensitive account information. Check these values
+      before requesting a verification email so a database conflict
+      does not consume another Auth email request.
+    */
+    const [fullNameResult, contactResult] =
+      await Promise.all([
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .ilike("ps_fname", firstName)
+          .ilike("ps_lname", lastName)
+          .limit(1)
+          .maybeSingle(),
+
+        supabase
+          .from("PET SITTER")
+          .select("petsitter_id")
+          .eq("ps_contactno", contactNumber)
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+    const duplicateLookupError =
+      fullNameResult.error ||
+      contactResult.error;
+
+    if (duplicateLookupError) {
+      throw tagApplicantActionError(
+        duplicateLookupError,
+        "PET_SITTER_LOOKUP"
+      );
+    }
+
+    if (fullNameResult.data) {
+      throw new Error(
+        `A Pet Sitter account for ${firstName} ${lastName} already exists. Please review the existing account before trying again.`
+      );
+    }
+
+    if (contactResult.data) {
+      throw new Error(
+        `The contact number ${contactNumber} is already registered to another Pet Sitter.`
       );
     }
 
@@ -883,15 +959,9 @@ export default function ApplicantPage() {
           data: {
             role: "pet_sitter",
 
-            first_name:
-              String(
-                record.a_fname || ""
-              ).trim(),
+            first_name: firstName,
 
-            last_name:
-              String(
-                record.a_lname || ""
-              ).trim(),
+            last_name: lastName,
 
             username,
           },
@@ -899,7 +969,10 @@ export default function ApplicantPage() {
       });
 
     if (authError) {
-      throw authError;
+      throw tagApplicantActionError(
+        authError,
+        "AUTH_SIGNUP"
+      );
     }
 
     const authUser =
@@ -930,22 +1003,13 @@ export default function ApplicantPage() {
     const sitterPayload = {
       ps_auth_id: authUser.id,
 
-      ps_fname:
-        String(
-          record.a_fname || ""
-        ).trim(),
+      ps_fname: firstName,
 
-      ps_lname:
-        String(
-          record.a_lname || ""
-        ).trim(),
+      ps_lname: lastName,
 
       ps_username: username,
 
-      ps_contactno:
-        String(
-          record.a_contactno || ""
-        ).trim(),
+      ps_contactno: contactNumber,
 
       ps_email: email,
 
@@ -974,6 +1038,12 @@ export default function ApplicantPage() {
 
       ps_password:
         DEFAULT_SITTER_PASSWORD,
+
+      /*
+        percentage_cut stores the Business Owner share.
+        New Pet Sitters start at the current default 40 / 60 split.
+      */
+      percentage_cut: 40,
     };
 
     const {
@@ -994,13 +1064,17 @@ export default function ApplicantPage() {
           ps_email,
           ps_place,
           preferred_pet_type,
-          ps_address
+          ps_address,
+          percentage_cut
         `
       )
       .single();
 
     if (sitterError) {
-      throw sitterError;
+      throw tagApplicantActionError(
+        sitterError,
+        "PET_SITTER_INSERT"
+      );
     }
 
     return {
@@ -3855,6 +3929,27 @@ function formatApplicantId(id) {
       )}`;
 }
 
+function normalizeSitterContactNumber(
+  value
+) {
+  let text = String(value || "")
+    .trim()
+    .replace(/\D/g, "");
+
+  /*
+    Some older applicant rows were stored numerically and lost the
+    leading zero. Restore it for Philippine mobile numbers.
+  */
+  if (
+    text.length === 10 &&
+    text.startsWith("9")
+  ) {
+    text = `0${text}`;
+  }
+
+  return text;
+}
+
 function formatContactNumber(
   value
 ) {
@@ -3866,20 +3961,8 @@ function formatContactNumber(
     return "Not set";
   }
 
-  let text = String(value)
-    .trim()
-    .replace(/\D/g, "");
-
-  /*
-    Preserve Philippine mobile numbers that were previously
-    stored as numeric values and lost the leading zero.
-  */
-  if (
-    text.length === 10 &&
-    text.startsWith("9")
-  ) {
-    text = `0${text}`;
-  }
+  const text =
+    normalizeSitterContactNumber(value);
 
   return text || "Not set";
 }
@@ -3936,18 +4019,45 @@ function buildSitterUsername(
   );
 }
 
+function tagApplicantActionError(error, stage) {
+  if (!error || typeof error !== "object") {
+    const wrapped = new Error(String(error || "Unknown error"));
+    wrapped.applicantStage = stage;
+    return wrapped;
+  }
+
+  try {
+    error.applicantStage = stage;
+    return error;
+  } catch {
+    const wrapped = new Error(error?.message || "Unknown error");
+    wrapped.applicantStage = stage;
+    wrapped.code = error?.code;
+    wrapped.details = error?.details;
+    wrapped.hint = error?.hint;
+    wrapped.status = error?.status;
+    return wrapped;
+  }
+}
+
 function getApplicantActionErrorMessage(error) {
-  const message = String(
-    error?.message || ""
-  )
-    .trim()
-    .toLowerCase();
+  const originalMessage = String(
+    error?.message ||
+      error?.details ||
+      "Unknown error"
+  ).trim();
+
+  const message = originalMessage.toLowerCase();
+  const code = String(error?.code || "").trim();
+  const stage = String(error?.applicantStage || "").trim();
 
   if (
     message.includes("rate limit") ||
-    message.includes("too many requests")
+    message.includes("too many requests") ||
+    message.includes("email rate limit") ||
+    code === "over_email_send_rate_limit"
   ) {
-    return "Too many verification emails have been requested. Please wait a while before trying again.";
+    return "Too many verification emails have been requested. Please wait for the Supabase email limit to reset before trying again.";
   }
 
   if (
@@ -3956,7 +4066,7 @@ function getApplicantActionErrorMessage(error) {
     message.includes("user already") ||
     message.includes("duplicate")
   ) {
-    return "An account with the same information already exists. Please review the existing Pet Sitter account before trying again.";
+    return "An account with the same information already exists. Please review Authentication Users and the PET SITTER table before trying again.";
   }
 
   if (
@@ -3967,17 +4077,18 @@ function getApplicantActionErrorMessage(error) {
     return "The request could not be completed. Please check your internet connection and try again.";
   }
 
-  if (
-    message.includes("permission") ||
-    message.includes("row-level security") ||
-    message.includes("rls") ||
-    message.includes("policy") ||
-    message.includes("constraint")
-  ) {
-    return "The application could not be processed at this time. Please try again or contact the system administrator.";
-  }
+  const stageLabels = {
+    PET_SITTER_LOOKUP: "Checking the existing Pet Sitter record",
+    AUTH_SIGNUP: "Creating the Supabase Auth account",
+    PET_SITTER_INSERT: "Saving the new PET SITTER profile",
+    APPLICATION_UPDATE: "Updating the APPLICATION record",
+    APPLICATION_INSERT: "Creating the APPLICATION record",
+  };
 
-  return "The application could not be updated. Please try again.";
+  const stageLabel = stageLabels[stage] || "Processing the application";
+  const codeLabel = code ? ` [${code}]` : "";
+
+  return `${stageLabel} failed${codeLabel}: ${originalMessage}`;
 }
 
 function validateApplicantForAcceptance(
@@ -3999,6 +4110,15 @@ function validateApplicantForAcceptance(
     )
   ) {
     return "The applicant email address is invalid.";
+  }
+
+  const contactNumber =
+    normalizeSitterContactNumber(
+      record.a_contactno
+    );
+
+  if (!/^\d{11}$/.test(contactNumber)) {
+    return "The applicant must have a valid 11-digit contact number before acceptance.";
   }
 
   if (
