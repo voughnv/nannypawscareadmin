@@ -183,7 +183,7 @@ const SITTER_INTERACTION_CSS = `
 const ROWS_PER_PAGE = 6;
 
 const SITTER_FIELDS =
-  "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place, preferred_pet_type, ps_address, ps_photo_url";
+  "petsitter_id, created_at, ps_auth_id, ps_fname, ps_lname, ps_username, ps_contactno, ps_email, ps_place, preferred_pet_type, ps_address, ps_photo_url, percentage_cut";
 
 const PREFERRED_DAY_OPTIONS = [
   { name: "Monday", short: "Mon", letter: "M" },
