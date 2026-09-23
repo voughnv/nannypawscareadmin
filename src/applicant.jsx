@@ -630,9 +630,8 @@ export default function ApplicantPage() {
         review_remarks:
           remarks.trim() || null,
 
-        review_date: [
+        review_date:
           getPhilippineDateOnly(),
-        ],
 
         preferred_days:
           getPreferredDays(record),
