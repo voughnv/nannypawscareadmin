@@ -1034,7 +1034,9 @@ export default function ApplicantPage() {
       ps_place:
         getPetPlaceImages(
           record
-        )[0] || null,
+        ).length
+          ? getPetPlaceImages(record)
+          : [],
 
       ps_password:
         DEFAULT_SITTER_PASSWORD,
