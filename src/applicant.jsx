@@ -1031,12 +1031,15 @@ export default function ApplicantPage() {
         Keep Pet Place photos separate from the sitter's
         personal profile photo.
       */
+      /*
+        PET SITTER.ps_place is a TEXT column.
+        Store pet place image URLs as JSON text instead of a PostgreSQL array.
+        This prevents malformed array literal errors.
+      */
       ps_place:
-        getPetPlaceImages(
-          record
-        ).length
-          ? getPetPlaceImages(record)
-          : [],
+        JSON.stringify(
+          getPetPlaceImages(record)
+        ),
 
       ps_password:
         DEFAULT_SITTER_PASSWORD,
@@ -3651,6 +3654,23 @@ function normalizePreferredDay(
   };
 
   return aliases[text] || "";
+}
+
+function sanitizePreferredDaysForDatabase(value) {
+  const days = Array.isArray(value)
+    ? value
+    : flattenFlexibleValues(value);
+
+  return days
+    .filter((item) => {
+      const text = String(item || "").trim();
+      return (
+        text &&
+        !/^\\d{4}-\\d{2}-\\d{2}$/.test(text)
+      );
+    })
+    .map(normalizePreferredDay)
+    .filter(Boolean);
 }
 
 function getPreferredDays(record) {
