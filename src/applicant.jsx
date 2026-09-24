@@ -794,7 +794,7 @@ export default function ApplicantPage() {
       }
     } catch (updateError) {
       console.error(
-        "Unable to update application review:",
+        "Unable to update application review. Full error:",
         updateError
       );
 
@@ -4069,13 +4069,35 @@ function getApplicantActionErrorMessage(error) {
     return "Too many verification emails have been requested. Please wait for the Supabase email limit to reset before trying again.";
   }
 
+  /*
+    Do not hide the real database/Auth error behind a generic duplicate
+    message. This made debugging difficult because errors from Auth,
+    PET SITTER insert constraints, or other database rules all looked
+    like email duplicates.
+  */
   if (
     message.includes("already registered") ||
     message.includes("already exists") ||
     message.includes("user already") ||
     message.includes("duplicate")
   ) {
-    return "An account with the same information already exists. Please review Authentication Users and the PET SITTER table before trying again.";
+    const stageLabels = {
+      PET_SITTER_LOOKUP: "Checking the existing Pet Sitter record",
+      AUTH_SIGNUP: "Creating the Supabase Auth account",
+      PET_SITTER_INSERT: "Saving the new PET SITTER profile",
+      APPLICATION_UPDATE: "Updating the APPLICATION record",
+      APPLICATION_INSERT: "Creating the APPLICATION record",
+    };
+
+    const stageLabel =
+      stageLabels[stage] ||
+      "Processing the application";
+
+    const codeLabel = code
+      ? ` [${code}]`
+      : "";
+
+    return `${stageLabel} failed${codeLabel}: ${originalMessage}`;
   }
 
   if (
