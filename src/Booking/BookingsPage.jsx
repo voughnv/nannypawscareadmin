@@ -813,9 +813,9 @@ export default function BookingsPage() {
       const matchesStatus =
         status === "All Status" || booking.normalizedStatus === status;
 
-      const bookingStartDate = getDateOnlyValue(
-        booking.booking_date
-      );
+      const bookingStartDate =
+        getDateOnlyValue(booking.start_date) ||
+        getDateOnlyValue(booking.booking_date);
 
       const bookingEndDate =
         getDateOnlyValue(booking.end_date) ||
@@ -1142,7 +1142,7 @@ export default function BookingsPage() {
               <thead>
                 <tr style={styles.tableHeadRow}>
                   <Th align="center">No.</Th>
-                  <Th>Booking Date</Th>
+                  <Th>Start Date</Th>
                   <Th>End Date</Th>
                   <Th>Start Time</Th>
                   <Th>End Time</Th>
@@ -1193,7 +1193,9 @@ export default function BookingsPage() {
                       </td>
 
                       <td style={styles.normalCell}>
-                        {formatDate(booking.booking_date)}
+                        {formatDate(
+                          booking.start_date || booking.booking_date
+                        )}
                       </td>
 
                       <td style={styles.normalCell}>
@@ -1840,26 +1842,21 @@ function normalizePaymentStatus(status) {
     .trim()
     .toLowerCase();
 
-  if (cleaned === "paid") {
-    return "Paid";
+  if (cleaned === "paid") return "Paid";
+  if (cleaned === "unpaid") return "Unpaid";
+  if (cleaned === "pending review") return "Pending Review";
+  if (cleaned === "awaiting cash confirmation") {
+    return "Awaiting Cash Confirmation";
   }
+  if (cleaned === "not due") return "Not Due";
 
-  if (cleaned === "unpaid") {
-    return "Unpaid";
-  }
-
-  return "";
+  return cleaned
+    ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1)
+    : "Not Due";
 }
 
 function getBookingPaymentState(booking) {
-  const storedPaymentStatus =
-    normalizePaymentStatus(
-      booking?.payment_status
-    );
-
-  return storedPaymentStatus === "Paid"
-    ? "Paid"
-    : "Unpaid";
+  return normalizePaymentStatus(booking?.payment_status);
 }
 
 function isCashPaymentMethod(method) {
@@ -1874,20 +1871,32 @@ function isCashPaymentMethod(method) {
   );
 }
 
-function PaymentStatusBadge({ state }) {
-  const isPaid =
-    state === "Paid";
+function paymentBadgeStyle(state, styles) {
+  if (state === "Paid") return styles.paymentPaid;
+  if (
+    state === "Pending Review" ||
+    state === "Awaiting Cash Confirmation"
+  ) {
+    return styles.paymentPending;
+  }
+  if (state === "Not Due") return styles.paymentNotDue;
+  return styles.paymentUnpaid;
+}
 
+function paymentBadgeLabel(state) {
+  if (state === "Awaiting Cash Confirmation") return "Cash Pending";
+  return state || "Unpaid";
+}
+
+function PaymentStatusBadge({ state }) {
   return (
     <span
       style={{
         ...styles.paymentBadge,
-        ...(isPaid
-          ? styles.paymentPaid
-          : styles.paymentUnpaid),
+        ...paymentBadgeStyle(state, styles),
       }}
     >
-      {isPaid ? "Paid" : "Unpaid"}
+      {paymentBadgeLabel(state)}
     </span>
   );
 }
@@ -2924,7 +2933,7 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 82,
+    minWidth: 108,
     height: 26,
     padding: "0 9px",
     borderRadius: 7,
@@ -2943,9 +2952,21 @@ const styles = {
   },
 
   paymentUnpaid: {
+    background: "#F8D8DB",
+    color: "#DF101D",
+    borderColor: "#F0C7CC",
+  },
+
+  paymentPending: {
     background: "#FFF1DF",
     color: "#A9570A",
     borderColor: "#F2DDBF",
+  },
+
+  paymentNotDue: {
+    background: "#EEE9E7",
+    color: "#645854",
+    borderColor: "#E3DCDA",
   },
 
   awaitingProofText: {
