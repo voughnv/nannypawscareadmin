@@ -1032,14 +1032,11 @@ export default function ApplicantPage() {
         personal profile photo.
       */
       /*
-        PET SITTER.ps_place is a TEXT column.
-        Store pet place image URLs as JSON text instead of a PostgreSQL array.
-        This prevents malformed array literal errors.
+        PET SITTER.ps_place is stored as a PostgreSQL text array.
+        Pass the JavaScript array directly so Supabase converts it correctly.
       */
       ps_place:
-        JSON.stringify(
-          getPetPlaceImages(record)
-        ),
+        getPetPlaceImages(record),
 
       ps_password:
         DEFAULT_SITTER_PASSWORD,
