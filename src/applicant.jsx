@@ -875,68 +875,11 @@ export default function ApplicantPage() {
       };
     }
 
-    const {
-      data: usernameMatch,
-      error: usernameError,
-    } = await supabase
-      .from("PET SITTER")
-      .select("petsitter_id")
-      .ilike(
-        "ps_username",
-        username
-      )
-      .limit(1)
-      .maybeSingle();
-
-    if (usernameError) {
-      throw tagApplicantActionError(
-        usernameError,
-        "PET_SITTER_LOOKUP"
-      );
-    }
-
-    if (usernameMatch) {
-      throw new Error(
-        `A Pet Sitter account with the username "${username}" already exists. Please review the existing account before trying again.`
-      );
-    }
-
     /*
-      Keep acceptance validation aligned with the Pet Sitters page.
-      That page treats full name, username, contact number, and email
-      as duplicate-sensitive account information. Check these values
-      before requesting a verification email so a database conflict
-      does not consume another Auth email request.
+      Duplicate checking is based only on email.
+      Contact numbers and names are profile information and
+      should not prevent different people from creating accounts.
     */
-    /*
-      Check only unique account identifiers.
-      Full name checking was removed because different people
-      can have the same first name and last name.
-      Email and username are already checked above.
-      Contact number remains a duplicate-sensitive field.
-    */
-    const {
-      data: contactResult,
-      error: contactError,
-    } = await supabase
-      .from("PET SITTER")
-      .select("petsitter_id")
-      .eq("ps_contactno", contactNumber)
-      .limit(1)
-      .maybeSingle();
-
-    if (contactError) {
-      throw tagApplicantActionError(
-        contactError,
-        "PET_SITTER_LOOKUP"
-      );
-    }
-
-    if (contactResult) {
-      throw new Error(
-        `The contact number ${contactNumber} is already registered to another Pet Sitter.`
-      );
-    }
 
     const {
       data: authData,
