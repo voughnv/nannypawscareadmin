@@ -623,7 +623,13 @@ export default function ApplicantPage() {
       const databaseStatus =
         isAccepting ? "Approved" : status;
 
-      const payload = {
+      /*
+        Keep the approval update limited to review fields only.
+        Do not send preferred_days/preferred_start_time/etc. during update.
+        preferred_days is a text[] column and should only be handled when
+        creating a new APPLICATION record.
+      */
+      const reviewPayload = {
         application_status:
           databaseStatus,
 
@@ -632,18 +638,6 @@ export default function ApplicantPage() {
 
         review_date:
           getPhilippineDateOnly(),
-
-        preferred_days:
-          getPreferredDays(record),
-
-        preferred_start_time:
-          record.preferred_start_time,
-
-        preferred_end_time:
-          record.preferred_end_time,
-
-        preferred_pet_type:
-          record.preferred_pet_type || null,
       };
 
       let result;
@@ -651,7 +645,7 @@ export default function ApplicantPage() {
       if (record.has_application_record) {
         result = await supabase
           .from("APPLICATION")
-          .update(payload)
+          .update(reviewPayload)
           .eq(
             "application_id",
             record.application_id
@@ -677,7 +671,20 @@ export default function ApplicantPage() {
           .insert({
             a_id:
               record.applicant_id,
-            ...payload,
+
+            ...reviewPayload,
+
+            preferred_days:
+              getPreferredDays(record),
+
+            preferred_start_time:
+              record.preferred_start_time,
+
+            preferred_end_time:
+              record.preferred_end_time,
+
+            preferred_pet_type:
+              record.preferred_pet_type || null,
           })
           .select(
             `
