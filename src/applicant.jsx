@@ -981,20 +981,14 @@ export default function ApplicantPage() {
     }
 
     /*
-      When email confirmation is enabled, Supabase may return a user
-      object with no identities if that email already belongs to an
-      existing Auth account.
+      Supabase can return an existing user during signUp when the email
+      already exists in Authentication Users (commonly caused by a
+      previous verification attempt). Do not block the acceptance flow
+      here because the account may still need to be linked to PET SITTER.
+
+      The PET SITTER table duplicate check above remains the main
+      protection against creating duplicate sitter profiles.
     */
-    if (
-      Array.isArray(
-        authUser.identities
-      ) &&
-      authUser.identities.length === 0
-    ) {
-      throw new Error(
-        `An account with the email address ${email} already exists. Please review the existing account before trying again.`
-      );
-    }
 
     const sitterPayload = {
       ps_auth_id: authUser.id,
