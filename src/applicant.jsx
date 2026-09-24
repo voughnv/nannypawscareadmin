@@ -908,42 +908,31 @@ export default function ApplicantPage() {
       before requesting a verification email so a database conflict
       does not consume another Auth email request.
     */
-    const [fullNameResult, contactResult] =
-      await Promise.all([
-        supabase
-          .from("PET SITTER")
-          .select("petsitter_id")
-          .ilike("ps_fname", firstName)
-          .ilike("ps_lname", lastName)
-          .limit(1)
-          .maybeSingle(),
+    /*
+      Check only unique account identifiers.
+      Full name checking was removed because different people
+      can have the same first name and last name.
+      Email and username are already checked above.
+      Contact number remains a duplicate-sensitive field.
+    */
+    const {
+      data: contactResult,
+      error: contactError,
+    } = await supabase
+      .from("PET SITTER")
+      .select("petsitter_id")
+      .eq("ps_contactno", contactNumber)
+      .limit(1)
+      .maybeSingle();
 
-        supabase
-          .from("PET SITTER")
-          .select("petsitter_id")
-          .eq("ps_contactno", contactNumber)
-          .limit(1)
-          .maybeSingle(),
-      ]);
-
-    const duplicateLookupError =
-      fullNameResult.error ||
-      contactResult.error;
-
-    if (duplicateLookupError) {
+    if (contactError) {
       throw tagApplicantActionError(
-        duplicateLookupError,
+        contactError,
         "PET_SITTER_LOOKUP"
       );
     }
 
-    if (fullNameResult.data) {
-      throw new Error(
-        `A Pet Sitter account for ${firstName} ${lastName} already exists. Please review the existing account before trying again.`
-      );
-    }
-
-    if (contactResult.data) {
+    if (contactResult) {
       throw new Error(
         `The contact number ${contactNumber} is already registered to another Pet Sitter.`
       );
